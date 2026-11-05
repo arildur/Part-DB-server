@@ -23,12 +23,69 @@ declare(strict_types=1);
 namespace App\Repository\Parts;
 
 
+use App\Entity\Parts\Part;
 use App\Entity\ProjectSystem\Project;
 use App\Repository\StructuralDBElementRepository;
 use InvalidArgumentException;
 
 class DeviceRepository extends StructuralDBElementRepository
 {
+    /**
+     * Loads what working out the stock of a whole BOM reads, in a number of queries independent of its entries: the parts
+     * with their lots, and for meta parts the connected parts with their lots.
+     */
+    public function preloadBomStock(Project $project): void
+    {
+        $em = $this->getEntityManager();
+
+        $parts = $em->createQueryBuilder()
+            ->select('part', 'lots', 'location')
+            ->from(Part::class, 'part')
+            ->innerJoin('part.project_bom_entries', 'entry')
+            ->leftJoin('part.partLots', 'lots')
+            ->leftJoin('lots.storage_location', 'location')
+            ->where('entry.project = :project')
+            ->setParameter('project', $project)
+            ->getQuery()
+            ->getResult();
+
+        $em->createQueryBuilder()
+            ->select('part', 'entry')
+            ->from(Project::class, 'part')
+            ->leftJoin('part.bom_entries', 'entry')
+            ->where('part = :project')
+            ->setParameter('project', $project)
+            ->getQuery()
+            ->getResult();
+
+        $metaParts = array_values(array_filter($parts, static fn (Part $part): bool => $part->getKind()->allowsConnections()));
+        if ($metaParts !== []) {
+            $em->createQueryBuilder()
+                ->select('PARTIAL meta.{id}', 'connections', 'connected', 'lots', 'location')
+                ->from(Part::class, 'meta')
+                ->leftJoin('meta.part_connections', 'connections')
+                ->leftJoin('connections.connected_part', 'connected')
+                ->leftJoin('connected.partLots', 'lots')
+                ->leftJoin('lots.storage_location', 'location')
+                ->where('meta IN (:parts)')
+                ->setParameter('parts', $metaParts)
+                ->getQuery()
+                ->getResult();
+
+            //Apart from the lots, so that the rows do not multiply. What a meta part costs comes from the prices of these parts.
+            $em->createQueryBuilder()
+                ->select('PARTIAL connected.{id}', 'orderdetails', 'pricedetails')
+                ->from(Part::class, 'connected')
+                ->innerJoin('connected.connections_as_part', 'connection')
+                ->leftJoin('connected.orderdetails', 'orderdetails')
+                ->leftJoin('orderdetails.pricedetails', 'pricedetails')
+                ->where('connection.meta_part IN (:parts)')
+                ->setParameter('parts', $metaParts)
+                ->getQuery()
+                ->getResult();
+        }
+    }
+
 
     public function getParts(object $element, array $order_by = ['name' => 'ASC']): array
     {

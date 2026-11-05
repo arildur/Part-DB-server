@@ -284,7 +284,7 @@ class Part extends AttachmentContainingDBElement
      * @var PartKind What kind of part this is. It decides what the part may hold, and is fixed once the part is saved.
      */
     #[ORM\Column(type: Types::STRING, length: 255, enumType: PartKind::class, options: ['default' => 'manufacturing'])]
-    #[Groups(['part:read', 'part:write'])]
+    #[Groups(['part:read', 'part:write', 'bom_entry:read'])]
     protected PartKind $kind = PartKind::MANUFACTURING;
 
     /** @var Collection<int, PartParameter>

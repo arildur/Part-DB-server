@@ -229,7 +229,7 @@ final class PartKindValidationTest extends KernelTestCase
         $this->assertContains('ipn', $this->violatedPaths($meta));
     }
 
-    public function testMetaPartIsRefusedInABomForNow(): void
+    public function testMetaPartIsAcceptedInABom(): void
     {
         $entry = new ProjectBOMEntry();
         $entry->setPart((new Part())->setKind(PartKind::META));
@@ -240,6 +240,6 @@ final class PartKindValidationTest extends KernelTestCase
             $paths[] = $violation->getPropertyPath();
         }
 
-        $this->assertContains('part', $paths);
+        $this->assertNotContains('part', $paths);
     }
 }

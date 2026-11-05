@@ -41,7 +41,7 @@ use Doctrine\DBAL\Types\Types;
 use App\Entity\Base\AbstractDBElement;
 use App\Entity\Base\TimestampTrait;
 use App\Entity\Parts\Part;
-use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartLot;
 use App\Entity\PriceInformations\Currency;
 use App\Validator\Constraints\BigDecimal\BigDecimalPositive;
 use App\Validator\Constraints\Selectable;
@@ -260,13 +260,6 @@ class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInte
     #[Assert\Callback(groups: ['Default', 'project_bom'])]
     public function validate(ExecutionContextInterface $context, $payload): void
     {
-        //Builds can not handle a meta part yet, so it can not be used in a BOM yet.
-        if ($this->part instanceof Part && $this->part->getKind() === PartKind::META) {
-            $context->buildViolation('validator.project_bom_entry.meta_part_not_supported')
-                ->atPath('part')
-                ->addViolation();
-        }
-
         //Round quantity to whole numbers, if the part is not a decimal part
         if ($this->part instanceof Part && (!$this->part->getPartUnit() || $this->part->getPartUnit()->isInteger())) {
             $this->quantity = round($this->quantity);
@@ -302,23 +295,52 @@ class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInte
                 ->addViolation();
         }
 
-        //Check that the part is not the build representation part of this device or one of its parents
-        if ($this->part && $this->part->getBuiltProject() instanceof Project) {
-            //Get the associated project
-            $associated_project = $this->part->getBuiltProject();
-            //Check that it is not the same as the current project neither one of its parents
-            $current_project = $this->project;
-            while ($current_project) {
-                if ($associated_project === $current_project) {
-                    $context->buildViolation('project.bom_entry.can_not_add_own_builds_part')
-                        ->atPath('part')
-                        ->addViolation();
-                }
-                $current_project = $current_project->getParent();
+        //Check that the part is not the build representation part of this device or one of its parents, directly or through a meta part
+        $reached = $this->part instanceof Part ? [$this->part] : [];
+        if ($this->part?->getKind()->allowsConnections()) {
+            foreach ($this->part->getPartConnections() as $connection) {
+                $reached[] = $connection->getConnectedPart();
+            }
+        }
+        foreach ($reached as $part) {
+            if ($part?->getBuiltProject() instanceof Project && $this->project?->isOrHasAncestor($part->getBuiltProject())) {
+                $context->buildViolation('project.bom_entry.can_not_add_own_builds_part')
+                    ->atPath('part')
+                    ->addViolation();
+                break;
             }
         }
     }
 
+
+    /**
+     * Returns the lots this entry may draw on, in the order they are taken from: the part's own, then for a meta part those
+     * of its usable connected parts by position. Within a part lots go by amount, so that leftovers are used up first.
+     * Lots of unknown amount can not be planned with, so they are left out.
+     * @return list<PartLot>
+     */
+    public function getLotsInReach(): array
+    {
+        if (!$this->part instanceof Part) {
+            return [];
+        }
+
+        $byPart = [];
+        foreach ($this->part->getLotsCountedInStock() as $lot) {
+            if (!$lot->isInstockUnknown()) {
+                $byPart[spl_object_id($lot->getPart())][] = $lot;
+            }
+        }
+
+        $lots = [];
+        foreach ($byPart as $partLots) {
+            usort($partLots, static fn (PartLot $a, PartLot $b): int =>
+                [$a->getAmount(), $a->getID() ?? PHP_INT_MAX] <=> [$b->getAmount(), $b->getID() ?? PHP_INT_MAX]);
+            $lots = array_merge($lots, $partLots);
+        }
+
+        return $lots;
+    }
 
     public function getComparableFields(): array
     {

@@ -53,6 +53,14 @@ class ProjectBuildType extends AbstractType implements DataMapperInterface
         ]);
     }
 
+    /**
+     * Returns the name of the field for the amount a BOM entry takes from a lot. A lot can be reached by several entries.
+     */
+    public static function fieldName(?int $bom_entry_id, ?int $lot_id): string
+    {
+        return 'entry_'.$bom_entry_id.'_lot_'.$lot_id;
+    }
+
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder->setDataMapper($this);
@@ -103,11 +111,12 @@ class ProjectBuildType extends AbstractType implements DataMapperInterface
             foreach ($build_request->getPartBomEntries() as $bomEntry) {
                 //Every part lot has a field to specify the number of parts to take from this lot
                 foreach ($build_request->getPartLotsForBOMEntry($bomEntry) as $lot) {
-                    $form->add('lot_' . $lot->getID(), SIUnitType::class, [
+                    $form->add(self::fieldName($bomEntry->getID(), $lot->getID()), SIUnitType::class, [
                         'label' => false,
-                        'measurement_unit' => $bomEntry->getPart()->getPartUnit(),
+                        'measurement_unit' => $lot->getPart()->getPartUnit(),
                         'max' => min($build_request->getNeededAmountForBOMEntry($bomEntry), $lot->getAmount()),
-                        'disabled' => !$this->security->isGranted('withdraw', $lot),
+                        //Not disabled: a disabled field ignores what is posted, while the validator has to see and refuse it
+                        'attr' => $this->security->isGranted('withdraw', $lot) ? [] : ['readonly' => true],
                     ]);
                 }
             }
@@ -124,11 +133,10 @@ class ProjectBuildType extends AbstractType implements DataMapperInterface
         /** @var FormInterface[] $forms */
         $forms = iterator_to_array($forms);
         foreach ($forms as $key => $form) {
-            //Extract the lot id from the form name
+            //Extract the ids of the BOM entry and the lot from the form name
             $matches = [];
-            if (preg_match('/^lot_(\d+)$/', $key, $matches)) {
-                $lot_id = (int) $matches[1];
-                $form->setData($data->getLotWithdrawAmount($lot_id));
+            if (preg_match('/^entry_(\d+)_lot_(\d+)$/', $key, $matches)) {
+                $form->setData($data->getWithdrawAmount((int) $matches[1], (int) $matches[2]));
             }
         }
 
@@ -151,11 +159,10 @@ class ProjectBuildType extends AbstractType implements DataMapperInterface
         $forms = iterator_to_array($forms);
 
         foreach ($forms as $key => $form) {
-            //Extract the lot id from the form name
+            //Extract the ids of the BOM entry and the lot from the form name
             $matches = [];
-            if (preg_match('/^lot_(\d+)$/', $key, $matches)) {
-                $lot_id = (int) $matches[1];
-                $data->setLotWithdrawAmount($lot_id, (float) $form->getData());
+            if (preg_match('/^entry_(\d+)_lot_(\d+)$/', $key, $matches)) {
+                $data->setWithdrawAmount((int) $matches[1], (int) $matches[2], (float) $form->getData());
             }
         }
 

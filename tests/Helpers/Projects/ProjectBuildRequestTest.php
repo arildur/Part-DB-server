@@ -24,6 +24,8 @@ namespace App\Tests\Helpers\Projects;
 
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
@@ -46,6 +48,21 @@ final class ProjectBuildRequestTest extends TestCase
     private PartLot $lot1b;
     private PartLot $lot2;
 
+
+    private function entryWithId(int $id): ProjectBOMEntry
+    {
+        return new class($id) extends ProjectBOMEntry {
+            public function __construct(private readonly int $entry_id)
+            {
+                parent::__construct();
+            }
+
+            public function getID(): ?int
+            {
+                return $this->entry_id;
+            }
+        };
+    }
 
     public function setUp(): void
     {
@@ -92,15 +109,15 @@ final class ProjectBuildRequestTest extends TestCase
         $this->lot2->setAmount(2.5);
         $this->lot2->setDescription('Lot 2');
 
-        $this->bom_entry1a = new ProjectBOMEntry();
+        $this->bom_entry1a = $this->entryWithId(1);
         $this->bom_entry1a->setPart($part1);
         $this->bom_entry1a->setQuantity(2);
 
-        $this->bom_entry1b = new ProjectBOMEntry();
+        $this->bom_entry1b = $this->entryWithId(2);
         $this->bom_entry1b->setPart($part2);
         $this->bom_entry1b->setQuantity(1.5);
 
-        $this->bom_entry1c = new ProjectBOMEntry();
+        $this->bom_entry1c = $this->entryWithId(3);
         $this->bom_entry1c->setName('Non-part BOM entry');
         $this->bom_entry1c->setQuantity(4);
 
@@ -149,8 +166,8 @@ final class ProjectBuildRequestTest extends TestCase
         $build_request = new ProjectBuildRequest($this->project1, 5);
 
         //We can set the amount for a lot either via the lot object or via the ID
-        $build_request->setLotWithdrawAmount($this->lot1a, 2);
-        $build_request->setLotWithdrawAmount($this->lot1b->getID(), 3);
+        $build_request->setWithdrawAmount($this->bom_entry1a, $this->lot1a, 2);
+        $build_request->setWithdrawAmount($this->bom_entry1a->getID(), $this->lot1b->getID(), 3);
 
         //And it should be possible to get the amount via the lot object or via the ID
         $this->assertEqualsWithDelta(2.0, $build_request->getLotWithdrawAmount($this->lot1a->getID()), PHP_FLOAT_EPSILON);
@@ -162,11 +179,11 @@ final class ProjectBuildRequestTest extends TestCase
         //The sum of all withdraw amounts for an BOM entry (over all lots of the associated part) should be correct
         $build_request = new ProjectBuildRequest($this->project1, 5);
 
-        $build_request->setLotWithdrawAmount($this->lot1a, 2);
-        $build_request->setLotWithdrawAmount($this->lot1b, 3);
+        $build_request->setWithdrawAmount($this->bom_entry1a, $this->lot1a, 2);
+        $build_request->setWithdrawAmount($this->bom_entry1a, $this->lot1b, 3);
 
         $this->assertEqualsWithDelta(5.0, $build_request->getWithdrawAmountSum($this->bom_entry1a), PHP_FLOAT_EPSILON);
-        $build_request->setLotWithdrawAmount($this->lot2, 1.5);
+        $build_request->setWithdrawAmount($this->bom_entry1b, $this->lot2, 1.5);
         $this->assertEqualsWithDelta(1.5, $build_request->getWithdrawAmountSum($this->bom_entry1b), PHP_FLOAT_EPSILON);
     }
 
@@ -200,7 +217,7 @@ final class ProjectBuildRequestTest extends TestCase
         $lot_b->setAmount(17.76);
         $part->addPartLot($lot_b);
 
-        $bom_entry = new ProjectBOMEntry();
+        $bom_entry = $this->entryWithId(1);
         $bom_entry->setPart($part);
         $bom_entry->setQuantity(0.26);
 
@@ -216,10 +233,108 @@ final class ProjectBuildRequestTest extends TestCase
         $this->assertSame(2.86, $request->getWithdrawAmountSum($bom_entry));
 
         //Values entered by the user (as they come from the form) must also match exactly
-        $request->setLotWithdrawAmount($lot_a, 0.0);
-        $request->setLotWithdrawAmount($lot_b, 2.86);
+        $request->setWithdrawAmount($bom_entry, $lot_a, 0.0);
+        $request->setWithdrawAmount($bom_entry, $lot_b, 2.86);
         $this->assertSame(2.86, $request->getWithdrawAmountSum($bom_entry));
     }
 
+    private function lotWithId(int $id, float $amount, ?string $expires = null): PartLot
+    {
+        $lot = new class($id) extends PartLot {
+            public function __construct(private readonly int $lot_id)
+            {
+            }
 
+            public function getID(): ?int
+            {
+                return $this->lot_id;
+            }
+        };
+        $lot->setAmount($amount);
+        if ($expires !== null) {
+            $lot->setExpirationDate(new \DateTimeImmutable($expires));
+        }
+
+        return $lot;
+    }
+
+    public function testEntriesOnOneLotEachKeepTheirOwnAmount(): void
+    {
+        $part = new Part();
+        $lot = $this->lotWithId(1, 100);
+        $part->addPartLot($lot);
+        $other_part = new Part();
+        $out_of_reach = $this->lotWithId(2, 100);
+        $other_part->addPartLot($out_of_reach);
+
+        $first = $this->entryWithId(1);
+        $first->setPart($part);
+        $first->setQuantity(30);
+        $second = $this->entryWithId(2);
+        $second->setName('Same part again');
+        $second->setPart($part);
+        $second->setQuantity(20);
+        $third = $this->entryWithId(3);
+        $third->setPart($other_part);
+        $third->setQuantity(1);
+        $project = new Project();
+        $project->addBomEntry($first);
+        $project->addBomEntry($second);
+        $project->addBomEntry($third);
+
+        $request = new ProjectBuildRequest($project, 1);
+        $request->setWithdrawAmount($first, $lot, 25);
+        $request->setWithdrawAmount($second, $lot, 15);
+
+        $this->assertSame(25.0, $request->getWithdrawAmount($first, $lot));
+        $this->assertSame(15.0, $request->getWithdrawAmount($second, $lot));
+        $this->assertSame(25.0, $request->getWithdrawAmountSum($first));
+        $this->assertSame(15.0, $request->getWithdrawAmountSum($second));
+        $this->assertSame(40.0, $request->getLotWithdrawAmount($lot));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $request->setWithdrawAmount($first, $out_of_reach, 1);
+    }
+
+    public function testMetaPartEntryListsAnExpiredLotButProposesTheGoodOne(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $expired = $this->lotWithId(1, 50, '2000-01-01');
+        $meta->addPartLot($expired);
+        $connected = new Part();
+        $good = $this->lotWithId(2, 50);
+        $connected->addPartLot($good);
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($connected));
+
+        $entry = $this->entryWithId(1);
+        $entry->setPart($meta);
+        $entry->setQuantity(10);
+        $project = new Project();
+        $project->addBomEntry($entry);
+
+        $request = new ProjectBuildRequest($project, 1);
+
+        $this->assertSame([$expired, $good], $request->getPartLotsForBOMEntry($entry));
+        $this->assertSame(0.0, $request->getWithdrawAmount($entry, $expired));
+        $this->assertSame(10.0, $request->getWithdrawAmount($entry, $good));
+    }
+
+    public function testNothingIsProposedFromALotTheUserMayNotWithdrawFrom(): void
+    {
+        $part = new Part();
+        $forbidden = $this->lotWithId(1, 5);
+        $allowed = $this->lotWithId(2, 50);
+        $part->addPartLot($forbidden);
+        $part->addPartLot($allowed);
+        $entry = $this->entryWithId(1);
+        $entry->setPart($part);
+        $entry->setQuantity(10);
+        $project = new Project();
+        $project->addBomEntry($entry);
+
+        $request = new ProjectBuildRequest($project, 1, static fn (PartLot $lot): bool => $lot !== $forbidden);
+
+        $this->assertSame(0.0, $request->getWithdrawAmount($entry, $forbidden));
+        $this->assertSame(10.0, $request->getWithdrawAmount($entry, $allowed));
+    }
 }

@@ -33,6 +33,7 @@ use App\DataTables\Helpers\PartDataTableHelper;
 use App\Doctrine\Helpers\FieldHelper;
 use App\Entity\Parts\ManufacturingStatus;
 use App\Entity\Parts\Part;
+use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Services\EntityURLGenerator;
 use App\Services\Formatters\AmountFormatter;
@@ -40,6 +41,7 @@ use App\Services\Formatters\MoneyFormatter;
 use App\Services\ProjectSystem\ProjectBuildHelper;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\Query;
 use Doctrine\ORM\QueryBuilder;
@@ -62,6 +64,7 @@ final readonly class ProjectBomEntriesDataTable implements DataTableTypeInterfac
         protected MoneyFormatter $moneyFormatter,
         protected Security $security,
         protected UrlGeneratorInterface $urlGenerator,
+        protected EntityManagerInterface $entityManager,
     ) {
     }
 
@@ -73,12 +76,24 @@ final readonly class ProjectBomEntriesDataTable implements DataTableTypeInterfac
          * HTMLColumn, if necessary
          ************************************************************************************************************/
 
+        //The stock columns of a meta part read the lots of its connected parts: load them for the whole BOM in a few
+        //queries, once per table, instead of a query per row
+        $stockLoaded = false;
+        $preloadStock = function () use (&$stockLoaded, $options): void {
+            if (!$stockLoaded) {
+                $this->entityManager->getRepository(Project::class)->preloadBomStock($options['project']);
+                $stockLoaded = true;
+            }
+        };
+
         $dataTable
             //->add('select', SelectColumn::class)
             ->add('picture', HTMLColumn::class, [
                 'label' => '',
                 'className' => 'no-colvis',
-                'data' => function (ProjectBOMEntry $context) {
+                'data' => function (ProjectBOMEntry $context) use ($preloadStock) {
+                    //The first column of a row: the stock of the whole BOM is loaded once, before any row needs it
+                    $preloadStock();
                     if(!$context->getPart() instanceof Part) {
                         return '';
                     }
@@ -238,6 +253,9 @@ final readonly class ProjectBomEntriesDataTable implements DataTableTypeInterfac
                 'label' => 'project.bom.price',
                 'visible' => false,
                 'data' => function (ProjectBOMEntry $context) {
+                    if ($context->getPart()?->getKind()->allowsConnections()) {
+                        return $this->renderMetaPartPrice($context, BigDecimal::one());
+                    }
                     $price = $this->projectBuildHelper->getEntryUnitPrice($context);
                     return $this->moneyFormatter->format($price->toScale(2, RoundingMode::Up)->toFloat(), null, 2, true);
                 },
@@ -246,6 +264,9 @@ final readonly class ProjectBomEntriesDataTable implements DataTableTypeInterfac
                 'label' => 'project.bom.ext_price',
                 'visible' => false,
                 'data' => function (ProjectBOMEntry $context) {
+                    if ($context->getPart()?->getKind()->allowsConnections()) {
+                        return $this->renderMetaPartPrice($context, BigDecimal::fromFloatShortest($context->getQuantity()));
+                    }
                     $price = $this->projectBuildHelper->getEntryUnitPrice($context);
                     return $this->moneyFormatter->format(
                         $price->multipliedBy(BigDecimal::fromFloatShortest($context->getQuantity()))
@@ -293,6 +314,19 @@ final readonly class ProjectBomEntriesDataTable implements DataTableTypeInterfac
                 new SearchCriteriaProvider(),
             ],
         ]);
+    }
+
+    /**
+     * Blank when no connected part has a price: 0.00 would read as a free part.
+     */
+    private function renderMetaPartPrice(ProjectBOMEntry $entry, BigDecimal $factor): string
+    {
+        $cost = $this->projectBuildHelper->getEntryUnitCost($entry);
+        if ($cost === null) {
+            return '';
+        }
+
+        return $this->moneyFormatter->format($cost->multipliedBy($factor)->toScale(2, RoundingMode::Up)->toFloat(), null, 2, true);
     }
 
     private function getFilterQuery(QueryBuilder $builder, array $options): void

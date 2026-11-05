@@ -24,6 +24,7 @@ namespace App\Controller;
 
 use App\DataTables\ProjectBomEntriesDataTable;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartLot;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Form\ProjectSystem\BOMEntryEditType;
@@ -161,15 +162,19 @@ class ProjectController extends AbstractController
             $number_of_builds = 1;
         }
 
-        $projectBuildRequest = new ProjectBuildRequest($project, $number_of_builds);
+        $entityManager->getRepository(Project::class)->preloadBomStock($project);
+
+        //Someone who can not withdraw at all can not build, so the page keeps showing them the plain proposal
+        $projectBuildRequest = new ProjectBuildRequest($project, $number_of_builds,
+            fn (PartLot $lot): bool => !$this->isGranted('@parts_stock.withdraw') || $this->isGranted('withdraw', $lot));
         $form = $this->createForm(ProjectBuildType::class, $projectBuildRequest);
 
         $form->handleRequest($request);
         if ($form->isSubmitted()) {
-            if ($form->isValid()) {
-                //Ensure that the user can withdraw stock from all parts
-                $this->denyAccessUnlessGranted('@parts_stock.withdraw');
+            //Ensure that the user can withdraw stock from all parts
+            $this->denyAccessUnlessGranted('@parts_stock.withdraw');
 
+            if ($form->isValid()) {
                 //We have to do a flush already here, so that the newly created partLot gets an ID and can be logged to DB later.
                 $entityManager->flush();
                 $buildHelper->doBuild($projectBuildRequest);

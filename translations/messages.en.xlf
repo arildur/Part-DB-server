@@ -16124,6 +16124,30 @@ Buerklin-API Authentication server:
         <target>Meta part</target>
       </segment>
     </unit>
+    <unit id="pMetaCost5" name="project.info.unpriced_entries">
+      <segment state="translated">
+        <source>project.info.unpriced_entries</source>
+        <target>Part entries with no price, left out of this cost</target>
+      </segment>
+    </unit>
+    <unit id="pMetaBuild3" name="project.build.flash.success">
+      <segment state="translated">
+        <source>project.build.flash.success</source>
+        <target>The project was built, and the parts were withdrawn from stock.</target>
+      </segment>
+    </unit>
+    <unit id="pMetaBuild1" name="project.build.meta_part_own_lots">
+      <segment state="translated">
+        <source>project.build.meta_part_own_lots</source>
+        <target>Own stock of the meta part</target>
+      </segment>
+    </unit>
+    <unit id="pMetaBuild2" name="project.build.lot_shared_with">
+      <segment state="translated">
+        <source>project.build.lot_shared_with</source>
+        <target>Also used by</target>
+      </segment>
+    </unit>
     <unit id="SRTiDT7" name="part_connection.status.approved">
       <segment state="translated">
         <source>part_connection.status.approved</source>

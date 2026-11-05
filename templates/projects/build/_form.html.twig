@@ -2,6 +2,10 @@
 
 {{ form_start(form) }}
 
+{{ form_errors(form) }}
+
+{% set short_entries = buildHelper.nonBuildableProjectBomEntries(project, number_of_builds) %}
+
 <table class="table table-sm table-responsive table-hover">
     <thead>
     <tr>
@@ -18,7 +22,7 @@
     <tbody>
     {% for bom_entry in build_request.bomEntries %}
         {# 1st row basic infos about the BOM entry #}
-        <tr class="{% if bom_entry.part is null or buildHelper.bOMEntryBuildable(bom_entry, number_of_builds) %}table-primary{% else %}table-danger{% endif %}">
+        <tr class="{% if bom_entry in short_entries %}table-danger{% else %}table-primary{% endif %}">
             <td style="width: 20px;">
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" value="" data-multicheck-name="lots_check" required>
@@ -46,26 +50,56 @@
             <td colspan="4">
                 {% set lots = build_request.partLotsForBOMEntry(bom_entry) %}
                 {% if lots is not null %}
+                    {% set is_meta = bom_entry.part.kind.allowsConnections %}
+                    {% set shown_part = null %}
                     {% for lot in lots %}
                         {# @var lot \App\Entity\Parts\PartLot #}
+                        {% if is_meta and lot.part != shown_part %}
+                            {% set shown_part = lot.part %}
+                            <div class="fw-semibold mb-1">
+                                {% if lot.part == bom_entry.part %}
+                                    {% trans %}project.build.meta_part_own_lots{% endtrans %}
+                                {% else %}
+                                    <a target="_blank" href="{{ entity_url(lot.part) }}">{{ lot.part.name }}</a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
                         <div class="mb-2 row">
-                            <label class="col-form-label col-sm-4" for="category_admin_form_parent">
+                            <label class="col-form-label col-sm-4" for="{{ form['entry_'~bom_entry.id~'_lot_'~lot.id].vars.id }}">
                                 {% if lot.storageLocation %}
                                     <small>{{ helper.structural_entity_link(lot.storageLocation) }}</small>
                                 {% endif %}
                                 {% if lot.name is not empty %}
                                     (<small>{{ lot.name }}</small>)
                                 {% endif %}
+                                {% set others = build_request.otherEntriesReachingLot(bom_entry, lot) %}
+                                {% if others is not empty %}
+                                    <br><small class="text-warning-emphasis"><i class="fa-solid fa-share-nodes fa-fw"></i>
+                                        {% trans %}project.build.lot_shared_with{% endtrans %}:
+                                        {% for other in others %}{{ other.part.name }}{% if other.mountnames is not empty %} ({{ other.mountnames }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                                    </small>
+                                {% endif %}
                             </label>
                             <div class="col-sm-6">
-                                {{ form_errors(form["lot_"~lot.id]) }}
-                                {{ form_widget(form["lot_"~lot.id]) }}
+                                {{ form_errors(form['entry_'~bom_entry.id~'_lot_'~lot.id]) }}
+                                {{ form_widget(form['entry_'~bom_entry.id~'_lot_'~lot.id]) }}
                             </div>
                             <div class="col-sm-2 mt-1  text-end">
                                 / <b>{{ lot.amount | format_amount(lot.part.partUnit) }}</b> {% trans %}project.builds.stocked{% endtrans %}
                             </div>
                         </div>
                     {% endfor %}
+                    {% if is_meta %}
+                        {% for connection in bom_entry.part.orderedConnections %}
+                            {% if not connection.usable %}
+                                <div class="mb-2 text-muted">
+                                    <s><a target="_blank" href="{{ entity_url(connection.connectedPart) }}">{{ connection.connectedPart.name }}</a></s>
+                                    <span class="badge bg-danger">{% trans %}part_connection.status.do_not_use{% endtrans %}</span>
+                                    {% if connection.note is not empty %}<small>{{ connection.note }}</small>{% endif %}
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                 {% endif %}
             </td>
         </tr>

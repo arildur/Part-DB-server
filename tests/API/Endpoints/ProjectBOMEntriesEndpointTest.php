@@ -63,4 +63,15 @@ final class ProjectBOMEntriesEndpointTest extends CrudEndpointTestCase
         $response = self::createAuthenticatedClient()->request('GET', '/api/projects/1/bom');
         self::assertResponseIsSuccessful();
     }
+
+    public function testAnEntryCanPointAtAMetaPart(): void
+    {
+        $client = static::createAuthenticatedClient();
+        $client->request('POST', '/api/parts', ['json' => ['name' => 'API meta', 'kind' => 'meta', 'category' => '/api/categories/1']]);
+        self::assertResponseStatusCodeSame(201);
+        $meta = $client->getResponse()->toArray()['@id'];
+
+        $response = $this->_testPostItem(['project' => '/api/projects/1', 'part' => $meta, 'quantity' => 1]);
+        $this->assertSame('meta', $this->_testGetItem($this->getIdOfCreatedElement($response))->toArray()['part']['kind']);
+    }
 }

@@ -17,7 +17,7 @@
         <b>{% trans %}project.builds.following_bom_entries_miss_instock{% endtrans %}</b>
         <ul>
             {% for bom_entry in buildHelper.nonBuildableProjectBomEntries(project) %}
-                <li>{{ project_macros.project_bom_entry_with_missing_instock(bom_entry) }}</li>
+                <li>{{ project_macros.project_bom_entry_with_missing_instock(bom_entry, 1, buildHelper.availableAmountForBOMEntry(bom_entry)) }}</li>
             {% endfor %}
         </ul>
     {% else %}

@@ -68,6 +68,9 @@ final readonly class ProjectBomExporter
             ->getQuery()
             ->getResult();
 
+        //The stock and location of a meta part come from its connected parts
+        $this->entityManager->getRepository(Project::class)->preloadBomStock($project);
+
         $entriesById = [];
 
         foreach ($entries as $entry) {

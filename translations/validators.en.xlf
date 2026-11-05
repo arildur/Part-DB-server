@@ -163,6 +163,48 @@
         <target>You have selected more quantity to withdraw than needed! Remove unnecessary quantity.</target>
       </segment>
     </unit>
+    <unit id="pMetaVal35" name="validator.project_build.lot_must_not_bigger_than_stock">
+      <segment state="translated">
+        <source>validator.project_build.lot_must_not_bigger_than_stock</source>
+        <target>You can not withdraw more than this lot holds, counted over all BOM entries using it.</target>
+      </segment>
+    </unit>
+    <unit id="pMetaVal36" name="validator.project_build.lot_must_not_smaller_0">
+      <segment state="translated">
+        <source>validator.project_build.lot_must_not_smaller_0</source>
+        <target>You can not withdraw a negative amount.</target>
+      </segment>
+    </unit>
+    <unit id="pMetaVal33" name="validator.project.build_part_kind_not_allowed">
+      <segment state="translated">
+        <source>validator.project.build_part_kind_not_allowed</source>
+        <target>A meta part can not be the build part of a project.</target>
+      </segment>
+    </unit>
+    <unit id="pMetaVal34" name="validator.part_connection.would_reach_own_build_part">
+      <segment state="translated">
+        <source>validator.part_connection.would_reach_own_build_part</source>
+        <target>This part is the build part of a project that uses this meta part in its BOM, so the project would contain itself.</target>
+      </segment>
+    </unit>
+    <unit id="pMetaVal30" name="validator.project_build.no_lots_offered">
+      <segment state="translated">
+        <source>validator.project_build.no_lots_offered</source>
+        <target>%entry% has no stock to take from: the meta part has no lots and no connected part that may be used.</target>
+      </segment>
+    </unit>
+    <unit id="pMetaVal31" name="validator.project_build.lot_not_withdrawable">
+      <segment state="translated">
+        <source>validator.project_build.lot_not_withdrawable</source>
+        <target>You may not withdraw from this lot.</target>
+      </segment>
+    </unit>
+    <unit id="pMetaVal32" name="validator.project_build.lot_out_of_reach">
+      <segment state="translated">
+        <source>validator.project_build.lot_out_of_reach</source>
+        <target>%entry% may no longer take from the lot %lot%.</target>
+      </segment>
+    </unit>
     <unit id="68_.V_X" name="validator.project_build.lot_smaller_than_needed">
       <segment state="translated">
         <source>validator.project_build.lot_smaller_than_needed</source>
@@ -275,12 +317,6 @@
       <segment state="translated">
         <source>validator.part.kind_is_fixed</source>
         <target>The kind of a part can not be changed once it is saved.</target>
-      </segment>
-    </unit>
-    <unit id="pK1dFx2" name="validator.project_bom_entry.meta_part_not_supported">
-      <segment state="translated">
-        <source>validator.project_bom_entry.meta_part_not_supported</source>
-        <target>A meta part can not be used in a BOM yet.</target>
       </segment>
     </unit>
     <unit id="pConn01" name="validator.part_connection.already_exists">

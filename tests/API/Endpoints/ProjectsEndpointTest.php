@@ -73,4 +73,15 @@ final class ProjectsEndpointTest extends CrudEndpointTestCase
     {
         $this->_testDeleteItem(7);
     }
+
+    public function testAMetaPartCanNotBeABuildPart(): void
+    {
+        $client = static::createAuthenticatedClient();
+        $client->request('POST', '/api/parts', ['json' => ['name' => 'API meta', 'kind' => 'meta', 'category' => '/api/categories/1']]);
+        self::assertResponseStatusCodeSame(201);
+        $meta = $client->getResponse()->toArray()['@id'];
+
+        $client->request('PATCH', '/api/projects/1', ['json' => ['build_part' => $meta], 'headers' => ['Content-Type' => 'application/merge-patch+json']]);
+        $this->assertSame(422, $client->getResponse()->getStatusCode());
+    }
 }

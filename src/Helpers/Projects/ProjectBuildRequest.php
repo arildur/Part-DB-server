@@ -26,6 +26,7 @@ use App\Entity\Parts\Part;
 use App\Entity\Parts\PartLot;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
+use App\Services\ProjectSystem\BomStockAllocator;
 use App\Validator\Constraints\ProjectSystem\ValidProjectBuildRequest;
 
 /**
@@ -37,9 +38,17 @@ final class ProjectBuildRequest
     private readonly int $number_of_builds;
 
     /**
-     * @var array<int, float>
+     * The amounts per BOM entry and lot. A lot can be reached by several entries, each with an amount of its own.
+     * It holds every pair an entry can reach, and no others.
+     * @var array<int, array<int, float>>
      */
     private array $withdraw_amounts = [];
+
+    /** @var array<int, PartLot> The lots that have an amount, by ID */
+    private array $lots_by_id = [];
+
+    /** @var (\Closure(PartLot): bool)|null */
+    private readonly ?\Closure $may_withdraw;
 
     private string $comment = '';
 
@@ -53,18 +62,20 @@ final class ProjectBuildRequest
      * The number of decimal places to which calculated amounts are rounded, to get rid of floating point inaccuracies
      * (e.g. 0.26 * 11 = 2.8600000000000003), which would otherwise make the build form impossible to submit.
      */
-    private const AMOUNT_PRECISION = 10;
+    public const AMOUNT_PRECISION = 10;
 
     /**
      * @param  Project  $project  The project that should be build
      * @param  int  $number_of_builds The number of builds that should be created
+     * @param  (callable(PartLot): bool)|null  $may_withdraw  Tells which lots the user may withdraw from, as nothing is proposed from the others
      */
-    public function __construct(private readonly Project $project, int $number_of_builds)
+    public function __construct(private readonly Project $project, int $number_of_builds, ?callable $may_withdraw = null)
     {
         if ($number_of_builds < 1) {
             throw new \InvalidArgumentException('Number of builds must be at least 1!');
         }
         $this->number_of_builds = $number_of_builds;
+        $this->may_withdraw = $may_withdraw === null ? null : $may_withdraw(...);
 
         $this->initializeArray();
 
@@ -85,17 +96,67 @@ final class ProjectBuildRequest
         //Completely reset the array
         $this->withdraw_amounts = [];
 
-        //Now create an array for each BOM entry
-        foreach ($this->getPartBomEntries() as $bom_entry) {
-            $remaining_amount = $this->getNeededAmountForBOMEntry($bom_entry);
-            foreach($this->getPartLotsForBOMEntry($bom_entry) as $lot) {
-                //If the lot has instock use it for the build
+        $wanted = [];
+        $stock = [];
+        foreach ($this->getEntriesInOrder() as $bom_entry) {
+            $entry_id = $this->entryId($bom_entry);
+            $this->withdraw_amounts[$entry_id] = [];
+            $proposable = [];
+            foreach ($this->getPartLotsForBOMEntry($bom_entry) as $lot) {
                 $id = $lot->getID() ?? throw new \RuntimeException("Part lot needs to have an ID!");
+                $this->withdraw_amounts[$entry_id][$id] = 0.0;
+                $this->lots_by_id[$id] = $lot;
+                if ($this->canBeProposed($bom_entry, $lot)) {
+                    $proposable[] = $id;
+                    $stock[$id] = max(0.0, $lot->getAmount());
+                }
+            }
+            $wanted[$entry_id] = ['need' => $this->getNeededAmountForBOMEntry($bom_entry), 'lots' => $proposable];
+        }
 
-                $this->withdraw_amounts[$id] = min($remaining_amount, $lot->getAmount());
-                $remaining_amount = round($remaining_amount - max(0, $this->withdraw_amounts[$id]), self::AMOUNT_PRECISION);
+        foreach (BomStockAllocator::allocate($wanted, $stock)['amounts'] as $entry_id => $lots) {
+            foreach ($lots as $id => $amount) {
+                $this->withdraw_amounts[$entry_id][$id] = $amount;
             }
         }
+    }
+
+    /**
+     * A direct entry is still proposed its expired lots, as it always was. For a meta part the proposal keeps to what the
+     * stock total counts, while the form lists the expired lots for the user to choose.
+     */
+    private function canBeProposed(ProjectBOMEntry $entry, PartLot $lot): bool
+    {
+        if ($this->may_withdraw instanceof \Closure && !($this->may_withdraw)($lot)) {
+            return false;
+        }
+
+        return !$entry->getPart()?->getKind()->allowsConnections() || $lot->isExpired() !== true;
+    }
+
+    /**
+     * @return list<ProjectBOMEntry> The part BOM entries by ID, so that the same BOM always gets the same proposal
+     */
+    private function getEntriesInOrder(): array
+    {
+        $entries = array_values($this->getPartBomEntries());
+        usort($entries, fn (ProjectBOMEntry $a, ProjectBOMEntry $b): int => $this->entryId($a) <=> $this->entryId($b));
+
+        return $entries;
+    }
+
+    private function entryId(ProjectBOMEntry|int $entry): int
+    {
+        return $entry instanceof ProjectBOMEntry
+            ? ($entry->getID() ?? throw new \InvalidArgumentException('The given BOM entry must have an ID!'))
+            : $entry;
+    }
+
+    private function lotId(PartLot|int $lot): int
+    {
+        return $lot instanceof PartLot
+            ? ($lot->getID() ?? throw new \InvalidArgumentException('The given lot must have an ID!'))
+            : $lot;
     }
 
     /**
@@ -177,42 +238,59 @@ final class ProjectBuildRequest
     }
 
     /**
-     * Returns the amount of parts that should be withdrawn from the given lot for the corresponding BOM entry.
+     * Returns the total amount that should be withdrawn from the given lot, over all BOM entries reaching it.
+     * It is rounded the way the stock of the lot is, so the two can be compared.
      * @param PartLot|int $lot The part lot (or the ID of the part lot) for which the withdrawal amount should be got
      */
     public function getLotWithdrawAmount(PartLot|int $lot): float
     {
-        $lot_id = $lot instanceof PartLot ? $lot->getID() : $lot;
+        $lot_id = $this->lotId($lot);
 
-        if ($lot_id === null) {
-            throw new \InvalidArgumentException('The given lot must have an ID!');
+        $sum = 0.0;
+        $found = false;
+        foreach ($this->withdraw_amounts as $lots) {
+            if (array_key_exists($lot_id, $lots)) {
+                $found = true;
+                $sum += $lots[$lot_id];
+            }
         }
 
-        if (! array_key_exists($lot_id, $this->withdraw_amounts)) {
+        if (!$found) {
             throw new \InvalidArgumentException('The given lot is not in the withdraw amounts array!');
         }
 
-        return $this->withdraw_amounts[$lot_id];
+        return round($sum, self::AMOUNT_PRECISION);
     }
 
     /**
-     * Sets the amount of parts that should be withdrawn from the given lot for the corresponding BOM entry.
-     * @param PartLot|int $lot The part lot (or the ID of the part lot) for which the withdrawal amount should be got
+     * Returns the amount that the given BOM entry takes from the given lot.
+     */
+    public function getWithdrawAmount(ProjectBOMEntry|int $entry, PartLot|int $lot): float
+    {
+        $entry_id = $this->entryId($entry);
+        $lot_id = $this->lotId($lot);
+
+        if (!isset($this->withdraw_amounts[$entry_id][$lot_id])) {
+            throw new \InvalidArgumentException('The given BOM entry can not take from the given lot!');
+        }
+
+        return $this->withdraw_amounts[$entry_id][$lot_id];
+    }
+
+    /**
+     * Sets the amount that the given BOM entry takes from the given lot. A pair out of the reach of the entry is refused.
      * @return $this
      */
-    public function setLotWithdrawAmount(PartLot|int $lot, float $amount): self
+    public function setWithdrawAmount(ProjectBOMEntry|int $entry, PartLot|int $lot, float $amount): self
     {
-        if ($lot instanceof PartLot) {
-            $lot_id = $lot->getID();
-        } else {
-            $lot_id = $lot;
+        $entry_id = $this->entryId($entry);
+        $lot_id = $this->lotId($lot);
+
+        if (!isset($this->withdraw_amounts[$entry_id][$lot_id])) {
+            throw new \InvalidArgumentException('The given BOM entry can not take from the given lot!');
         }
 
-        if ($lot_id === null) {
-            throw new \InvalidArgumentException('The given lot must have an ID!');
-        }
-
-        $this->withdraw_amounts[$lot_id] = $amount;
+        $this->withdraw_amounts[$entry_id][$lot_id] = $amount;
 
         return $this;
     }
@@ -224,10 +302,7 @@ final class ProjectBuildRequest
     {
         $this->ensureBOMEntryValid($entry);
 
-        $sum = 0;
-        foreach ($this->getPartLotsForBOMEntry($entry) as $lot) {
-            $sum += $this->getLotWithdrawAmount($lot);
-        }
+        $sum = array_sum($this->withdraw_amounts[$this->entryId($entry)] ?? []);
 
         if ($entry->getPart() && !$entry->getPart()->useFloatAmount()) {
             return round($sum);
@@ -237,7 +312,58 @@ final class ProjectBuildRequest
     }
 
     /**
-     * Returns the number of available lots to take stock from for the given BOM entry.
+     * Returns the lots this build can take from, each once, whatever number of entries reach it.
+     * @return list<PartLot>
+     */
+    public function getLotsOfBuild(): array
+    {
+        $lots = [];
+        foreach ($this->getEntriesInOrder() as $bom_entry) {
+            foreach ($this->getPartLotsForBOMEntry($bom_entry) as $lot) {
+                $lots[$this->lotId($lot)] = $lot;
+            }
+        }
+
+        return array_values($lots);
+    }
+
+    /**
+     * Returns the other BOM entries reaching the given lot.
+     * @return list<ProjectBOMEntry>
+     */
+    public function getOtherEntriesReachingLot(ProjectBOMEntry $entry, PartLot $lot): array
+    {
+        $others = [];
+        foreach ($this->getEntriesInOrder() as $other) {
+            if ($other !== $entry && in_array($lot, $this->getPartLotsForBOMEntry($other), true)) {
+                $others[] = $other;
+            }
+        }
+
+        return $others;
+    }
+
+    /**
+     * Returns the pairs of BOM entry and lot holding an amount, which the entry can not reach anymore.
+     * @return list<array{0: ProjectBOMEntry, 1: PartLot}>
+     */
+    public function getHeldPairsOutOfReach(): array
+    {
+        $pairs = [];
+        foreach ($this->getEntriesInOrder() as $bom_entry) {
+            $reach = array_map(fn (PartLot $lot): int => $this->lotId($lot), $this->getPartLotsForBOMEntry($bom_entry));
+            foreach ($this->withdraw_amounts[$this->entryId($bom_entry)] ?? [] as $lot_id => $amount) {
+                if ($amount > 0 && !in_array($lot_id, $reach, true)) {
+                    $pairs[] = [$bom_entry, $this->lots_by_id[$lot_id]];
+                }
+            }
+        }
+
+        return $pairs;
+    }
+
+    /**
+     * Returns the available lots to take stock from for the given BOM entry.
      * @return PartLot[]|null Returns null if the entry is a non-part BOM entry
      */
     public function getPartLotsForBOMEntry(ProjectBOMEntry $projectBOMEntry): ?array
@@ -248,8 +374,7 @@ final class ProjectBuildRequest
             return null;
         }
 
-        //Filter out all lots which have unknown instock
-        return $projectBOMEntry->getPart()->getPartLots()->filter(fn (PartLot $lot) => !$lot->isInstockUnknown())->toArray();
+        return $projectBOMEntry->getLotsInReach();
     }
 
     /**

@@ -471,7 +471,7 @@ final class ProjectBuildHelperTest extends WebTestCase
         return $currency;
     }
 
-    public function testCalculateTotalBuildPriceLeavesNonPartEntryUnconverted(): void
+    public function testCalculateTotalBuildPriceConvertsNonPartEntryToRequestedCurrency(): void
     {
         $project = new Project();
         $entry = new ProjectBOMEntry();
@@ -481,13 +481,13 @@ final class ProjectBuildHelperTest extends WebTestCase
         $entry->setPriceCurrency($this->makeCurrency('2.00000'));
         $project->addBomEntry($entry);
 
-        // The entry's own 10 is used unconverted: converted, it would be 5 at the requested rate of 4
+        // 10 at a rate of 2 is 20 in the base currency, which is 5 at the requested rate of 4
         $result = $this->service->calculateTotalBuildPrice($project, 1, $this->makeCurrency('4.00000'));
         $this->assertNotNull($result);
-        $this->assertTrue(BigDecimal::of('10')->isEqualTo($result), 'Got '.$result);
+        $this->assertTrue(BigDecimal::of('5')->isEqualTo($result), 'Got '.$result);
     }
 
-    public function testCalculateTotalBuildPriceLeavesSubprojectUnconverted(): void
+    public function testCalculateTotalBuildPriceConvertsSubprojectToRequestedCurrency(): void
     {
         $subproject = new Project();
         $subentry = new ProjectBOMEntry();
@@ -503,10 +503,10 @@ final class ProjectBuildHelperTest extends WebTestCase
         $entry->setQuantity(1);
         $project->addBomEntry($entry);
 
-        // The subproject's 8 in the base currency is used unconverted: converted, it would be 4 at the requested rate of 2
+        // The subproject costs 8 in the base currency, which is 4 at the requested rate of 2
         $result = $this->service->calculateTotalBuildPrice($project, 1, $this->makeCurrency('2.00000'));
         $this->assertNotNull($result);
-        $this->assertTrue(BigDecimal::of('8')->isEqualTo($result), 'Got '.$result);
+        $this->assertTrue(BigDecimal::of('4')->isEqualTo($result), 'Got '.$result);
     }
 
     /**
@@ -534,7 +534,12 @@ final class ProjectBuildHelperTest extends WebTestCase
         $good->setAmount(10);
         $part->addPartLot($good);
 
-        $entry = new ProjectBOMEntry();
+        $entry = new class extends ProjectBOMEntry {
+            public function getID(): ?int
+            {
+                return 1;
+            }
+        };
         $entry->setPart($part);
         $entry->setQuantity(50);
         $project = new Project();
@@ -543,9 +548,9 @@ final class ProjectBuildHelperTest extends WebTestCase
         // Only the good lot counts: 10 < 50, so no build is possible
         $this->assertSame(0, $this->service->getMaximumBuildableCount($project));
 
-        // The proposal takes all 50 from the expired lot, which comes first
+        // The proposal takes the good lot first, and the rest from the expired one
         $request = new ProjectBuildRequest($project, 1);
-        $this->assertEqualsWithDelta(0.0, $request->getLotWithdrawAmount($good), 0.001);
-        $this->assertEqualsWithDelta(50.0, $request->getLotWithdrawAmount($expired), 0.001);
+        $this->assertEqualsWithDelta(10.0, $request->getLotWithdrawAmount($good), 0.001);
+        $this->assertEqualsWithDelta(40.0, $request->getLotWithdrawAmount($expired), 0.001);
     }
 }

@@ -37,6 +37,8 @@ use Brick\Math\RoundingMode;
  */
 final readonly class ProjectBuildHelper
 {
+    private const AMOUNT_PRECISION = 10;
+
     public function __construct(
         private PartLotWithdrawAddHelper $withdraw_add_helper,
         private PricedetailHelper $pricedetailHelper,
@@ -59,9 +61,8 @@ final readonly class ProjectBuildHelper
             throw new \RuntimeException('The quantity of the BOM entry must be greater than 0!');
         }
 
-        $amount_sum = $part->getAmountSum();
-
-        return (int) floor($amount_sum / $projectBOMEntry->getQuantity());
+        //Rounded first, as a float division can land just below a whole number: floor(0.3 / 0.1) is 2
+        return (int) floor(round($part->getAmountSum() / $projectBOMEntry->getQuantity(), self::AMOUNT_PRECISION));
     }
 
     /**
@@ -82,7 +83,21 @@ final readonly class ProjectBuildHelper
             //The maximum buildable count for the whole project is the minimum of all BOM entries
             $maximum_buildable_count = min($maximum_buildable_count, $this->getMaximumBuildableCountForBOMEntry($bom_entry));
         }
-        return $maximum_buildable_count;
+
+        [$reach, $stock] = $this->getCountedReach($project);
+        if (!$this->hasSharedLot($reach)) {
+            return $maximum_buildable_count;
+        }
+
+        //Each entry counted alone says too much when entries draw on the same stock
+        $quantities = [];
+        foreach ($project->getBomEntries() as $bom_entry) {
+            if ($bom_entry->isPartBomEntry()) {
+                $quantities[spl_object_id($bom_entry)] = ['quantity' => $bom_entry->getQuantity(), 'lots' => $reach[spl_object_id($bom_entry)]];
+            }
+        }
+
+        return BomStockAllocator::maximumBuilds($quantities, $stock, $maximum_buildable_count);
     }
 
     /**
@@ -131,24 +146,83 @@ final readonly class ProjectBuildHelper
             throw new \InvalidArgumentException('The number of builds must be greater than 0!');
         }
 
-        $non_buildable_entries = [];
+        $short = $this->getShortAmounts($project, $number_of_builds);
 
-        foreach ($project->getBomEntries() as $bomEntry) {
-            $part = $bomEntry->getPart();
+        return array_values(array_filter(
+            $project->getBomEntries()->toArray(),
+            static fn (ProjectBOMEntry $entry): bool => isset($short[spl_object_id($entry)])
+        ));
+    }
 
-            //Skip BOM entries without a part (as we can not determine that)
-            if (!$part instanceof Part) {
+    /**
+     * Returns what is available to the given BOM entry for the given number of builds, after what the other entries need.
+     */
+    public function getAvailableAmountForBOMEntry(ProjectBOMEntry $entry, int $number_of_builds = 1): float
+    {
+        $needed = round($entry->getQuantity() * $number_of_builds, self::AMOUNT_PRECISION);
+        $project = $entry->getProject();
+        if (!$project instanceof Project) {
+            throw new \InvalidArgumentException('The given BOM entry must belong to a project!');
+        }
+
+        return round($needed - ($this->getShortAmounts($project, $number_of_builds)[spl_object_id($entry)] ?? 0.0), self::AMOUNT_PRECISION);
+    }
+
+    /**
+     * Returns what the part BOM entries lack for the given number of builds, by the object ID of the entry.
+     * @return array<int, float>
+     */
+    private function getShortAmounts(Project $project, int $number_of_builds): array
+    {
+        [$reach, $stock] = $this->getCountedReach($project);
+
+        $wanted = [];
+        //By ID, so that a BOM that can not be covered always comes out short on the same entries
+        $entries = $project->getBomEntries()->filter(static fn (ProjectBOMEntry $entry): bool => $entry->isPartBomEntry())->toArray();
+        usort($entries, static fn (ProjectBOMEntry $a, ProjectBOMEntry $b): int => ($a->getID() ?? PHP_INT_MAX) <=> ($b->getID() ?? PHP_INT_MAX));
+        foreach ($entries as $entry) {
+            $wanted[spl_object_id($entry)] = [
+                'need' => round($entry->getQuantity() * $number_of_builds, self::AMOUNT_PRECISION),
+                'lots' => $reach[spl_object_id($entry)],
+            ];
+        }
+
+        return BomStockAllocator::allocate($wanted, $stock)['short'];
+    }
+
+    /**
+     * Returns the lots each part BOM entry can draw on as far as the stock total counts them, and the amount of each lot.
+     * Expired lots are not counted. All by object ID, as this also works on entries and lots not saved yet.
+     * @return array{0: array<int, list<int>>, 1: array<int, float>}
+     */
+    private function getCountedReach(Project $project): array
+    {
+        $reach = [];
+        $stock = [];
+        foreach ($project->getBomEntries() as $entry) {
+            if (!$entry->isPartBomEntry()) {
                 continue;
             }
-
-            $amount_sum = $part->getAmountSum();
-
-            if ($amount_sum < $bomEntry->getQuantity() * $number_of_builds) {
-                $non_buildable_entries[] = $bomEntry;
+            $reach[spl_object_id($entry)] = [];
+            foreach ($entry->getLotsInReach() as $lot) {
+                if ($lot->isExpired() !== true) {
+                    $reach[spl_object_id($entry)][] = spl_object_id($lot);
+                    $stock[spl_object_id($lot)] = max(0.0, $lot->getAmount());
+                }
             }
         }
 
-        return $non_buildable_entries;
+        return [$reach, $stock];
+    }
+
+    /**
+     * @param  array<int, list<int>>  $reach
+     */
+    private function hasSharedLot(array $reach): bool
+    {
+        $lots = array_merge(...array_values($reach) ?: [[]]);
+
+        return count($lots) !== count(array_unique($lots));
     }
 
     /**
@@ -161,12 +235,11 @@ final readonly class ProjectBuildHelper
         $message = $buildRequest->getComment();
         $message .= ' (Project build: '.$buildRequest->getProject()->getName().')';
 
-        foreach ($buildRequest->getPartBomEntries() as $bom_entry) {
-            foreach ($buildRequest->getPartLotsForBOMEntry($bom_entry) as $part_lot) {
-                $amount = $buildRequest->getLotWithdrawAmount($part_lot);
-                if ($amount > 0) {
-                    $this->withdraw_add_helper->withdraw($part_lot, $amount, $message);
-                }
+        //One withdrawal per lot, of the sum over all entries. A rounded sum can come out just above what a lot holds, so at most that.
+        foreach ($buildRequest->getLotsOfBuild() as $part_lot) {
+            $amount = min($buildRequest->getLotWithdrawAmount($part_lot), $part_lot->getAmount());
+            if ($amount > 0) {
+                $this->withdraw_add_helper->withdraw($part_lot, $amount, $message);
             }
         }
 
@@ -176,24 +249,20 @@ final readonly class ProjectBuildHelper
     }
 
     /**
+     * Calculates what it costs to build the given project N times, taking bulk pricing into account.
+     */
+    public function calculateCost(Project $project, int $number_of_builds = 1, ?Currency $currency = null): ProjectCost
+    {
+        return $this->costOfProject($project, $number_of_builds, $currency, []);
+    }
+
+    /**
      * Calculates the total price to build the given project N times, taking bulk pricing into account.
      * Returns null if no BOM entry has any pricing information.
      */
     public function calculateTotalBuildPrice(Project $project, int $number_of_builds = 1, ?Currency $currency = null): ?BigDecimal
     {
-        $total = BigDecimal::zero();
-        $has_price = false;
-
-        foreach ($project->getBomEntries() as $entry) {
-            $unit_price = $this->getBomEntryUnitPrice($entry, $number_of_builds, $currency);
-            if ($unit_price === null) {
-                continue;
-            }
-            $has_price = true;
-            $total = $total->plus($unit_price->multipliedBy(BigDecimal::fromFloatShortest($entry->getQuantity()))->multipliedBy($number_of_builds));
-        }
-
-        return $has_price ? $total : null;
+        return $this->calculateCost($project, $number_of_builds, $currency)->total;
     }
 
     /**
@@ -202,11 +271,7 @@ final readonly class ProjectBuildHelper
      */
     public function calculateUnitBuildPrice(Project $project, int $number_of_builds = 1, ?Currency $currency = null): ?BigDecimal
     {
-        $total = $this->calculateTotalBuildPrice($project, $number_of_builds, $currency);
-        if ($total === null) {
-            return null;
-        }
-        return $total->dividedBy($number_of_builds, 10, RoundingMode::HalfUp);
+        return $this->calculateCost($project, $number_of_builds, $currency)->perBuild($number_of_builds)->total;
     }
 
     /**
@@ -234,25 +299,103 @@ final readonly class ProjectBuildHelper
      */
     public function getEntryUnitPrice(ProjectBOMEntry $entry, int $number_of_builds = 1, ?Currency $currency = null): BigDecimal
     {
-        return $this->getBomEntryUnitPrice($entry, $number_of_builds, $currency) ?? BigDecimal::zero();
+        return $this->getEntryUnitCost($entry, $number_of_builds, $currency) ?? BigDecimal::zero();
     }
 
     /**
-     * Returns the effective unit price for a single piece of the given BOM entry,
-     * taking bulk pricing into account for N builds.
+     * Returns the unit price of the given BOM entry, or null if it has no price. A meta part entry costs the price of
+     * the first part in the order of priority of its usable connections that has one.
      */
-    private function getBomEntryUnitPrice(ProjectBOMEntry $entry, int $number_of_builds, ?Currency $currency): ?BigDecimal
-    {        
-        if ($entry->getPart() && $entry->getPart()->getBuiltProject() instanceof Project){
-            return $this->calculateTotalBuildPrice($entry->getPart()->getBuiltProject(), 1, $entry->getPriceCurrency());
+    public function getEntryUnitCost(ProjectBOMEntry $entry, int $number_of_builds = 1, ?Currency $currency = null): ?BigDecimal
+    {
+        return $this->unitCostOfEntry($entry, $number_of_builds, $currency, []);
+    }
+
+    /**
+     * @param  array<int, true>  $visited  The projects being worked out, so that a cycle in stored data still ends
+     */
+    private function costOfProject(Project $project, int $number_of_builds, ?Currency $currency, array $visited): ProjectCost
+    {
+        $visited[spl_object_id($project)] = true;
+
+        $total = BigDecimal::zero();
+        $has_price = false;
+        $unpriced = 0;
+        $has_meta_part = false;
+
+        foreach ($project->getBomEntries() as $entry) {
+            $has_meta_part = $has_meta_part || $entry->getPart()?->getKind()->allowsConnections() === true;
+
+            $unit = $this->unitCostOfEntry($entry, $number_of_builds, $currency, $visited);
+            if ($unit === null) {
+                if ($entry->isPartBomEntry()) {
+                    $unpriced++;
+                }
+                continue;
+            }
+
+            $has_price = true;
+            $quantity = BigDecimal::fromFloatShortest($entry->getQuantity());
+            $total = $total->plus($unit->multipliedBy($quantity)->multipliedBy($number_of_builds));
         }
-        
-        if ($entry->getPart() instanceof Part) {
-            $total_qty = $entry->getQuantity() * $number_of_builds;
-            $min_order = $this->pricedetailHelper->getMinOrderAmount($entry->getPart());
-            $effective_qty = ($min_order !== null) ? max($total_qty, $min_order) : $total_qty;
-            return $this->pricedetailHelper->calculateAvgPrice($entry->getPart(), $effective_qty, $currency);
+
+        return new ProjectCost($has_price ? $total : null, $unpriced, $has_meta_part);
+    }
+
+    /**
+     * @param  array<int, true>  $visited
+     */
+    private function unitCostOfEntry(ProjectBOMEntry $entry, int $number_of_builds, ?Currency $currency, array $visited): ?BigDecimal
+    {
+        $part = $entry->getPart();
+
+        if (!$part instanceof Part) {
+            $price = $entry->getPrice();
+            if ($price === null) {
+                return null;
+            }
+
+            return $this->pricedetailHelper->convertMoneyToCurrency($price, $entry->getPriceCurrency(), $currency);
         }
-        return $entry->getPrice();
+
+        $quantity = $entry->getQuantity() * $number_of_builds;
+
+        if (!$part->getKind()->allowsConnections()) {
+            return $this->unitCostOfPart($part, $quantity, $currency, $visited);
+        }
+
+        //A meta part has no price of its own: it costs what the first part that can be used for it and has a price costs
+        foreach ($part->getOrderedConnections() as $connection) {
+            $connected = $connection->getConnectedPart();
+            if (!$connection->isUsable() || !$connected instanceof Part) {
+                continue;
+            }
+            $unit = $this->unitCostOfPart($connected, $quantity, $currency, $visited);
+            if ($unit !== null) {
+                return $unit;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, true>  $visited
+     */
+    private function unitCostOfPart(Part $part, float $quantity, ?Currency $currency, array $visited): ?BigDecimal
+    {
+        $built_project = $part->getBuiltProject();
+        if ($built_project instanceof Project) {
+            if (isset($visited[spl_object_id($built_project)])) {
+                return null;
+            }
+
+            return $this->costOfProject($built_project, 1, $currency, $visited)->total;
+        }
+
+        $min_order = $this->pricedetailHelper->getMinOrderAmount($part);
+        $effective_quantity = $min_order !== null ? max($quantity, $min_order) : $quantity;
+
+        return $this->pricedetailHelper->calculateAvgPrice($part, $effective_quantity, $currency);
     }
 }

@@ -377,9 +377,29 @@ class Project extends AbstractStructuralDBElement
         }
     }
 
+    /**
+     * Tells whether the given project is this project or one of its parents.
+     */
+    public function isOrHasAncestor(self $project): bool
+    {
+        for ($current = $this; $current instanceof self; $current = $current->getParent()) {
+            if ($current === $project) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     #[Assert\Callback]
     public function validate(ExecutionContextInterface $context, $payload): void
     {
+        if ($this->build_part instanceof Part && !$this->build_part->getKind()->canBeBuildPart()) {
+            $context->buildViolation('validator.project.build_part_kind_not_allowed')
+                ->atPath('build_part')
+                ->addViolation();
+        }
+
         //If this project has subprojects, and these have builds part, they must be included in the BOM
         foreach ($this->getChildren() as $child) {
             if (!$child->getBuildPart() instanceof Part) {

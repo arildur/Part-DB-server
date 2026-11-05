@@ -140,13 +140,7 @@ class PartFilter implements FilterInterface
         $this->lastModified = new DateTimeConstraint('part.lastModified');
 
         $this->minAmount = new NumberConstraint('part.minamount');
-        $this->amountSum = (new NumberConstraint('(
-                    SELECT COALESCE(SUM(__partLot.amount), 0.0)
-                    FROM ' . PartLot::class . ' __partLot
-                    WHERE __partLot.part = part.id
-                    AND __partLot.instock_unknown = false
-                    AND (__partLot.expiration_date IS NULL OR __partLot.expiration_date > CURRENT_DATE())
-                )', identifier: "amountSumWhere"));
+        $this->amountSum = new NumberConstraint('part_stock_total(part.id)', identifier: 'amountSumWhere');
         $this->lotCount = new IntConstraint('COUNT(_partLots)');
         $this->lessThanDesired = new LessThanDesiredConstraint();
 

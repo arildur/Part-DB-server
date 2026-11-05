@@ -30,13 +30,7 @@ class LessThanDesiredConstraint extends BooleanConstraint
 {
     public function __construct(?string $property = null, ?string $identifier = null, ?bool $default_value = null)
     {
-        parent::__construct($property ?? '(
-                    SELECT COALESCE(SUM(ld_partLot.amount), 0.0)
-                    FROM '.PartLot::class.' ld_partLot
-                    WHERE ld_partLot.part = part.id
-                    AND ld_partLot.instock_unknown = false
-                    AND (ld_partLot.expiration_date IS NULL OR ld_partLot.expiration_date > CURRENT_DATE())
-                )', $identifier ?? 'amountSumLessThanDesired', $default_value);
+        parent::__construct($property ?? 'part_stock_total(part.id)', $identifier ?? 'amountSumLessThanDesired', $default_value);
     }
 
     public function apply(QueryBuilder $queryBuilder): void

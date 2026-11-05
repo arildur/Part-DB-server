@@ -24,6 +24,7 @@ namespace App\Entity\Parts\PartTraits;
 
 use Doctrine\DBAL\Types\Types;
 use App\Entity\Parts\MeasurementUnit;
+use App\Entity\Parts\Part;
 use App\Entity\Parts\PartLot;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
@@ -168,13 +169,54 @@ trait InstockTrait
      */
     public function isAmountUnknown(): bool
     {
-        foreach ($this->getPartLots() as $lot) {
+        foreach ($this->getLotsCountedInStock() as $lot) {
             if ($lot->isInstockUnknown()) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Returns the lots that make up the stock of this part: its own lots and, for a kind that allows connections, the own
+     * lots of each connected part not marked do not use. Lots of a part are read here and not its total, so that the
+     * own lots of a meta part never count for a connected part or for another meta part.
+     * @return list<PartLot>
+     */
+    public function getLotsCountedInStock(): array
+    {
+        $lots = array_values($this->getPartLots()->toArray());
+        //Manufacturing parts stop here, so they do not cost a query
+        if (!$this->kind->allowsConnections()) {
+            return $lots;
+        }
+
+        foreach ($this->getOrderedConnections() as $connection) {
+            if ($connection->isUsable() && $connection->getConnectedPart() instanceof Part) {
+                $lots = array_merge($lots, array_values($connection->getConnectedPart()->getPartLots()->toArray()));
+            }
+        }
+
+        return $lots;
+    }
+
+    /**
+     * Returns the summed amount over this part's own lots, whatever its connections hold. Lots of unknown amount and
+     * expired lots are not counted.
+     */
+    #[Groups(['part:read'])]
+    #[SerializedName('own_instock')]
+    public function getOwnAmountSum(): float
+    {
+        $sum = 0.0;
+        foreach ($this->getPartLots() as $lot) {
+            if (!$lot->isInstockUnknown() && !($lot->isExpired() ?? false)) {
+                $sum += $lot->getAmount();
+            }
+        }
+
+        return $this->useFloatAmount() ? $sum : round($sum);
     }
 
     /**
@@ -189,7 +231,7 @@ trait InstockTrait
     {
         //TODO: Find a method to do this natively in SQL, the current method could be a bit slow
         $sum = 0;
-        foreach ($this->getPartLots() as $lot) {
+        foreach ($this->getLotsCountedInStock() as $lot) {
             //Don't use the in stock value, if it is unknown
             if ($lot->isInstockUnknown() || ($lot->isExpired() ?? false)) {
                 continue;
@@ -211,7 +253,7 @@ trait InstockTrait
     public function getExpiredAmountSum(): float
     {
         $sum = 0.0;
-        foreach ($this->getPartLots() as $lot) {
+        foreach ($this->getLotsCountedInStock() as $lot) {
             if ($lot->isExpired() && !$lot->isInstockUnknown()) {
                 $sum += $lot->getAmount();
             }

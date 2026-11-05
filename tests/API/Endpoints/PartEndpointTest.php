@@ -126,6 +126,27 @@ final class PartEndpointTest extends CrudEndpointTestCase
         self::assertResponseStatusCodeSame(422);
     }
 
+    public function testAMetaPartReportsItsTotalAndItsOwnStock(): void
+    {
+        $meta = $this->_testPostItem(['name' => 'Meta', 'kind' => 'meta', 'category' => '/api/categories/1'])->toArray()['@id'];
+        $part = $this->_testPostItem(['name' => 'Connected', 'category' => '/api/categories/1'])->toArray()['@id'];
+        foreach ([[$meta, 10], [$part, 100]] as [$owner, $amount]) {
+            self::createAuthenticatedClient()->request('POST', '/api/part_lots', ['json' => ['part' => $owner, 'amount' => $amount]]);
+            self::assertResponseStatusCodeSame(201);
+        }
+        self::createAuthenticatedClient()->request('POST', '/api/part_connections', ['json' => ['meta_part' => $meta, 'connected_part' => $part]]);
+        self::assertResponseStatusCodeSame(201);
+
+        $data = self::createAuthenticatedClient()->request('GET', $meta)->toArray();
+        $this->assertEqualsWithDelta(110.0, $data['total_instock'], 0.001);
+        $this->assertEqualsWithDelta(10.0, $data['own_instock'], 0.001);
+        $this->assertCount(1, $data['partLots'], 'Only its own lots');
+
+        $data = self::createAuthenticatedClient()->request('GET', $part)->toArray();
+        $this->assertEqualsWithDelta(100.0, $data['total_instock'], 0.001);
+        $this->assertEqualsWithDelta(100.0, $data['own_instock'], 0.001);
+    }
+
     public function testDeleteItem(): void
     {
         $this->_testDeleteItem(1);

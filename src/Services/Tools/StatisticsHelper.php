@@ -49,6 +49,7 @@ use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
 use App\Entity\PriceInformations\Currency;
@@ -68,6 +69,14 @@ class StatisticsHelper
     {
         $this->part_repo = $this->em->getRepository(Part::class);
         $this->attachment_repo = $this->em->getRepository(Attachment::class);
+    }
+
+    /**
+     * Returns the count of meta parts, which are included in the count of distinct parts.
+     */
+    public function getMetaPartsCount(): int
+    {
+        return $this->part_repo->count(['kind' => PartKind::META]);
     }
 
     /**

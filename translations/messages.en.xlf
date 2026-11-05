@@ -16100,5 +16100,11 @@ Buerklin-API Authentication server:
         <target>Left out, as they can not hold provider data: %names%</target>
       </segment>
     </unit>
+    <unit id="pKind17" name="statistics.meta_parts_count">
+      <segment state="translated">
+        <source>statistics.meta_parts_count</source>
+        <target>Of which meta parts</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

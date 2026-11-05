@@ -475,15 +475,7 @@ final readonly class PartsDataTable implements DataTableTypeInterface
         //Add the amountSum field, if it is used in the query
         if (str_contains($dql, 'amountSum')) {
             //Calculate amount sum using a subquery, so we can filter and sort by it
-            $builder->addSelect(
-                '(
-                    SELECT COALESCE(SUM(partLot.amount), 0.0)
-                    FROM ' . PartLot::class . ' partLot
-                    WHERE partLot.part = part.id
-                    AND partLot.instock_unknown = false
-                    AND (partLot.expiration_date IS NULL OR partLot.expiration_date > CURRENT_DATE())
-                ) AS HIDDEN amountSum'
-            );
+            $builder->addSelect('part_stock_total(part.id) AS HIDDEN amountSum');
         }
 
         if (str_contains($dql, '_category')) {

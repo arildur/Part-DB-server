@@ -51,6 +51,8 @@ doctrine:
                 alias: App
 
         dql:
+            numeric_functions:
+                part_stock_total: App\Doctrine\Functions\PartStockTotal
             string_functions:
                 regexp: App\Doctrine\Functions\Regexp
                 field:  DoctrineExtensions\Query\Mysql\Field

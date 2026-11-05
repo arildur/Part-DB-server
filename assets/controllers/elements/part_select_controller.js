@@ -43,7 +43,7 @@ export default class extends Controller {
                         (data.image ? "<img class='typeahead-image' src='" + data.image + "'/>" : "") +
                         "</div>" +
                         "<div class='col-10'>" +
-                        '<h6 class="m-0">' + escape(data.name) + '</h6>' +
+                        '<h6 class="m-0">' + escape(data.name) + (data.kind_label ? ' <span class="badge text-bg-info">' + escape(data.kind_label) + '</span>' : '') + '</h6>' +
                         (data.description ? '<p class="m-0">' + marked.parseInline(data.description) + '</p>' : "") +
                         (data.category ? '<p class="m-0"><span class="fa-solid fa-tags fa-fw"></span> ' + escape(data.category) : "");
 

@@ -44,6 +44,7 @@ use App\Form\Filters\Constraints\DateTimeConstraintType;
 use App\Form\Filters\Constraints\EnumConstraintType;
 use App\Form\Filters\Constraints\NumberConstraintType;
 use App\Form\Filters\Constraints\ParameterConstraintType;
+use App\Form\Filters\Constraints\PartKindConstraintType;
 use App\Form\Filters\Constraints\StructuralEntityConstraintType;
 use App\Form\Filters\Constraints\TagsConstraintType;
 use App\Form\Filters\Constraints\TextConstraintType;
@@ -172,6 +173,10 @@ class PartFilterType extends AbstractType
 
         $builder->add('manufacturer_product_number', TextConstraintType::class, [
             'label' => 'part.edit.mpn'
+        ]);
+
+        $builder->add('kind', PartKindConstraintType::class, [
+            'label' => false,
         ]);
 
         $status_choices = [

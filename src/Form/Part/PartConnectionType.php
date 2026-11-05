@@ -22,6 +22,7 @@ declare(strict_types=1);namespace App\Form\Part;
 
 use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartConnectionStatus;
+use App\Entity\Parts\PartKind;
 use App\Form\Type\PartSelectType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
@@ -37,6 +38,7 @@ class PartConnectionType extends AbstractType
         $builder
             ->add('connected_part', PartSelectType::class, [
                 'label' => 'part_connection.edit.connected_part',
+                'kind' => PartKind::MANUFACTURING,
             ])
             ->add('position', IntegerType::class, [
                 'label' => 'part_connection.edit.position',

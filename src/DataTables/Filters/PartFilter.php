@@ -33,6 +33,7 @@ use App\DataTables\Filters\Constraints\Part\BulkImportJobExistsConstraint;
 use App\DataTables\Filters\Constraints\Part\BulkImportJobStatusConstraint;
 use App\DataTables\Filters\Constraints\Part\BulkImportPartStatusConstraint;
 use App\DataTables\Filters\Constraints\Part\LessThanDesiredConstraint;
+use App\DataTables\Filters\Constraints\Part\PartKindConstraint;
 use App\DataTables\Filters\Constraints\Part\ParameterConstraint;
 use App\DataTables\Filters\Constraints\Part\TagsConstraint;
 use App\DataTables\Filters\Constraints\TextConstraint;
@@ -73,6 +74,8 @@ class PartFilter implements FilterInterface
     public readonly EntityConstraint $footprint;
     public readonly EntityConstraint $manufacturer;
     public readonly ChoiceConstraint $manufacturing_status;
+
+    public readonly PartKindConstraint $kind;
     public readonly EntityConstraint $supplier;
     public readonly IntConstraint $orderdetailsCount;
     public readonly BooleanConstraint $obsolete;
@@ -155,6 +158,7 @@ class PartFilter implements FilterInterface
         $this->manufacturer_product_number = new TextConstraint('part.manufacturer_product_number');
         $this->manufacturer_product_url = new TextConstraint('part.manufacturer_product_url');
         $this->manufacturing_status = new ChoiceConstraint('part.manufacturing_status');
+        $this->kind = new PartKindConstraint('part.kind');
 
         $this->attachmentsCount = new IntConstraint('COUNT(_attachments)');
         $this->attachmentType = new EntityConstraint($nodesListBuilder, AttachmentType::class, '_attachments.attachment_type');

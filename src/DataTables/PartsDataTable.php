@@ -442,6 +442,23 @@ final readonly class PartsDataTable implements DataTableTypeInterface
             'project_bom_entries' => ['project_bom_entries.project', '_sub0.build_part'],
         ];
 
+        //Only meta parts show anything of their connections, so a list without them costs no query for it
+        $metaParts = array_values(array_filter($parts, static fn (Part $part): bool => $part->getKind()->allowsConnections()));
+        if ($metaParts !== []) {
+            $em->createQueryBuilder()
+                ->select('PARTIAL part.{id}', 'part_connections', '_connected', '_connectedLots', '_connectedLocations')
+                ->from(Part::class, 'part')
+                ->leftJoin('part.part_connections', 'part_connections')
+                ->leftJoin('part_connections.connected_part', '_connected')
+                ->leftJoin('_connected.partLots', '_connectedLots')
+                ->leftJoin('_connectedLots.storage_location', '_connectedLocations')
+                ->where('part IN (:parts)')
+                ->setParameter('parts', $metaParts)
+                ->getQuery()
+                ->setHint(Query::HINT_READ_ONLY, true)
+                ->getResult();
+        }
+
         foreach ($collections as $collection => $subJoins) {
             $qb = $em->createQueryBuilder()
                 ->select('PARTIAL part.{id}', $collection)

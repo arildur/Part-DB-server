@@ -23,6 +23,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Entity\Parts\Category;
+use App\Entity\Parts\Footprint;
+use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Entity\UserSystem\User;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -171,5 +175,74 @@ final class TypeaheadControllerTest extends WebTestCase
         $client->request('GET', $url);
 
         $this->assertResponseIsSuccessful();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function pickerResults(string $query, array $parameters = []): array
+    {
+        $client = static::createClient();
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $client->loginUser($em->getRepository(User::class)->findOneBy(['name' => 'admin']));
+
+        $category = new Category();
+        $category->setName('Pickcategory');
+        $em->persist($category);
+        $footprint = new Footprint();
+        $footprint->setName('Pickfootprint');
+        $em->persist($footprint);
+        foreach (['manufacturing', 'meta'] as $kind) {
+            $part = (new Part())->setKind(PartKind::from($kind));
+            $part->setName('Picker '.$kind);
+            $part->setDescription('Pickdescription');
+            $part->setCategory($category);
+            $part->setFootprint($footprint);
+            $em->persist($part);
+        }
+        $em->flush();
+
+        $client->request('GET', '/en/typeahead/parts/search/'.$query, $parameters);
+        self::assertResponseIsSuccessful();
+
+        return json_decode((string) $client->getResponse()->getContent(), true);
+    }
+
+    public function testPickerResultsMarkAMetaPart(): void
+    {
+        $results = $this->pickerResults('Picker');
+        $labels = array_column($results, 'kind_label', 'name');
+
+        $this->assertSame('Meta part', $labels['Picker meta']);
+        $this->assertSame('', $labels['Picker manufacturing']);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function searchTerms(): iterable
+    {
+        yield 'name' => ['Picker'];
+        yield 'description' => ['Pickdescription'];
+        yield 'category' => ['Pickcategory'];
+        yield 'footprint' => ['Pickfootprint'];
+    }
+
+    #[DataProvider('searchTerms')]
+    public function testThePickerRestrictionRemovesOnlyTheOtherKindOnEverySearchField(string $term): void
+    {
+        $results = $this->pickerResults($term, ['kind' => 'manufacturing']);
+
+        $this->assertSame(['Picker manufacturing'], array_column($results, 'name'), 'The restriction must not switch off the search fields');
+        $this->assertSame('manufacturing', $results[0]['kind']);
+    }
+
+    #[DataProvider('searchTerms')]
+    public function testWithoutRestrictionEverySearchFieldFindsBothKinds(string $term): void
+    {
+        $this->assertCount(2, $this->pickerResults($term));
+    }
+
+    public function testThePickerRestrictionWorksTogetherWithSearchOptions(): void
+    {
+        $names = array_column($this->pickerResults('Picker', ['kind' => 'meta', 'name' => '1']), 'name');
+
+        $this->assertSame(['Picker meta'], $names);
     }
 }

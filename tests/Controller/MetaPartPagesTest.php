@@ -487,4 +487,87 @@ final class MetaPartPagesTest extends WebTestCase
 
         $this->assertStringContainsString('another footprint', $crawler->filter('body')->html());
     }
+
+    public function testTheConnectionPickerAsksOnlyForManufacturingPartsAndTheMergePickerForTheSameKind(): void
+    {
+        $meta = $this->exampleMetaPart();
+
+        $crawler = $this->client->request('GET', '/en/part/'.$meta->getID().'/edit');
+        $autocomplete = (string) $crawler->filter('#connection_table [data-autocomplete]')->first()->attr('data-autocomplete');
+        $this->assertStringContainsString('kind=manufacturing', $autocomplete);
+
+        $crawler = $this->info($meta);
+        $this->assertStringContainsString('kind=meta', (string) $crawler->filter('#merge-modal [data-autocomplete], select[data-autocomplete*="typeahead"]')->first()->attr('data-autocomplete'));
+    }
+
+    public function testAPartListWithMetaPartsLoadsWithABoundedNumberOfQueries(): void
+    {
+        $count = function (int $metaParts): int {
+            for ($i = 0; $i < $metaParts; $i++) {
+                $meta = $this->part('List meta '.$metaParts.'-'.$i, PartKind::META);
+                $connected = $this->part('List part '.$metaParts.'-'.$i);
+                $this->lot($connected, 3);
+                $this->connect($meta, $connected, 1);
+            }
+            $this->em->flush();
+            $this->em->clear();
+
+            $this->client->loginUser($this->em->getRepository(User::class)->findOneBy(['name' => 'admin']));
+            $this->client->enableProfiler();
+            $this->client->request('POST', '/en/parts', ['_dt' => 'dt', 'draw' => 1, 'start' => 0, 'length' => 500, 'search' => ['value' => '', 'regex' => false]]);
+            self::assertResponseIsSuccessful();
+            $rows = json_decode((string) $this->client->getResponse()->getContent(), true)['data'];
+            $this->assertGreaterThanOrEqual(2 * $metaParts, count($rows), 'The list must really show the parts, or the count says nothing');
+
+            return $this->client->getProfile()->getCollector('db')->getQueryCount();
+        };
+
+        $this->client->disableReboot();
+        //The first request also reads the schema, which has nothing to do with the rows
+        $count(0);
+        $few = $count(10);
+        $many = $count(100);
+
+        $this->assertSame($few, $many, 'The number of queries must not depend on the number of rows');
+    }
+
+    public function testTheKindFilterIsTwoCheckboxesInTheCommonTab(): void
+    {
+        $crawler = $this->client->request('GET', '/en/parts');
+
+        $boxes = $crawler->filter('#filter-common input[type="checkbox"][name="part_filter[kind][value][]"]');
+        $this->assertSame(['meta', 'manufacturing'], $boxes->each(static fn (Crawler $box) => $box->attr('value')));
+        $this->assertCount(2, $crawler->filter('#filter-common input[name="part_filter[kind][value][]"][checked]'), 'Both are set until the user changes that');
+        $this->assertCount(1, $crawler->filter('#filter-common [data-controller="filters--part-kind-constraint"]'), 'This keeps at least one of them set');
+        $this->assertStringNotContainsString('Kind of part', $crawler->filter('#filter-common')->text());
+    }
+
+    public function testTheKindCheckboxesFilterTheListAndStayTicked(): void
+    {
+        $this->part('Checkbox meta', PartKind::META);
+        $this->part('Checkbox part');
+        $this->em->flush();
+
+        $list = function (string $query): string {
+            $this->client->request('POST', '/en/parts?'.$query, ['_dt' => 'dt', 'draw' => 1, 'start' => 0, 'length' => 500, 'search' => ['value' => '', 'regex' => false]]);
+            self::assertResponseIsSuccessful();
+
+            return (string) $this->client->getResponse()->getContent();
+        };
+        $meta = 'part_filter[kind][value][]=meta';
+        $manufacturing = 'part_filter[kind][value][]=manufacturing';
+
+        $this->assertStringContainsString('Checkbox meta', $list($meta));
+        $this->assertStringNotContainsString('Checkbox part', $list($meta));
+        $this->assertStringContainsString('Checkbox part', $list($manufacturing));
+        $this->assertStringNotContainsString('Checkbox meta', $list($manufacturing));
+        foreach ([$list($meta.'&'.$manufacturing), $list('')] as $all) {
+            $this->assertStringContainsString('Checkbox meta', $all);
+            $this->assertStringContainsString('Checkbox part', $all);
+        }
+
+        $crawler = $this->client->request('GET', '/en/parts?'.$meta);
+        $this->assertSame(1, $crawler->filter('#filter-common input[value="meta"][checked]')->count());
+        $this->assertSame(0, $crawler->filter('#filter-common input[value="manufacturing"][checked]')->count());
+    }
 }

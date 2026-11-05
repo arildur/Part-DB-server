@@ -70,6 +70,12 @@ readonly class PartDataTableHelper
         }
 
 
+        //The kind says what a part is, so it shows next to the icon above and does not compete with it
+        if ($context->getKind()->allowsConnections()) {
+            $icon .= sprintf('<i class="fa-solid fa-sitemap fa-fw me-1" title="%s"></i>',
+                $this->translator->trans($context->getKind()->getTranslationKey()));
+        }
+
         return sprintf(
             '<a href="%s">%s%s</a>',
             $this->entityURLGenerator->infoURL($context),
@@ -103,7 +109,8 @@ readonly class PartDataTableHelper
     public function renderStorageLocations(Part $context): string
     {
         $tmp = [];
-        foreach ($context->getPartLots() as $lot) {
+        //For a meta part this includes the locations of its usable connected parts, which make up its stock
+        foreach ($context->getLotsCountedInStock() as $lot) {
             //Ignore lots without storelocation
             if (!$lot->getStorageLocation() instanceof StorageLocation) {
                 continue;

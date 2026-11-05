@@ -8,6 +8,7 @@ use App\Entity\Attachments\Attachment;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Services\Attachments\AttachmentURLGenerator;
 use App\Services\Attachments\PartPreviewGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,11 +21,15 @@ use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Symfony\Contracts\Translation\TranslatorInterface;
+use Symfony\Component\OptionsResolver\Options;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 class PartSelectType extends AbstractType implements DataMapperInterface
 {
-    public function __construct(private readonly UrlGeneratorInterface $urlGenerator, private readonly EntityManagerInterface $em, private readonly PartPreviewGenerator $previewGenerator, private readonly AttachmentURLGenerator $attachmentURLGenerator)
+    public function __construct(private readonly UrlGeneratorInterface $urlGenerator, private readonly EntityManagerInterface $em, private readonly PartPreviewGenerator $previewGenerator, private readonly AttachmentURLGenerator $attachmentURLGenerator,
+        private readonly TranslatorInterface $translator,
+    )
     {
     }
 
@@ -39,6 +44,8 @@ class PartSelectType extends AbstractType implements DataMapperInterface
             $config['compound'] = false;
             $config['choices'] = is_iterable($data) ? $data : [$data];
             $config['error_bubbling'] = true;
+            //Only this type knows that option, the attribute it leads to is already part of the options
+            unset($config['kind']);
 
             $form->add('autocomplete', EntityType::class, $config);
         });
@@ -78,14 +85,15 @@ class PartSelectType extends AbstractType implements DataMapperInterface
             'error_bubbling' => false,
         ]);
 
-        $resolver->setDefaults([
-            'attr' => [
-                'data-controller' => 'elements--part-select',
-                'data-autocomplete' => $this->urlGenerator->generate('typeahead_parts', ['query' => '__QUERY__']),
-                //Disable browser autocomplete
-                'autocomplete' => 'off',
-
-            ],
+        //Restricts the parts offered to one kind. This is only a help: validation of what is selected decides.
+        $resolver->setDefault('kind', null);
+        $resolver->setAllowedTypes('kind', [PartKind::class, 'null']);
+        $resolver->setDefault('attr', fn (Options $options): array => [
+            'data-controller' => 'elements--part-select',
+            'data-autocomplete' => $this->urlGenerator->generate('typeahead_parts', ['query' => '__QUERY__']
+                + ($options['kind'] instanceof PartKind ? ['kind' => $options['kind']->value] : [])),
+            //Disable browser autocomplete
+            'autocomplete' => 'off',
         ]);
 
         $resolver->setDefaults([
@@ -107,6 +115,7 @@ class PartSelectType extends AbstractType implements DataMapperInterface
                     'data-category' => $part->getCategory() instanceof Category ? $part->getCategory()->getName() : '',
                     'data-footprint' => $part->getFootprint() instanceof Footprint ? $part->getFootprint()->getName() : '',
                     'data-image' => $preview_url,
+                    'data-kind_label' => $part->getKind()->allowsConnections() ? $this->translator->trans($part->getKind()->getTranslationKey()) : '',
                 ] : [];
             })
         ]);

@@ -48,6 +48,12 @@
     {{ block('text_constraint_widget') }}
 {% endblock %}
 
+{% block part_kind_constraint_widget %}
+    <div {{ stimulus_controller('filters/part_kind_constraint') }} {{ stimulus_action('filters/part_kind_constraint', 'update', 'change') }}>
+        {{ form_widget(form.value) }}
+    </div>
+{% endblock %}
+
 {% block uuid_constraint_widget %}
     {{ block('text_constraint_widget') }}
 {% endblock %}

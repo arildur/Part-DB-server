@@ -36,6 +36,7 @@ use App\Entity\Parameters\PartParameter;
 use App\Entity\Parameters\ProjectParameter;
 use App\Entity\Parameters\StorageLocationParameter;
 use App\Entity\Parameters\SupplierParameter;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Part;
 use App\Entity\PriceInformations\Currency;
@@ -56,6 +57,7 @@ use Symfony\AI\Platform\Capability;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Asset\Packages;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -138,6 +140,7 @@ class TypeaheadController extends AbstractController
         EntityManagerInterface $entityManager,
         PartPreviewGenerator $previewGenerator,
         AttachmentURLGenerator $attachmentURLGenerator,
+        TranslatorInterface $translator,
         string $query = ""
     ): JsonResponse {
         $this->denyAccessUnlessGranted('@parts.read');
@@ -150,7 +153,10 @@ class TypeaheadController extends AbstractController
 
         //If search options (fields, regex, extensive, wildcard) are passed, search like the search page does,
         //otherwise (e.g. part select fields) use the simple and fast autocomplete search
-        if ($request->query->count() > 0) {
+        //A picker can restrict the kind of the parts it offers. That is not a search option, so it does not change the mode.
+        $kind = PartKind::tryFrom($request->query->getString('kind'));
+        $searchOptions = array_diff_key($request->query->all(), ['kind' => true]);
+        if ($searchOptions !== []) {
             $filter = PartSearchFilter::fromRequest($request, $query);
 
             //A regex is often incomplete while it is typed (e.g. "lm("), so return no results instead of an error
@@ -159,12 +165,12 @@ class TypeaheadController extends AbstractController
             }
 
             try {
-                $parts = $repo->autocompleteSearchWithFilter($filter, 100, $sort, $direction);
+                $parts = $repo->autocompleteSearchWithFilter($filter, 100, $sort, $direction, $kind);
             } catch (InvalidRegexException|DBALException) {
                 return new JsonResponse([]);
             }
         } else { // Use the fast and simple autocomplete search for the part select fields
-            $parts = $repo->autocompleteSearch($query, 100, $sort, $direction);
+            $parts = $repo->autocompleteSearch($query, 100, $sort, $direction, $kind);
         }
 
         $data = [];
@@ -180,6 +186,9 @@ class TypeaheadController extends AbstractController
             $data[] = [
                 'id' => $part['id'],
                 'name' => $part['name'],
+                'kind' => $part['kind']->value,
+                //Only set for a meta part, so that it can be told apart from a part of the same name
+                'kind_label' => $part['kind'] === PartKind::META ? $translator->trans(PartKind::META->getTranslationKey()) : '',
                 'category' => $part['category'] ?? 'Unknown',
                 'footprint' => $part['footprint'] ?? '',
                 'description' => mb_strimwidth($part['description'], 0, 127, '...'),

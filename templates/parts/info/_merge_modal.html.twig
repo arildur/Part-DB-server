@@ -24,7 +24,7 @@
                         {% trans %}part.info.merge_modal.other_part{% endtrans %}:
                     </label>
                     <select class="form-select" {{ stimulus_controller('elements/part_select') }}
-                            data-autocomplete="{{ path('typeahead_parts', {'query': '__QUERY__'}) }}"
+                            data-autocomplete="{{ path('typeahead_parts', {'query': '__QUERY__', 'kind': part.kind.value}) }}"
                             {{ stimulus_target('pages/part_merge_modal', 'otherSelect') }}
                             {{ stimulus_action('pages/part_merge_modal', 'update', 'change') }}
                     >

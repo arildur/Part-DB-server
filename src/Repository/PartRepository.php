@@ -28,6 +28,7 @@ use App\Doctrine\Helpers\FieldHelper;
 use App\Entity\Attachments\Attachment;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Services\Trees\StructuralElementPathCache;
@@ -45,7 +46,7 @@ use Doctrine\ORM\EntityManagerInterface;
  * The data of a part needed to show it in the autocomplete search results, without loading the part entity.
  * The preview attachments are the candidates for the preview picture (master picture of the part, its footprint and
  * the project it is a build part of) in the order of their priority, see PartPreviewGenerator::getFirstValidPicture().
- * @phpstan-type AutocompletePartData array{id: int, name: string, description: string, category_id: int|null,
+ * @phpstan-type AutocompletePartData array{id: int, kind: PartKind, name: string, description: string, category_id: int|null,
  *     category: string|null, footprint: string|null, manufacturer: string|null, addedDate: \DateTimeImmutable|null,
  *     lastModified: \DateTimeImmutable|null, suppliers: list<string>, preview_attachments: list<Attachment|null>}
  */
@@ -111,7 +112,7 @@ class PartRepository extends NamedDBElementRepository
      * @param  \SortDirection  $direction  The direction of the ordering given by $sort
      * @return list<AutocompletePartData>
      */
-    public function autocompleteSearch(string $query, int $max_limits = 50, ?PartSearchSort $sort = null, \SortDirection $direction = \SortDirection::Ascending): array
+    public function autocompleteSearch(string $query, int $max_limits = 50, ?PartSearchSort $sort = null, \SortDirection $direction = \SortDirection::Ascending, ?PartKind $kind = null): array
     {
         $qb = $this->createQueryBuilder('part');
         $qb->select('part.id')
@@ -124,6 +125,8 @@ class PartRepository extends NamedDBElementRepository
             ->groupBy('part.id')
             ->setParameter('query', '%'.$query.'%');
 
+        $this->restrictToKind($qb, $kind);
+
         return $this->getSortedAutocompleteResults($qb, $sort, $direction, $max_limits);
     }
 
@@ -134,7 +137,7 @@ class PartRepository extends NamedDBElementRepository
      * @param  \SortDirection  $direction  The direction of the ordering given by $sort
      * @return list<AutocompletePartData>
      */
-    public function autocompleteSearchWithFilter(PartSearchFilter $filter, int $max_limits = 50, ?PartSearchSort $sort = null, \SortDirection $direction = \SortDirection::Ascending): array
+    public function autocompleteSearchWithFilter(PartSearchFilter $filter, int $max_limits = 50, ?PartSearchSort $sort = null, \SortDirection $direction = \SortDirection::Ascending, ?PartKind $kind = null): array
     {
         //Select only the IDs first, as the joins needed by the filter would otherwise multiply the rows
         $qb = $this->createQueryBuilder('part');
@@ -149,8 +152,16 @@ class PartRepository extends NamedDBElementRepository
             ->groupBy('part.id');
 
         $filter->apply($qb);
+        $this->restrictToKind($qb, $kind);
 
         return $this->getSortedAutocompleteResults($qb, $sort, $direction, $max_limits);
+    }
+
+    private function restrictToKind(QueryBuilder $qb, ?PartKind $kind): void
+    {
+        if ($kind instanceof PartKind) {
+            $qb->andWhere('part.kind = :kind')->setParameter('kind', $kind->value);
+        }
     }
 
     /**
@@ -218,7 +229,7 @@ class PartRepository extends NamedDBElementRepository
         }
 
         $qb = $this->createQueryBuilder('part')
-            ->select('part.id', 'part.name', 'part.description', 'IDENTITY(part.category) AS category_id',
+            ->select('part.id', 'part.kind', 'part.name', 'part.description', 'IDENTITY(part.category) AS category_id',
                 '_category.name AS category', '_footprint.name AS footprint', '_manufacturer.name AS manufacturer',
                 'part.addedDate', 'part.lastModified',
                 'IDENTITY(part.master_picture_attachment) AS part_picture_id',
@@ -274,6 +285,7 @@ class PartRepository extends NamedDBElementRepository
 
             return [
                 'id' => $id,
+                'kind' => $row['kind'],
                 'name' => $row['name'],
                 'description' => $row['description'],
                 'category_id' => $row['category_id'] !== null ? (int) $row['category_id'] : null,

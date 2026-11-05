@@ -26,8 +26,10 @@ use App\Entity\Parts\Part;
 use App\Entity\Parts\PartLot;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
+use App\Entity\PriceInformations\Currency;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\PriceInformations\Pricedetail;
+use App\Helpers\Projects\ProjectBuildRequest;
 use App\Services\ProjectSystem\ProjectBuildHelper;
 use Brick\Math\BigDecimal;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -460,5 +462,90 @@ final class ProjectBuildHelperTest extends WebTestCase
         $result = $this->service->calculateTotalBuildPrice($project, 1);
         $this->assertNotNull($result);
         $this->assertTrue(BigDecimal::of('0.50')->isEqualTo($result));
+    }
+
+    private function makeCurrency(string $exchangeRate): Currency
+    {
+        $currency = new Currency();
+        $currency->setExchangeRate(BigDecimal::of($exchangeRate));
+        return $currency;
+    }
+
+    public function testCalculateTotalBuildPriceLeavesNonPartEntryUnconverted(): void
+    {
+        $project = new Project();
+        $entry = new ProjectBOMEntry();
+        $entry->setName('Solder');
+        $entry->setQuantity(1);
+        $entry->setPrice(BigDecimal::of('10'));
+        $entry->setPriceCurrency($this->makeCurrency('2.00000'));
+        $project->addBomEntry($entry);
+
+        // The entry's own 10 is used unconverted: converted, it would be 5 at the requested rate of 4
+        $result = $this->service->calculateTotalBuildPrice($project, 1, $this->makeCurrency('4.00000'));
+        $this->assertNotNull($result);
+        $this->assertTrue(BigDecimal::of('10')->isEqualTo($result), 'Got '.$result);
+    }
+
+    public function testCalculateTotalBuildPriceLeavesSubprojectUnconverted(): void
+    {
+        $subproject = new Project();
+        $subentry = new ProjectBOMEntry();
+        $subentry->setPart($this->makePartWithPrice(8));
+        $subentry->setQuantity(1);
+        $subproject->addBomEntry($subentry);
+
+        $part = new Part();
+        $part->setBuiltProject($subproject);
+        $project = new Project();
+        $entry = new ProjectBOMEntry();
+        $entry->setPart($part);
+        $entry->setQuantity(1);
+        $project->addBomEntry($entry);
+
+        // The subproject's 8 in the base currency is used unconverted: converted, it would be 4 at the requested rate of 2
+        $result = $this->service->calculateTotalBuildPrice($project, 1, $this->makeCurrency('2.00000'));
+        $this->assertNotNull($result);
+        $this->assertTrue(BigDecimal::of('8')->isEqualTo($result), 'Got '.$result);
+    }
+
+    /**
+     * Whether a build should use expired lots is not decided yet. This records how the two places differ today:
+     * the buildable count leaves out expired lots, while the proposed withdrawal still uses them.
+     */
+    public function testExpiredLotsAreLeftOutOfBuildableCountButUsedByProposedWithdrawal(): void
+    {
+        $part = new Part();
+        $expired = new class extends PartLot {
+            public function getID(): ?int
+            {
+                return 1;
+            }
+        };
+        $expired->setAmount(100);
+        $expired->setExpirationDate(new \DateTimeImmutable('-1 day'));
+        $part->addPartLot($expired);
+        $good = new class extends PartLot {
+            public function getID(): ?int
+            {
+                return 2;
+            }
+        };
+        $good->setAmount(10);
+        $part->addPartLot($good);
+
+        $entry = new ProjectBOMEntry();
+        $entry->setPart($part);
+        $entry->setQuantity(50);
+        $project = new Project();
+        $project->addBomEntry($entry);
+
+        // Only the good lot counts: 10 < 50, so no build is possible
+        $this->assertSame(0, $this->service->getMaximumBuildableCount($project));
+
+        // The proposal takes all 50 from the expired lot, which comes first
+        $request = new ProjectBuildRequest($project, 1);
+        $this->assertEqualsWithDelta(0.0, $request->getLotWithdrawAmount($good), 0.001);
+        $this->assertEqualsWithDelta(50.0, $request->getLotWithdrawAmount($expired), 0.001);
     }
 }

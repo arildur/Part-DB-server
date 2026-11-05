@@ -520,6 +520,12 @@ final class PartController extends AbstractController
         $this->denyAccessUnlessGranted('edit', $target);
         $this->denyAccessUnlessGranted('delete', $other);
 
+        if (!$partMerger->canMerge($target, $other)) {
+            $this->addFlash('error', t('part.merge.flash.different_kinds'));
+
+            return $this->redirectToRoute('part_info', ['id' => $target->getID()]);
+        }
+
         //Save the old name of the target part for the template
         $target_name = $target->getName();
 
@@ -544,6 +550,12 @@ final class PartController extends AbstractController
     ): Response {
         $this->denyAccessUnlessGranted('edit', $part);
         $this->denyAccessUnlessGranted('@info_providers.create_parts');
+
+        if (!$part->getKind()->allowsManufacturerData()) {
+            $this->addFlash('error', t('info_providers.flash.kind_can_not_hold_provider_data'));
+
+            return $this->redirectToRoute('part_info', ['id' => $part->getID()]);
+        }
 
         //Force info providers to not use cache, when retrieving part details for creating a new part, because otherwise we might end up with outdated information
         $no_cache = $request->query->getBoolean('no_cache', false);

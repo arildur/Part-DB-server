@@ -197,11 +197,27 @@ implode(',', array_map(static fn (PartLot $lot) => $lot->getID(), $part->getPart
                     break;
                 case 'change_manufacturer':
                     $this->denyAccessUnlessGranted('@manufacturers.read');
+                    //This path does not validate, so it checks what the kind of the part allows itself
+                    if (!$part->getKind()->allowsManufacturerData()) {
+                        $errors[] = [
+                            'part' => $part,
+                            'message' => t('parts.table.action_handler.error.kind_no_manufacturer'),
+                        ];
+                        break;
+                    }
                     $part->setManufacturer(null === $target_id ? null : $this->entityManager->find(Manufacturer::class, $target_id));
                     break;
                 case 'change_unit':
                     $this->denyAccessUnlessGranted('@measurement_units.read');
-                    $part->setPartUnit(null === $target_id ? null : $this->entityManager->find(MeasurementUnit::class, $target_id));
+                    $unit = null === $target_id ? null : $this->entityManager->find(MeasurementUnit::class, $target_id);
+                    if ($this->wouldDifferFromAConnectedPart($part, $unit)) {
+                        $errors[] = [
+                            'part' => $part,
+                            'message' => t('parts.table.action_handler.error.unit_differs_from_connected'),
+                        ];
+                        break;
+                    }
+                    $part->setPartUnit($unit);
                     break;
                 case 'change_location':
                     $this->denyAccessUnlessGranted('@storelocations.read');
@@ -218,6 +234,12 @@ implode(',', array_map(static fn (PartLot $lot) => $lot->getID(), $part->getPart
 
                         $part_lot = $part_lots->first();
                         $part_lot->setStorageLocation(null === $target_id ? null : $this->entityManager->find(StorageLocation::class, $target_id));
+                    } elseif ($part->getKind()->allowsConnections()) {
+                        //A meta part normally has no lots of its own, so this would create a lot nobody asked for
+                        $errors[] = [
+                            'part' => $part,
+                            'message' => t('parts.table.action_handler.error.meta_part_has_no_lot'),
+                        ];
                     } else { //Create a new part lot if there are none
                         $part_lot = new PartLot();
                         $part_lot->setPart($part);
@@ -250,5 +272,21 @@ implode(',', array_map(static fn (PartLot $lot) => $lot->getID(), $part->getPart
 
             throw $exception;
         }
+    }
+
+    private function wouldDifferFromAConnectedPart(Part $part, ?MeasurementUnit $unit): bool
+    {
+        foreach ($part->getPartConnections() as $connection) {
+            if ($connection->getConnectedPart()?->getPartUnit() !== $unit) {
+                return true;
+            }
+        }
+        foreach ($part->getConnectionsAsPart() as $connection) {
+            if ($connection->getMetaPart()?->getPartUnit() !== $unit) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -85,6 +85,7 @@ use App\Validator\Constraints\UniqueObjectCollection;
 use App\Validator\Constraints\ValidPartKind;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use App\Entity\ProjectSystem\Project;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use SortDirection;
@@ -387,6 +388,14 @@ class Part extends AttachmentContainingDBElement
                 $this->addAssociatedPartsAsOwner(clone $association);
             }
 
+            //Deep clone the connections to the parts below a meta part. Those above this part belong to the other part.
+            $connections = $this->part_connections;
+            $this->part_connections = new ArrayCollection();
+            foreach ($connections as $connection) {
+                $this->addPartConnection(clone $connection);
+            }
+            $this->connections_as_part = new ArrayCollection();
+
             //Deep clone info provider
             $this->providerReference = clone $this->providerReference;
             $this->eda_info = clone $this->eda_info;
@@ -420,6 +429,47 @@ class Part extends AttachmentContainingDBElement
                     ->atPath('name')
                     ->setParameter('%regex%', $regex)
                     ->addViolation();
+            }
+        }
+
+        $this->validateAgainstKind($context);
+    }
+
+    /**
+     * Refuses what the kind of this part does not allow. These are violations, not guards in the setters, so that an
+     * import can report them per row, whatever the order of its columns.
+     */
+    private function validateAgainstKind(ExecutionContextInterface $context): void
+    {
+        if (!$this->kind->allowsManufacturerData()) {
+            $refused = [
+                'manufacturer' => $this->manufacturer !== null,
+                'manufacturer_product_number' => $this->manufacturer_product_number !== '',
+                'manufacturer_product_url' => $this->manufacturer_product_url !== '',
+                'manufacturing_status' => !in_array($this->manufacturing_status, [null, ManufacturingStatus::NOT_SET], true),
+                'gtin' => $this->gtin !== null && $this->gtin !== '',
+                'providerReference' => $this->providerReference->isProviderCreated(),
+            ];
+            foreach (array_keys(array_filter($refused)) as $field) {
+                $context->buildViolation('validator.part.kind_does_not_allow_manufacturer_data')
+                    ->atPath($field)
+                    ->addViolation();
+            }
+        }
+
+        if ($this->built_project instanceof Project && !$this->kind->canBeBuildPart()) {
+            $context->buildViolation('validator.part.kind_can_not_be_build_part')
+                ->atPath('built_project')
+                ->addViolation();
+        }
+
+        //The connections this part owns are validated themselves. Those of the other side are not, so they are checked here.
+        foreach ($this->connections_as_part as $connection) {
+            if ($connection->getMetaPart()?->getPartUnit() !== $this->partUnit) {
+                $context->buildViolation('validator.part_connection.units_must_match')
+                    ->atPath('partUnit')
+                    ->addViolation();
+                break;
             }
         }
     }

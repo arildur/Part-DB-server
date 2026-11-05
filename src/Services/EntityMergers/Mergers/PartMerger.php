@@ -27,6 +27,7 @@ use App\Entity\Parts\InfoProviderReference;
 use App\Entity\Parts\ManufacturingStatus;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartAssociation;
+use App\Entity\Parts\PartConnection;
 use App\Entity\PriceInformations\Orderdetail;
 
 /**
@@ -45,10 +46,23 @@ class PartMerger implements EntityMergerInterface
         return $target instanceof Part && $other instanceof Part;
     }
 
+    /**
+     * Parts of different kinds hold different data, so merging them would leave a part with what its kind does not allow.
+     */
+    public function canMerge(Part $target, Part $other): bool
+    {
+        return $target->getKind() === $other->getKind();
+    }
+
     public function merge(object $target, object $other, array $context = []): Part
     {
         if (!$target instanceof Part || !$other instanceof Part) {
             throw new \InvalidArgumentException('The target and the other entity must be instances of Part');
+        }
+
+        //Callers should ask canMerge first, so that the user gets a message. This has to come before anything changes.
+        if (!$this->canMerge($target, $other)) {
+            throw new \InvalidArgumentException('Parts of different kinds can not be merged');
         }
 
         //Merge basic fields
@@ -166,6 +180,66 @@ class PartMerger implements EntityMergerInterface
         }
     }
 
+    /**
+     * The other part is removed after a merge, and its connections with it. So they are moved to the target, or else meta
+     * parts would lose the stock that now sits in the target, with no message.
+     */
+    private function mergeConnections(Part $target, Part $other): void
+    {
+        //Connections below a meta part
+        foreach ($other->getPartConnections() as $connection) {
+            $existing = $this->findConnection($target->getPartConnections(), static fn (PartConnection $c): bool => $c->getConnectedPart() === $connection->getConnectedPart());
+            if ($existing instanceof PartConnection) {
+                $this->combineConnections($existing, $connection);
+            } else {
+                $target->addPartConnection(clone $connection);
+            }
+        }
+
+        //Connections above a manufacturing part
+        foreach ($other->getConnectionsAsPart() as $connection) {
+            $metaPart = $connection->getMetaPart();
+            if (!$metaPart instanceof Part) {
+                continue;
+            }
+            $existing = $this->findConnection($target->getConnectionsAsPart(), static fn (PartConnection $c): bool => $c->getMetaPart() === $metaPart);
+            if ($existing instanceof PartConnection) {
+                $this->combineConnections($existing, $connection);
+            } else {
+                $metaPart->addPartConnection((clone $connection)->setConnectedPart($target));
+            }
+        }
+    }
+
+    /**
+     * @param iterable<PartConnection> $connections
+     */
+    private function findConnection(iterable $connections, callable $matches): ?PartConnection
+    {
+        foreach ($connections as $connection) {
+            if ($matches($connection)) {
+                return $connection;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A pair can only be connected once. The safer status wins, as someone marked it do not use for a reason, and the
+     * higher priority stays, so that a primary source does not drop with no notice.
+     */
+    private function combineConnections(PartConnection $target, PartConnection $other): void
+    {
+        if (!$other->isUsable()) {
+            $target->setStatus($other->getStatus());
+        }
+        $target->setPosition(min($target->getPosition() ?? PHP_INT_MAX, $other->getPosition() ?? PHP_INT_MAX));
+        if ($other->getNote() !== '' && $other->getNote() !== $target->getNote()) {
+            $target->setNote(trim($target->getNote()."\n".$other->getNote()));
+        }
+    }
+
     private function mergeCollectionFields(Part $target, Part $other, array $context): void
     {
         /********************************************************************************
@@ -179,6 +253,8 @@ class PartMerger implements EntityMergerInterface
 
         // Merge the project BOM entries, so the usage of the other part in projects is not lost.
         $this->mergeProjectBomEntries($target, $other);
+
+        $this->mergeConnections($target, $other);
 
         //Merge the associations
         $this->mergeCollections($target, $other, 'associated_parts_as_owner', $this->comparePartAssociations(...));

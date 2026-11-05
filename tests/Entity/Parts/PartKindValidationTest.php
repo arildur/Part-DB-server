@@ -21,10 +21,18 @@
 declare(strict_types=1);namespace App\Tests\Entity\Parts;
 
 use App\Entity\Parts\Category;
+use App\Entity\Parts\InfoProviderReference;
+use App\Entity\Parts\Manufacturer;
+use App\Entity\Parts\ManufacturingStatus;
+use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartKind;
+use App\Entity\PriceInformations\Orderdetail;
+use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -102,6 +110,123 @@ final class PartKindValidationTest extends KernelTestCase
         $clone->setKind(PartKind::META);
 
         $this->assertFalse($this->hasKindViolation($clone));
+    }
+
+    /** @return list<string> */
+    private function violatedPaths(object $object): array
+    {
+        $paths = [];
+        foreach ($this->validator->validate($object) as $violation) {
+            $paths[] = $violation->getPropertyPath();
+        }
+
+        return $paths;
+    }
+
+    /** @return array<string, array{string, callable(Part): mixed}> */
+    public static function manufacturerData(): array
+    {
+        return [
+            'manufacturer' => ['manufacturer', static fn (Part $p) => $p->setManufacturer(new Manufacturer())],
+            'part number' => ['manufacturer_product_number', static fn (Part $p) => $p->setManufacturerProductNumber('X1')],
+            'product URL' => ['manufacturer_product_url', static fn (Part $p) => $p->setManufacturerProductURL('https://example.invalid/x')],
+            'status' => ['manufacturing_status', static fn (Part $p) => $p->setManufacturingStatus(ManufacturingStatus::ACTIVE)],
+            'GTIN' => ['gtin', static fn (Part $p) => $p->setGtin('4006381333931')],
+            'provider reference' => ['providerReference', static fn (Part $p) => $p->setProviderReference(InfoProviderReference::providerReference('test', 'id'))],
+        ];
+    }
+
+    #[DataProvider('manufacturerData')]
+    public function testAMetaPartRefusesManufacturerData(string $path, callable $set): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $set($meta);
+        $this->assertContains($path, $this->violatedPaths($meta));
+
+        $part = new Part();
+        $set($part);
+        $this->assertNotContains($path, $this->violatedPaths($part));
+    }
+
+    public function testAMetaPartKeepsTheOtherFields(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $meta->setName('Meta');
+        $meta->setCategory($this->em->find(Category::class, 1));
+        $meta->setComment('A comment');
+        $meta->setMinAmount(10);
+        $meta->setMass(1.5);
+        $meta->setFavorite(true);
+        $meta->setNeedsReview(true);
+
+        $this->assertSame([], $this->violatedPaths($meta));
+    }
+
+    public function testAMetaPartRefusesABuildProject(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $meta->setBuiltProject(new Project());
+
+        $this->assertContains('built_project', $this->violatedPaths($meta));
+    }
+
+    public function testAnOrderDetailRefusesAMetaPart(): void
+    {
+        $orderdetail = new Orderdetail();
+        $meta = (new Part())->setKind(PartKind::META);
+        $meta->addOrderdetail($orderdetail);
+
+        $this->assertContains('part', $this->violatedPaths($orderdetail));
+        $this->assertContains('orderdetails[0].part', $this->violatedPaths($meta));
+
+        $accepted = new Orderdetail();
+        (new Part())->addOrderdetail($accepted);
+        $this->assertNotContains('part', $this->violatedPaths($accepted));
+    }
+
+    public function testAConnectionRefusesDifferentUnits(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $part = new Part();
+        $connection = (new PartConnection())->setMetaPart($meta)->setConnectedPart($part);
+        $this->assertNotContains('connected_part', $this->violatedPaths($connection));
+
+        $part->setPartUnit(new MeasurementUnit());
+        $this->assertContains('connected_part', $this->violatedPaths($connection));
+    }
+
+    public function testChangingTheUnitOfAConnectedPartIsRefusedOnce(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $part = new Part();
+        $part->setName('Part');
+        $part->setCategory($this->em->find(Category::class, 1));
+        $meta->setName('Meta');
+        $meta->setCategory($this->em->find(Category::class, 1));
+        $connection = (new PartConnection())->setConnectedPart($part);
+        $meta->addPartConnection($connection);
+        $part->getConnectionsAsPart()->add($connection);
+        $this->assertNotContains('partUnit', $this->violatedPaths($part));
+
+        $part->setPartUnit(new MeasurementUnit());
+
+        $this->assertSame(['partUnit'], array_values(array_filter($this->violatedPaths($part), static fn (string $p): bool => $p === 'partUnit')));
+    }
+
+    public function testBothKindsCanHaveAnInternalPartNumberButNotTheSameOne(): void
+    {
+        $saved = $this->em->find(Part::class, 1);
+        $saved->setIpn('SAME-1');
+        $this->em->flush();
+
+        $meta = (new Part())->setKind(PartKind::META);
+        $meta->setName('Meta');
+        $meta->setCategory($this->em->find(Category::class, 1));
+        $meta->setIpn('OTHER-1');
+        $this->assertNotContains('ipn', $this->violatedPaths($meta));
+
+        $meta->setIpn('SAME-1');
+        $this->assertContains('ipn', $this->violatedPaths($meta));
     }
 
     public function testMetaPartIsRefusedInABomForNow(): void

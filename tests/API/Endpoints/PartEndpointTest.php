@@ -115,6 +115,17 @@ final class PartEndpointTest extends CrudEndpointTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testAMetaPartRefusesAManufacturer(): void
+    {
+        self::createAuthenticatedClient()->request('POST', $this->getBasePath(), ['json' => [
+            'name' => 'Meta part',
+            'kind' => 'meta',
+            'category' => '/api/categories/1',
+            'manufacturer' => '/api/manufacturers/1',
+        ]]);
+        self::assertResponseStatusCodeSame(422);
+    }
+
     public function testDeleteItem(): void
     {
         $this->_testDeleteItem(1);

@@ -73,4 +73,35 @@ final class OrderdetailsEndpointTest extends CrudEndpointTestCase
     {
         $this->_testDeleteItem(2);
     }
+
+    private function createMetaPart(): string
+    {
+        $response = self::createAuthenticatedClient()->request('POST', '/api/parts', ['json' => [
+            'name' => 'Meta part',
+            'kind' => 'meta',
+            'category' => '/api/categories/1',
+        ]]);
+        self::assertResponseStatusCodeSame(201);
+
+        return $response->toArray()['@id'];
+    }
+
+    public function testAnOrderDetailCanNotBeCreatedOnAMetaPart(): void
+    {
+        $meta = $this->createMetaPart();
+
+        self::createAuthenticatedClient()->request('POST', $this->getBasePath(), ['json' => ['part' => $meta, 'supplier' => '/api/suppliers/1', 'supplierpartnr' => 'X1']]);
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testAnOrderDetailCanNotBeMovedToAMetaPart(): void
+    {
+        $meta = $this->createMetaPart();
+
+        self::createAuthenticatedClient()->request('PATCH', $this->getItemPath(1), [
+            'json' => ['part' => $meta],
+            'headers' => ['Content-Type' => 'application/merge-patch+json'],
+        ]);
+        self::assertResponseStatusCodeSame(422);
+    }
 }

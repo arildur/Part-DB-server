@@ -307,5 +307,29 @@
         <target>The parts of a connection can not be changed. Remove it and add a new one.</target>
       </segment>
     </unit>
+    <unit id="pConn05" name="validator.part_connection.units_must_match">
+      <segment state="translated">
+        <source>validator.part_connection.units_must_match</source>
+        <target>A connected part must have the same measurement unit as its meta part.</target>
+      </segment>
+    </unit>
+    <unit id="pKind03" name="validator.part.kind_does_not_allow_manufacturer_data">
+      <segment state="translated">
+        <source>validator.part.kind_does_not_allow_manufacturer_data</source>
+        <target>A part of this kind can not hold data that identifies one manufacturer's product.</target>
+      </segment>
+    </unit>
+    <unit id="pKind04" name="validator.part.kind_can_not_be_build_part">
+      <segment state="translated">
+        <source>validator.part.kind_can_not_be_build_part</source>
+        <target>A part of this kind can not be the part a project builds.</target>
+      </segment>
+    </unit>
+    <unit id="pKind05" name="validator.orderdetail.kind_does_not_allow_suppliers">
+      <segment state="translated">
+        <source>validator.orderdetail.kind_does_not_allow_suppliers</source>
+        <target>A part of this kind can not have suppliers of its own.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

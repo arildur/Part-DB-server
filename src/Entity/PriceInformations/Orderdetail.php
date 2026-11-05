@@ -53,6 +53,7 @@ use SortDirection;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 use Symfony\Component\Validator\Constraints\Length;
 
 /**
@@ -356,6 +357,19 @@ class Orderdetail extends AbstractDBElement implements TimeStampableInterface, N
     /**
      * Sets a new part with which this orderdetail is associated.
      */
+    /**
+     * This sits here and not on the part, as an order detail can be written on its own through the API.
+     */
+    #[Assert\Callback]
+    public function validateKindOfPart(ExecutionContextInterface $context, mixed $payload = null): void
+    {
+        if ($this->part instanceof Part && !$this->part->getKind()->allowsSuppliers()) {
+            $context->buildViolation('validator.orderdetail.kind_does_not_allow_suppliers')
+                ->atPath('part')
+                ->addViolation();
+        }
+    }
+
     public function setPart(Part $part): self
     {
         $this->part = $part;

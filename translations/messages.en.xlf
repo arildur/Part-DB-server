@@ -16064,5 +16064,41 @@ Buerklin-API Authentication server:
         <target>The connection could not be restored: a part no longer exists, or the two parts are connected again.</target>
       </segment>
     </unit>
+    <unit id="pKind11" name="parts.table.action_handler.error.kind_no_manufacturer">
+      <segment state="translated">
+        <source>parts.table.action_handler.error.kind_no_manufacturer</source>
+        <target>A part of this kind can not have a manufacturer.</target>
+      </segment>
+    </unit>
+    <unit id="pKind12" name="parts.table.action_handler.error.unit_differs_from_connected">
+      <segment state="translated">
+        <source>parts.table.action_handler.error.unit_differs_from_connected</source>
+        <target>This unit would differ from that of a part it is connected to.</target>
+      </segment>
+    </unit>
+    <unit id="pKind13" name="parts.table.action_handler.error.meta_part_has_no_lot">
+      <segment state="translated">
+        <source>parts.table.action_handler.error.meta_part_has_no_lot</source>
+        <target>This meta part has no stock lot of its own to move.</target>
+      </segment>
+    </unit>
+    <unit id="pKind14" name="part.merge.flash.different_kinds">
+      <segment state="translated">
+        <source>part.merge.flash.different_kinds</source>
+        <target>Parts of different kinds can not be merged.</target>
+      </segment>
+    </unit>
+    <unit id="pKind15" name="info_providers.flash.kind_can_not_hold_provider_data">
+      <segment state="translated">
+        <source>info_providers.flash.kind_can_not_hold_provider_data</source>
+        <target>A part of this kind can not be updated from an info provider.</target>
+      </segment>
+    </unit>
+    <unit id="pKind16" name="info_providers.bulk.parts_left_out">
+      <segment state="translated">
+        <source>info_providers.bulk.parts_left_out</source>
+        <target>Left out, as they can not hold provider data: %names%</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

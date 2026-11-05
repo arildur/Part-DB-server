@@ -46,6 +46,8 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
+use function Symfony\Component\Translation\t;
+
 #[Route('/tools/bulk_info_provider_import')]
 class BulkInfoProviderImportController extends AbstractController
 {
@@ -126,6 +128,30 @@ class BulkInfoProviderImportController extends AbstractController
         $job->setSearchResults($allResults);
     }
 
+    /**
+     * A supplier's data describes one product, so a part whose kind does not allow that is left out of a job, and named.
+     * @param Part[] $parts
+     * @return Part[]
+     */
+    private function leaveOutPartsThatCanNotHoldProviderData(array $parts): array
+    {
+        $allowed = [];
+        $left_out = [];
+        foreach ($parts as $part) {
+            if ($part->getKind()->allowsManufacturerData()) {
+                $allowed[] = $part;
+            } else {
+                $left_out[] = $part->getName();
+            }
+        }
+
+        if ($left_out !== []) {
+            $this->addFlash('warning', t('info_providers.bulk.parts_left_out', ['%names%' => implode(', ', $left_out)]));
+        }
+
+        return $allowed;
+    }
+
     #[Route('/step1', name: 'bulk_info_provider_step1')]
     public function step1(Request $request): Response
     {
@@ -141,7 +167,7 @@ class BulkInfoProviderImportController extends AbstractController
 
         $partIds = explode(',', $ids);
         $partRepository = $this->entityManager->getRepository(Part::class);
-        $parts = $partRepository->getElementsFromIDArray($partIds);
+        $parts = $this->leaveOutPartsThatCanNotHoldProviderData($partRepository->getElementsFromIDArray($partIds));
 
         if (empty($parts)) {
             $this->addFlash('error', 'No valid parts found for bulk import');
@@ -283,7 +309,7 @@ class BulkInfoProviderImportController extends AbstractController
             return $this->redirectToRoute('homepage');
         }
 
-        $parts = $this->entityManager->getRepository(Part::class)->getElementsFromIDArray(explode(',', $ids));
+        $parts = $this->leaveOutPartsThatCanNotHoldProviderData($this->entityManager->getRepository(Part::class)->getElementsFromIDArray(explode(',', $ids)));
 
         if ($parts === []) {
             $this->addFlash('error', 'No valid parts found for bulk refresh');
@@ -620,6 +646,11 @@ class BulkInfoProviderImportController extends AbstractController
 
         $this->denyAccessUnlessGranted('edit', $part);
 
+        //This path merges and saves with no validation, so it checks what the kind of the part allows itself
+        if (!$part->getKind()->allowsManufacturerData()) {
+            return $this->createErrorResponse('A part of this kind can not hold provider data', 400, ['part_id' => $partId]);
+        }
+
         // Get provider key/id from request body, or fall back to top search result
         $body = $request->toArray();
         $providerKey = $body['providerKey'] ?? null;
@@ -723,6 +754,12 @@ class BulkInfoProviderImportController extends AbstractController
 
             if (!$this->isGranted('edit', $part)) {
                 $errors[] = sprintf('No edit permission for "%s"', $part->getName());
+                $failed++;
+                continue;
+            }
+
+            if (!$part->getKind()->allowsManufacturerData()) {
+                $errors[] = sprintf('"%s" can not hold provider data', $part->getName());
                 $failed++;
                 continue;
             }

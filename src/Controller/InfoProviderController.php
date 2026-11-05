@@ -137,6 +137,12 @@ class InfoProviderController extends  AbstractController
     {
         $this->denyAccessUnlessGranted('@info_providers.create_parts');
 
+        if ($update_target !== null && !$update_target->getKind()->allowsManufacturerData()) {
+            $this->addFlash('error', t('info_providers.flash.kind_can_not_hold_provider_data'));
+
+            return $this->redirectToRoute('part_info', ['id' => $update_target->getID()]);
+        }
+
         $form = $this->createForm(PartSearchType::class);
         $form->handleRequest($request);
 

@@ -55,6 +55,14 @@ class ValidPartConnectionValidator extends ConstraintValidator
                 ->addViolation();
         }
 
+        //A total that adds grams to pieces would mean nothing
+        if ($value->getMetaPart() instanceof Part && $value->getConnectedPart() instanceof Part
+            && $value->getMetaPart()->getPartUnit() !== $value->getConnectedPart()->getPartUnit()) {
+            $this->context->buildViolation('validator.part_connection.units_must_match')
+                ->atPath('connected_part')
+                ->addViolation();
+        }
+
         //A change of part is a removal and a new connection, which keeps the log readable
         $original = $this->em->getUnitOfWork()->getOriginalEntityData($value);
         foreach (['meta_part' => $value->getMetaPart(), 'connected_part' => $value->getConnectedPart()] as $field => $part) {

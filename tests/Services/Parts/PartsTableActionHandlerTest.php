@@ -22,7 +22,15 @@ declare(strict_types=1);
  */
 namespace App\Tests\Services\Parts;
 
+use App\Entity\Parts\Manufacturer;
+use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\PartKind;
+use App\Entity\UserSystem\User;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use App\Services\Parts\PartsTableActionHandler;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -97,5 +105,73 @@ final class PartsTableActionHandlerTest extends WebTestCase
         // empty parts list means the loop body never executes and no exception is thrown.
         $result = $this->service->handleAction('unknown_action_xyz', [], null, '/test');
         $this->assertNull($result);
+    }
+
+    private function metaPart(): Part
+    {
+        return (new Part())->setKind(PartKind::META);
+    }
+
+    public function testChangingTheManufacturerSkipsAPartThatCanNotHoldOne(): void
+    {
+        $this->loginAsAdmin();
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $manufacturer = $em->find(Manufacturer::class, 1);
+        $meta = $this->metaPart();
+        $part = new Part();
+
+        $errors = [];
+        $this->service->handleAction('change_manufacturer', [$meta, $part], $manufacturer->getID(), null, $errors);
+
+        $this->assertNull($meta->getManufacturer());
+        $this->assertSame($manufacturer, $part->getManufacturer());
+        $this->assertCount(1, $errors);
+        $this->assertSame($meta, $errors[0]['part']);
+    }
+
+    public function testChangingTheUnitIsRefusedWhenAConnectedPartWouldDiffer(): void
+    {
+        $this->loginAsAdmin();
+        $meta = $this->metaPart();
+        $part = new Part();
+        $connection = (new PartConnection())->setConnectedPart($part);
+        $meta->addPartConnection($connection);
+        $part->getConnectionsAsPart()->add($connection);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $unit = new MeasurementUnit();
+        $unit->setName('Metres');
+        $em->persist($unit);
+        $em->flush();
+
+        foreach ([$part, $meta] as $target) {
+            $errors = [];
+            $this->service->handleAction('change_unit', [$target], $unit->getID(), null, $errors);
+            $this->assertNull($target->getPartUnit());
+            $this->assertCount(1, $errors);
+        }
+
+        $free = new Part();
+        $errors = [];
+        $this->service->handleAction('change_unit', [$free], $unit->getID(), null, $errors);
+        $this->assertSame($unit, $free->getPartUnit());
+        $this->assertSame([], $errors);
+    }
+
+    public function testChangingTheLocationCreatesNoLotOnAMetaPart(): void
+    {
+        $this->loginAsAdmin();
+        $meta = $this->metaPart();
+
+        $errors = [];
+        $this->service->handleAction('change_location', [$meta], 1, null, $errors);
+
+        $this->assertCount(0, $meta->getPartLots());
+        $this->assertCount(1, $errors);
+    }
+
+    private function loginAsAdmin(): void
+    {
+        $user = self::getContainer()->get(EntityManagerInterface::class)->getRepository(User::class)->findOneBy(['name' => 'admin']);
+        self::getContainer()->get(TokenStorageInterface::class)->setToken(new UsernamePasswordToken($user, 'main', $user->getRoles()));
     }
 }

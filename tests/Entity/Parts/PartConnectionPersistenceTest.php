@@ -147,4 +147,43 @@ final class PartConnectionPersistenceTest extends KernelTestCase
         $this->assertNotNull($this->em->find(Part::class, $metaId));
         $this->assertSame(100.0, $this->em->find(Part::class, $partId)->getPartLots()->first()->getAmount());
     }
+
+    public function testCloningAMetaPartCopiesItsConnections(): void
+    {
+        [$meta, $part] = $this->connectedPair();
+        $second = $this->part(PartKind::MANUFACTURING, 'Second');
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($second)->setNote('Note'));
+        $this->em->flush();
+        $metaId = $meta->getID();
+
+        $clone = clone $meta;
+        $clone->setName('Clone');
+        $this->em->persist($clone);
+        $this->em->flush();
+        $cloneId = $clone->getID();
+        $this->em->clear();
+
+        $loaded = $this->em->find(Part::class, $cloneId);
+        $this->assertSame(PartKind::META, $loaded->getKind());
+        $this->assertCount(2, $loaded->getPartConnections());
+        foreach ($loaded->getPartConnections() as $connection) {
+            $this->assertSame($cloneId, $connection->getMetaPart()->getID());
+        }
+        $this->assertCount(2, $this->em->find(Part::class, $metaId)->getPartConnections(), 'The original keeps its own');
+    }
+
+    public function testCloningAConnectedPartCreatesNoConnection(): void
+    {
+        [, $part] = $this->connectedPair();
+        $this->em->flush();
+        $this->em->clear();
+
+        $clone = clone $this->em->find(Part::class, $part->getID());
+        $clone->setName('Clone');
+        $this->em->persist($clone);
+        $this->em->flush();
+
+        $this->assertCount(0, $clone->getConnectionsAsPart());
+        $this->assertSame(1, $this->connectionCount());
+    }
 }

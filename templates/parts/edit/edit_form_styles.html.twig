@@ -246,3 +246,23 @@
         </td>
     </tr>
 {% endblock %}
+
+{% block part_connection_widget %}
+    {% import 'components/collection_type.macro.html.twig' as collection %}
+    <tr>
+        <td>
+            {{ form_widget(form) }}
+            {% if value is not null and value.hasDifferentFootprint %}
+                <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs'|trans({'%part%': value.name}) }}</span>
+            {% endif %}
+        </td>
+        <td>
+            <button type="button" class="btn btn-danger lot_btn_delete position-relative" {{ collection.delete_btn() }}>
+                <i class="fas fa-trash-alt fa-fw"></i>
+                {% trans %}part_lot.delete{% endtrans %}
+                {{ collection.new_element_indicator(value) }}
+            </button>
+            {{ form_errors(form) }}
+        </td>
+    </tr>
+{% endblock %}

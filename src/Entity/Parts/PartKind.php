@@ -32,6 +32,11 @@ enum PartKind: string
     /** A specification, standing above the interchangeable manufacturing parts connected to it. */
     case META = 'meta';
 
+    public function getTranslationKey(): string
+    {
+        return 'part.kind.'.$this->value;
+    }
+
     /** Whether the part may hold a manufacturer, a part number and other data identifying one product. */
     public function allowsManufacturerData(): bool
     {

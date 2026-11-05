@@ -196,6 +196,17 @@ class PartConnection extends AbstractDBElement implements TimeStampableInterface
     }
 
     /**
+     * Whether the connected part has another footprint than its meta part, when both have one. Worth a warning, not a refusal.
+     */
+    public function hasDifferentFootprint(): bool
+    {
+        $own = $this->meta_part?->getFootprint();
+        $other = $this->connected_part?->getFootprint();
+
+        return $own !== null && $other !== null && $own !== $other;
+    }
+
+    /**
      * Named after the connected part, so that a log entry says more than an ID.
      */
     public function getName(): string

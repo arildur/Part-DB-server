@@ -38,6 +38,7 @@ enum PartInfoTabs: string implements TranslatableInterface
     case ATTACHMENTS = "attachments";
     case SUPPLIERS = "suppliers";
     case ASSOCIATIONS = "associations";
+    case CONNECTIONS = "connections";
     case HISTORY = "history";
     case PROJECTS = "projects";
     case TOOLS = "tools";
@@ -52,6 +53,7 @@ enum PartInfoTabs: string implements TranslatableInterface
             self::ATTACHMENTS => 'attachment.labelp',
             self::SUPPLIERS => 'vendor.partinfo.shopping_infos',
             self::ASSOCIATIONS => 'part.edit.tab.associations',
+            self::CONNECTIONS => 'part_connection.labelp',
             self::HISTORY => 'vendor.partinfo.history',
             self::PROJECTS => 'project.labelp',
             self::TOOLS => 'tools.label',

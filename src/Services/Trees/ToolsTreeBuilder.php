@@ -29,6 +29,7 @@ use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartCustomState;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
@@ -263,6 +264,10 @@ class ToolsTreeBuilder
                 $this->translator->trans('tree.tools.edit.part'),
                 $this->urlGenerator->generate('part_new')
             ))->setIcon('fa-fw fa-treeview fa-solid fa-plus-square');
+            $nodes[] = (new TreeViewNode(
+                $this->translator->trans('tree.tools.edit.meta_part'),
+                $this->urlGenerator->generate('part_new', ['kind' => PartKind::META->value])
+            ))->setIcon('fa-fw fa-treeview fa-solid fa-sitemap');
         }
 
         return $nodes;

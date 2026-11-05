@@ -1,6 +1,12 @@
 <div class="row mb-3">
     <div class="col">
-        <a href="{{ path('part_new', url_options) }}" class="btn btn-success float-start {% if not is_granted("@parts.create") or (entity is defined and entity.notSelectable) %}disabled{% endif %}"><i class="fas fa-plus-square fa-fw"></i>
-            {% trans%}part.create.btn{% endtrans %}</a>
+        <div class="btn-group float-start">
+            <a href="{{ path('part_new', url_options) }}" class="btn btn-success {% if not is_granted("@parts.create") or (entity is defined and entity.notSelectable) %}disabled{% endif %}"><i class="fas fa-plus-square fa-fw"></i>
+                {% trans%}part.create.btn{% endtrans %}</a>
+            <button type="button" class="btn btn-success dropdown-toggle dropdown-toggle-split {% if not is_granted("@parts.create") or (entity is defined and entity.notSelectable) %}disabled{% endif %}" data-bs-toggle="dropdown" aria-expanded="false"></button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{{ path('part_new', url_options|merge({kind: 'meta'})) }}"><i class="fa-fw fa-solid fa-sitemap"></i> {% trans %}part.create_meta.btn{% endtrans %}</a></li>
+            </ul>
+        </div>
     </div>
 </div>

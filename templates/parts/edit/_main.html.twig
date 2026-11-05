@@ -1,3 +1,6 @@
+<div {{ stimulus_controller('pages/part_kind') }}>
+    {{ form_row(form.kind) }}
+</div>
 {{ form_row(form.name) }}
 {% if part.category is not null and part.category.partnameHint is not empty %}
     <div class="row">

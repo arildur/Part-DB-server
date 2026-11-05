@@ -29,6 +29,7 @@ use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
@@ -371,6 +372,7 @@ final class PartController extends AbstractController
         #[MapEntity(mapping: ['id' => 'id'])] ?Part $part = null,
         #[MapEntity(mapping: ['project_id' => 'id'])] ?Project $project = null
     ): Response {
+        $form_options = [];
 
         if ($part instanceof Part) {
             //Clone part
@@ -383,8 +385,10 @@ final class PartController extends AbstractController
                 return $this->redirectToRoute('part_edit', ['id' => $project->getBuildPart()->getID()]);
             }
             $new_part = $projectBuildPartHelper->getPartInitialization($project);
-        } else { //Create an empty part from scratch
+        } else { //Create an empty part from scratch. Only here can the kind be chosen.
             $new_part = new Part();
+            $new_part->setKind(PartKind::tryFrom($request->query->getString('kind')) ?? PartKind::MANUFACTURING);
+            $form_options['kind_mode'] = PartBaseType::KIND_CHOOSE;
         }
 
         $this->denyAccessUnlessGranted('create', $new_part);
@@ -405,7 +409,7 @@ final class PartController extends AbstractController
 
         $mid = $request->get('manufacturer', null);
         $manufacturer = $mid ? $em->find(Manufacturer::class, $mid) : null;
-        if ($manufacturer instanceof Manufacturer && !$new_part->getManufacturer() instanceof Manufacturer) {
+        if ($manufacturer instanceof Manufacturer && !$new_part->getManufacturer() instanceof Manufacturer && $new_part->getKind()->allowsManufacturerData()) {
             $new_part->setManufacturer($manufacturer);
         }
 
@@ -420,13 +424,13 @@ final class PartController extends AbstractController
 
         $supplier_id = $request->get('supplier', null);
         $supplier = $supplier_id ? $em->find(Supplier::class, $supplier_id) : null;
-        if ($supplier instanceof Supplier && $new_part->getOrderdetails()->isEmpty()) {
+        if ($supplier instanceof Supplier && $new_part->getOrderdetails()->isEmpty() && $new_part->getKind()->allowsSuppliers()) {
             $orderdetail = new Orderdetail();
             $orderdetail->setSupplier($supplier);
             $new_part->addOrderdetail($orderdetail);
         }
 
-        return $this->renderPartForm('new', $request, $new_part);
+        return $this->renderPartForm('new', $request, $new_part, $form_options);
     }
 
     #[Route('/from_info_provider/{providerKey}/{providerId}/create', name: 'info_providers_create_part', requirements: ['providerId' => '.+'])]
@@ -594,6 +598,18 @@ final class PartController extends AbstractController
     }
 
     /**
+     * A connected part with another footprint may still be right, so this only warns. A validator could only refuse.
+     */
+    private function warnAboutDifferingFootprints(Part $part): void
+    {
+        foreach ($part->getPartConnections() as $connection) {
+            if ($connection->hasDifferentFootprint()) {
+                $this->addFlash('warning', t('part_connection.footprint_differs', ['%part%' => $connection->getName()]));
+            }
+        }
+    }
+
+    /**
      * This function provides a common implementation for methods, which use the part form.
      * @param  Request  $request
      * @param  Part  $data
@@ -651,6 +667,7 @@ final class PartController extends AbstractController
             }
 
             $this->em->flush();
+            $this->warnAboutDifferingFootprints($new_part);
             if ($mode === 'new') {
                 $this->addFlash('success', 'part.created_flash');
             } elseif ($mode === 'edit') {
@@ -669,7 +686,7 @@ final class PartController extends AbstractController
             }
             //@phpstan-ignore-next-line
             if ('save_and_new' === $form->getClickedButton()->getName()) {
-                return $this->redirectToRoute('part_new');
+                return $this->redirectToRoute('part_new', $new_part->getKind()->allowsConnections() ? ['kind' => $new_part->getKind()->value] : []);
             }
 
             // Check if we're in bulk import mode and preserve jobId

@@ -30,6 +30,11 @@ use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\ManufacturingStatus;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
+use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\FormEvents;
+use Symfony\Component\Form\FormEvent;
+use App\Entity\Parts\PartKind;
+use App\Entity\Parts\InfoProviderReference;
 use App\Entity\Parts\PartCustomState;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Form\AttachmentFormType;
@@ -60,6 +65,9 @@ use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 class PartBaseType extends AbstractType
 {
+    public const KIND_CHOOSE = 'choose';
+    public const KIND_FIXED = 'fixed';
+
     public function __construct(
         protected Security $security,
         protected UrlGeneratorInterface $urlGenerator,
@@ -318,6 +326,28 @@ class PartBaseType extends AbstractType
             'by_reference' => false,
         ]);
 
+        //The kind is the first thing a new part needs. It can only be chosen on a blank form, and is fixed everywhere else.
+        $kind = $part->getKind();
+        $chooseKind = $options['kind_mode'] === self::KIND_CHOOSE;
+        $builder->add('kind', EnumType::class, [
+            'class' => PartKind::class,
+            'label' => 'part.kind.label',
+            'disabled' => !$chooseKind,
+            'choice_label' => static fn (PartKind $choice): string => $choice->getTranslationKey(),
+            'attr' => ['data-pages--part-kind-target' => 'select'],
+        ]);
+
+        if ($chooseKind || $kind->allowsConnections()) {
+            $builder->add('part_connections', CollectionType::class, [
+                'entry_type' => PartConnectionType::class,
+                'allow_add' => true,
+                'allow_delete' => true,
+                'reindex_enable' => true,
+                'label' => false,
+                'by_reference' => false,
+            ]);
+        }
+
         //EDA info
         $builder->add('eda_info', EDAPartInfoType::class, [
             'label' => false,
@@ -352,6 +382,70 @@ class PartBaseType extends AbstractType
                 ]
             ])
             ->add('reset', ResetType::class, ['label' => 'part.edit.reset']);
+
+        if ($chooseKind) {
+            //The kind can still change on this form, so both field sets exist. What the submitted kind does not allow goes
+            //before validation, including anything set from the URL.
+            $builder->addEventListener(FormEvents::PRE_SUBMIT, function (FormEvent $event): void {
+                $submitted = $event->getData();
+                $kind = PartKind::tryFrom((string) ($submitted['kind'] ?? '')) ?? PartKind::MANUFACTURING;
+                //The browser still sends the hidden fields, so these have to go from what was submitted as well
+                $event->setData(array_diff_key($submitted, array_flip($this->discardWhatTheKindDoesNotAllow($event->getForm(), $kind))));
+            });
+        } else {
+            foreach ($this->fieldsTheKindDoesNotAllow($kind) as $field) {
+                $builder->remove($field);
+            }
+        }
+    }
+
+    /**
+     * @return list<string> The fields of the form that a part of the given kind can not hold
+     */
+    private function fieldsTheKindDoesNotAllow(PartKind $kind): array
+    {
+        $fields = [];
+        if (!$kind->allowsManufacturerData()) {
+            array_push($fields, 'manufacturer', 'manufacturer_product_number', 'manufacturer_product_url', 'manufacturing_status', 'gtin', 'providerReference');
+        }
+        if (!$kind->allowsSuppliers()) {
+            $fields[] = 'orderdetails';
+        }
+
+        return $fields;
+    }
+
+    /**
+     * @return list<string> The fields removed from the form
+     */
+    private function discardWhatTheKindDoesNotAllow(FormInterface $form, PartKind $kind): array
+    {
+        /** @var Part $part */
+        $part = $form->getData();
+
+        $removed = $this->fieldsTheKindDoesNotAllow($kind);
+        if (!$kind->allowsConnections()) {
+            $removed[] = 'part_connections';
+        }
+        foreach ($removed as $field) {
+            $form->remove($field);
+        }
+
+        if (!$kind->allowsManufacturerData()) {
+            $part->setManufacturer(null);
+            $part->setManufacturerProductNumber('');
+            $part->setManufacturerProductURL('');
+            $part->setManufacturingStatus(ManufacturingStatus::NOT_SET);
+            $part->setGtin(null);
+            $part->setProviderReference(InfoProviderReference::noProvider());
+        }
+        if (!$kind->allowsSuppliers()) {
+            foreach ($part->getOrderdetails() as $orderdetail) {
+                $part->removeOrderdetail($orderdetail);
+            }
+        }
+
+        return $removed;
     }
 
 
@@ -362,8 +456,10 @@ class PartBaseType extends AbstractType
             'data_class' => Part::class,
             'info_provider_dto' => null,
             'warn_on_unsaved_changes' => true,
+            'kind_mode' => self::KIND_FIXED,
         ]);
 
         $resolver->setAllowedTypes('info_provider_dto', [PartDetailDTO::class, 'null']);
+        $resolver->setAllowedValues('kind_mode', [self::KIND_CHOOSE, self::KIND_FIXED]);
     }
 }

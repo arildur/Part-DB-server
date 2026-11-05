@@ -14,6 +14,8 @@
 </div>
 {{ form_row(form.partUnit) }}
 {{ form_row(form.partCustomState) }}
+{% if form.gtin is defined %}
+<div data-part-kind-section="manufacturer">
 {{ form_row(form.gtin) }}
 
 <div class="{{ offset_label }} {{ col_input }} ps-1">
@@ -36,3 +38,5 @@
         </div>
     </div>
 </div>
+</div>
+{% endif %}

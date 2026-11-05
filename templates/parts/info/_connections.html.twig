@@ -1,0 +1,81 @@
+{% import "helper.twig" as helper %}
+
+{% macro status_badge(connection) %}
+    {% if connection.usable %}
+        <span class="badge text-bg-success">{{ connection.status.translationKey|trans }}</span>
+    {% else %}
+        <span class="badge text-bg-danger"><i class="fas fa-ban fa-fw"></i> {{ connection.status.translationKey|trans }}</span>
+    {% endif %}
+{% endmacro %}
+
+{% if part.kind.allowsConnections %}
+    {% if connections is empty %}
+        <div class="alert alert-info mt-2">{% trans %}part_connection.none_yet{% endtrans %}</div>
+    {% else %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+            <tr>
+                <th>{% trans %}part_connection.edit.position{% endtrans %}</th>
+                <th>{% trans %}manufacturer.label{% endtrans %}</th>
+                <th>{% trans %}part_connection.table.part{% endtrans %}</th>
+                <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
+                <th>{% trans %}part_lots.amount{% endtrans %}</th>
+                <th>{% trans %}part_connection.table.suppliers{% endtrans %}</th>
+                <th>{% trans %}part_connection.edit.note{% endtrans %}</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for connection in connections %}
+                {% set connected = connection.connectedPart %}
+                <tr {% if not connection.usable %}class="table-danger"{% endif %}>
+                    <td>{{ connection.position }}</td>
+                    <td>{{ connected.manufacturer ? connected.manufacturer.name : '' }}</td>
+                    <td>
+                        {{ helper.part_icon_link(connected) }}
+                        {% if connected.manufacturerProductNumber is not empty %}<small class="text-muted">{{ connected.manufacturerProductNumber }}</small>{% endif %}
+                        {% if connection.hasDifferentFootprint %}
+                            <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs'|trans({'%part%': connection.name}) }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ _self.status_badge(connection) }}</td>
+                    <td>{{ connected.amountSum | format_amount(connected.partUnit) }}</td>
+                    <td>{{ connected.orderdetails | length }}</td>
+                    <td>{{ connection.note }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+{% else %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover caption-top">
+            <caption>{% trans %}part_connection.table.used_by{% endtrans %}:</caption>
+            <thead>
+            <tr>
+                <th>{% trans %}part.kind.meta{% endtrans %}</th>
+                <th>{% trans %}part_connection.edit.position{% endtrans %}</th>
+                <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
+                <th>{% trans %}part_connection.edit.note{% endtrans %}</th>
+                <th>{% trans %}project.labelp{% endtrans %}</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for connection in part.connectionsAsPart %}
+                <tr {% if not connection.usable %}class="table-danger"{% endif %}>
+                    <td>{{ helper.part_icon_link(connection.metaPart) }}</td>
+                    <td>{{ connection.position }}</td>
+                    <td>{{ _self.status_badge(connection) }}</td>
+                    <td>{{ connection.note }}</td>
+                    <td>
+                        {% for entry in connection.metaPart.projectBomEntries %}
+                            <a href="{{ entity_url(entry.project) }}">{{ entry.project.name }}</a>{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}

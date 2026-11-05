@@ -16106,5 +16106,149 @@ Buerklin-API Authentication server:
         <target>Of which meta parts</target>
       </segment>
     </unit>
+    <unit id="pMeta01" name="part.kind.label">
+      <segment state="translated">
+        <source>part.kind.label</source>
+        <target>Kind of part</target>
+      </segment>
+    </unit>
+    <unit id="pMeta02" name="part.kind.manufacturing">
+      <segment state="translated">
+        <source>part.kind.manufacturing</source>
+        <target>Manufacturing part</target>
+      </segment>
+    </unit>
+    <unit id="pMeta03" name="part.kind.meta">
+      <segment state="translated">
+        <source>part.kind.meta</source>
+        <target>Meta part</target>
+      </segment>
+    </unit>
+    <unit id="SRTiDT7" name="part_connection.status.approved">
+      <segment state="translated">
+        <source>part_connection.status.approved</source>
+        <target>Approved</target>
+      </segment>
+    </unit>
+    <unit id="pMeta05" name="part_connection.status.do_not_use">
+      <segment state="translated">
+        <source>part_connection.status.do_not_use</source>
+        <target>Do not use</target>
+      </segment>
+    </unit>
+    <unit id="pMeta06" name="part_connection.edit.connected_part">
+      <segment state="translated">
+        <source>part_connection.edit.connected_part</source>
+        <target>Manufacturing part</target>
+      </segment>
+    </unit>
+    <unit id="pMeta07" name="part_connection.edit.position">
+      <segment state="translated">
+        <source>part_connection.edit.position</source>
+        <target>Priority</target>
+      </segment>
+    </unit>
+    <unit id="pMeta08" name="part_connection.edit.position.help">
+      <segment state="translated">
+        <source>part_connection.edit.position.help</source>
+        <target>The lowest comes first. Leave it empty to add it at the end.</target>
+      </segment>
+    </unit>
+    <unit id="pMeta09" name="part_connection.edit.status">
+      <segment state="translated">
+        <source>part_connection.edit.status</source>
+        <target>Status</target>
+      </segment>
+    </unit>
+    <unit id="pMeta10" name="part_connection.edit.note">
+      <segment state="translated">
+        <source>part_connection.edit.note</source>
+        <target>Note</target>
+      </segment>
+    </unit>
+    <unit id="pMeta11" name="part_connection.edit.create">
+      <segment state="translated">
+        <source>part_connection.edit.create</source>
+        <target>Connect a part</target>
+      </segment>
+    </unit>
+    <unit id="pMeta12" name="part_connection.edit.delete.confirm">
+      <segment state="translated">
+        <source>part_connection.edit.delete.confirm</source>
+        <target>Do you really want to remove this connection? Both parts and their stock stay.</target>
+      </segment>
+    </unit>
+    <unit id="pMeta13" name="part_connection.table.part">
+      <segment state="translated">
+        <source>part_connection.table.part</source>
+        <target>Part</target>
+      </segment>
+    </unit>
+    <unit id="pMeta14" name="part_connection.table.suppliers">
+      <segment state="translated">
+        <source>part_connection.table.suppliers</source>
+        <target>Suppliers</target>
+      </segment>
+    </unit>
+    <unit id="pMeta15" name="part_connection.table.used_by">
+      <segment state="translated">
+        <source>part_connection.table.used_by</source>
+        <target>This part is connected to these meta parts</target>
+      </segment>
+    </unit>
+    <unit id="pMeta16" name="part_connection.none_yet">
+      <segment state="translated">
+        <source>part_connection.none_yet</source>
+        <target>No parts are connected yet. Connect them on the edit page.</target>
+      </segment>
+    </unit>
+    <unit id="pMeta17" name="part_connection.footprint_differs">
+      <segment state="translated">
+        <source>part_connection.footprint_differs</source>
+        <target>%part% has another footprint than this meta part.</target>
+      </segment>
+    </unit>
+    <unit id="pMeta18" name="part_lots.own_lots">
+      <segment state="translated">
+        <source>part_lots.own_lots</source>
+        <target>Own lots of this meta part</target>
+      </segment>
+    </unit>
+    <unit id="pMeta19" name="part_lots.not_counted">
+      <segment state="translated">
+        <source>part_lots.not_counted</source>
+        <target>Not counted</target>
+      </segment>
+    </unit>
+    <unit id="pMeta20" name="part_lots.total">
+      <segment state="translated">
+        <source>part_lots.total</source>
+        <target>Total</target>
+      </segment>
+    </unit>
+    <unit id="pMeta21" name="part_lots.connected_stock_is_current">
+      <segment state="translated">
+        <source>part_lots.connected_stock_is_current</source>
+        <target>The stock of connected parts below is the current stock, not that of this time.</target>
+      </segment>
+    </unit>
+    <unit id="pMeta22" name="part.create_meta.btn">
+      <segment state="translated">
+        <source>part.create_meta.btn</source>
+        <target>Create new meta part</target>
+      </segment>
+    </unit>
+    <unit id="pMeta23" name="tree.tools.edit.meta_part">
+      <segment state="translated">
+        <source>tree.tools.edit.meta_part</source>
+        <target>New meta part</target>
+      </segment>
+    </unit>
+    <unit id="pMeta24" name="part.delete.connected_meta_parts">
+      <segment state="translated">
+        <source>part.delete.connected_meta_parts</source>
+        <target>It will also be removed from these meta parts: %names%.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

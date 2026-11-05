@@ -20,6 +20,14 @@
         </thead>
 
         <tbody>
+        {% if part.kind.allowsConnections %}
+            {% if timeTravel is defined and timeTravel is not null %}
+                <tr><td colspan="7"><div class="alert alert-warning mb-0">{% trans %}part_lots.connected_stock_is_current{% endtrans %}</div></td></tr>
+            {% endif %}
+            {% if part.partLots is not empty %}
+                <tr class="table-secondary"><th colspan="7">{% trans %}part_lots.own_lots{% endtrans %}</th></tr>
+            {% endif %}
+        {% endif %}
         {% for lot in part.partLots %}
             {# @var lot App\Entity\Parts\PartLot #}
             <tr {% if lot.id == highlightLotId %}class="table-primary row-highlight row-pulse"{% endif %}>
@@ -59,6 +67,9 @@
                             <i class="fas fa-exclamation-circle fa-fw"></i>
                             {% trans %}part_lots.is_expired{% endtrans %}
                         </span>
+                        {% endif %}
+                        {% if part.kind.allowsConnections and (lot.expired or lot.instockUnknown) %}
+                            <span class="badge text-bg-secondary mb-1">{% trans %}part_lots.not_counted{% endtrans %}</span>
                         {% endif %}
                         {% if lot.needsRefill %}
                             <span class="badge text-bg-warning mb-1">
@@ -123,7 +134,54 @@
                 </td>
             </tr>
         {% endfor %}
+        {# Lots of connected parts belong to those parts, so they have no stock buttons here and link there instead #}
+        {% for connection in part.kind.allowsConnections ? part.orderedConnections : [] %}
+            {% set connected = connection.connectedPart %}
+            <tr class="table-secondary">
+                <th colspan="7">
+                    {{ helper.part_icon_link(connected) }}
+                    {% if not connection.usable %}
+                        <span class="badge text-bg-danger"><i class="fas fa-ban fa-fw"></i> {{ connection.status.translationKey|trans }}</span>
+                    {% endif %}
+                </th>
+            </tr>
+            {% for lot in connected.partLots %}
+                <tr {% if not connection.usable %}class="text-muted"{% endif %}>
+                    <td>{{ lot.description }}</td>
+                    <td>
+                        {% if lot.storageLocation %}
+                            {{ helper.structural_entity_link(lot.storageLocation) }}
+                        {% else %}
+                            <span class="badge rounded-pill text-bg-warning"><i class="fas fa-question-circle fa-fw"></i> {% trans %}part_lots.location_unknown{% endtrans %}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if lot.instockUnknown %}
+                            <span class="badge rounded-pill text-bg-warning"><i class="fas fa-question-circle fa-fw"></i> {% trans %}part_lots.instock_unknown{% endtrans %}</span>
+                        {% else %}
+                            {{ lot.amount | format_amount(connected.partUnit, {'decimals': 5}) }}
+                        {% endif %}
+                    </td>
+                    <td colspan="4">
+                        {% if lot.expired %}
+                            <span class="badge text-bg-warning mb-1"><i class="fas fa-exclamation-circle fa-fw"></i> {% trans %}part_lots.is_expired{% endtrans %}</span>
+                        {% endif %}
+                        {% if lot.expired or lot.instockUnknown or not connection.usable %}
+                            <span class="badge text-bg-secondary mb-1">{% trans %}part_lots.not_counted{% endtrans %}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        {% endfor %}
         </tbody>
+        {% if part.kind.allowsConnections %}
+            <tfoot>
+                <tr class="table-primary">
+                    <th colspan="2">{% trans %}part_lots.total{% endtrans %}</th>
+                    <th colspan="5">{{ part.amountSum | format_amount(part.partUnit, {'decimals': 5}) }}</th>
+                </tr>
+            </tfoot>
+        {% endif %}
 
     </table>
 </div>

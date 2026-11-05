@@ -123,6 +123,30 @@ class PricedetailHelper
     }
 
     /**
+     * Returns the lowest and highest average price over the usable connected parts of a meta part, or null if none has a
+     * price. Do-not-use connections never count.
+     * @return array{BigDecimal, BigDecimal}|null
+     */
+    public function getMetaPartPriceRange(Part $part, ?Currency $currency = null): ?array
+    {
+        $low = null;
+        $high = null;
+        foreach ($part->getOrderedConnections() as $connection) {
+            if (!$connection->isUsable() || !$connection->getConnectedPart() instanceof Part) {
+                continue;
+            }
+            $price = $this->calculateAvgPrice($connection->getConnectedPart(), null, $currency);
+            if (!$price instanceof BigDecimal) {
+                continue;
+            }
+            $low = $low === null || $price->isLessThan($low) ? $price : $low;
+            $high = $high === null || $price->isGreaterThan($high) ? $price : $high;
+        }
+
+        return $low === null || $high === null ? null : [$low, $high];
+    }
+
+    /**
      * Calculates the average price of a part, when ordering the amount $amount.
      *
      * @param  Part  $part  the part for which the average price should be calculated

@@ -95,6 +95,22 @@
         </dd>
     </div>
 
+    {% if part.kind.allowsConnections %}
+        {% set price_range = pricedetail_helper.metaPartPriceRange(part, app.user.currency ?? null) %}
+        {% if price_range is not null %}
+            <div>
+                <dt class="d-inline-block"><i class="fas fa-money-bill-alt fa-fw"></i></dt>
+                <dd class="d-inline">
+                    <span class="text-muted" title="{% trans %}part.avg_price.label{% endtrans %}">
+                        {{ price_range[0] | format_money(app.user.currency ?? null) }}
+                        {% if not price_range[0].isEqualTo(price_range[1]) %}
+                            <span> - </span>{{ price_range[1] | format_money(app.user.currency ?? null) }}
+                        {% endif %}
+                    </span>
+                </dd>
+            </div>
+        {% endif %}
+    {% else %}
     {% set min_order_amount = pricedetail_helper.minOrderAmount(part) %}
     {% set max_order_amount = pricedetail_helper.maxDiscountAmount(part) %}
     {% set max_order_price = pricedetail_helper.calculateAvgPrice(part, max_order_amount, app.user.currency ?? null) %}
@@ -114,6 +130,7 @@
                 </span>
             </dd>
         </div>
+    {% endif %}
     {% endif %}
 
     {# {% if part.comment != "" %}

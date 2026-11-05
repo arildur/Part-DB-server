@@ -48,12 +48,22 @@
                 {% trans %}part.edit.tab.common{% endtrans %}
             </a>
         </li>
-        <li class="nav-item">
+        {% if form.manufacturer is defined %}
+        <li class="nav-item" data-part-kind-section="manufacturer">
             <a class="nav-link" data-bs-toggle="tab" role="tab" href="#manufacturer">
                 <i class="fas fa-industry fa-fw"></i>
                 {% trans %}part.edit.tab.manufacturer{% endtrans %}
             </a>
         </li>
+        {% endif %}
+        {% if form.part_connections is defined %}
+        <li class="nav-item" data-part-kind-section="connections">
+            <a class="nav-link" data-bs-toggle="tab" role="tab" href="#part_connections">
+                <i class="fas fa-sitemap fa-fw"></i>
+                {% trans %}part_connection.labelp{% endtrans %}
+            </a>
+        </li>
+        {% endif %}
         <li class="nav-item">
             <a class="nav-link" data-bs-toggle="tab" role="tab" href="#advanced">
                 <i class="fas fa-shapes fa-fw"></i>
@@ -72,12 +82,14 @@
                 {% trans %}part.edit.tab.attachments{% endtrans %}
             </a>
         </li>
-        <li class="nav-item">
+        {% if form.orderdetails is defined %}
+        <li class="nav-item" data-part-kind-section="suppliers">
             <a class="nav-link" data-bs-toggle="tab" role="tab" href="#orderdetails">
                 <i class="fas fa-shopping-cart fa-fw"></i>
                 {% trans %}part.edit.tab.orderdetails{% endtrans %}
             </a>
         </li>
+        {% endif %}
         <li class="nav-item">
             <a class="nav-link" data-bs-toggle="tab" role="tab" href="#specifications">
                 <i class="fas fa-atlas fa-fw"></i>
@@ -110,9 +122,16 @@
         <div class="tab-pane fade show active p-2" id="common" role="tabpanel">
             {% include "parts/edit/_main.html.twig" %}
         </div>
+        {% if form.manufacturer is defined %}
         <div class="tab-pane fade p-2" id="manufacturer" role="tabpanel">
             {% include "parts/edit/_manufacturer.html.twig" %}
         </div>
+        {% endif %}
+        {% if form.part_connections is defined %}
+        <div class="tab-pane fade p-2" id="part_connections" role="tabpanel">
+            {% include "parts/edit/_connections.html.twig" %}
+        </div>
+        {% endif %}
         <div class="tab-pane fade p-2" id="advanced" role="tabpanel">
             {% include "parts/edit/_advanced.html.twig" %}
         </div>
@@ -122,9 +141,11 @@
         <div class="tab-pane fade p-2" id="attachments" role="tabpanel">
             {% include "parts/edit/_attachments.html.twig" %}
         </div>
+        {% if form.orderdetails is defined %}
         <div class="tab-pane fade p-2" id="orderdetails" role="tabpanel">
             {% include "parts/edit/_orderdetails.html.twig" %}
         </div>
+        {% endif %}
         <div class="tab-pane fade p-2" id="specifications" role="tabpanel">
             {% include "parts/edit/_specifications.html.twig" %}
         </div>

@@ -28,4 +28,9 @@ enum PartConnectionStatus: string
 {
     case APPROVED = 'approved';
     case DO_NOT_USE = 'do_not_use';
+
+    public function getTranslationKey(): string
+    {
+        return 'part_connection.status.'.$this->value;
+    }
 }

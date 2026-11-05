@@ -1,4 +1,5 @@
 {% extends "main_card.html.twig" %}
+{% import "helper.twig" as helper %}
 
 {% block title %}
     {% trans %}part.info.title{% endtrans %} {{ part.name }}
@@ -20,6 +21,9 @@
         {% trans %}part.info.title{% endtrans %} <b>"{{ part.name }}"</b>
         {% if timeTravel != null %}
             <i>({{ timeTravel | format_datetime('short') }})</i>
+        {% endif %}
+        {% if part.kind.allowsConnections %}
+            <span class="badge text-bg-info ms-1"><i class="fas fa-sitemap fa-fw"></i> {{ part.kind.translationKey|trans }}</span>
         {% endif %}
         {% if part.projectBuildPart %}
             (<i>{{ type_label(part.builtProject) }}</i>: <a class="text-white" href="{{ entity_url(part.builtProject) }}">{{ part.builtProject.name }}</a>)
@@ -48,12 +52,22 @@
 
     {# All tabs of this page, in the order they are shown in the tab bar. The keys are the IDs of the tab panes. #}
     {% set has_parameters = part.parameters is not empty or description_params is not empty or comment_params is not empty %}
+    {# What a meta part shows depends on its connected parts. A manufacturing part stops here, so it costs no query. #}
+    {% set connections = part.kind.allowsConnections ? part.orderedConnections : [] %}
+    {% set stock_rows = part.partLots | length %}
+    {% set has_suppliers = part.orderdetails is not empty %}
+    {% for connection in connections %}
+        {% set stock_rows = stock_rows + connection.connectedPart.partLots | length %}
+        {% set has_suppliers = has_suppliers or connection.connectedPart.orderdetails is not empty %}
+    {% endfor %}
+    {% set connection_count = part.kind.allowsConnections ? connections | length : part.connectionsAsPart | length %}
     {% set tabs = {
-        part_lots: {tab_id: 'part_lots-tab', icon: 'fas fa-box fa-fw', label: 'part.part_lots.label', count: part.partLots | length},
+        part_lots: {tab_id: 'part_lots-tab', icon: 'fas fa-box fa-fw', label: 'part.part_lots.label', count: stock_rows},
         comment: {tab_id: 'comment-tab', icon: 'fas fa-sticky-note fa-fw', label: 'comment.label', shown: part.comment is not empty},
         specifications: {tab_id: 'specifications-tab', icon: 'fas fa-atlas fa-fw', label: 'part.info.specifications', count: part.parameters | length, shown: has_parameters},
         attachments: {tab_id: 'attachment-tab', icon: 'fas fa-paperclip fa-fw', label: 'attachment.labelp', count: part.attachments | length, shown: part.attachments is not empty},
-        suppliers: {tab_id: 'supplier-tab', icon: 'fas fa-shopping-cart fa-fw', label: 'vendor.partinfo.shopping_infos', count: part.orderdetails | length, shown: part.orderdetails is not empty},
+        suppliers: {tab_id: 'supplier-tab', icon: 'fas fa-shopping-cart fa-fw', label: 'vendor.partinfo.shopping_infos', count: part.orderdetails | length, shown: has_suppliers},
+        connections: {tab_id: 'connections-tab', icon: 'fas fa-sitemap fa-fw', label: 'part_connection.labelp', count: connection_count, shown: part.kind.allowsConnections or connection_count > 0},
         associations: {tab_id: 'associations-tab', icon: 'fas fa-circle-nodes fa-fw', label: 'part.edit.tab.associations', count: part.associatedPartsAll | length, shown: part.associatedPartsAll is not empty},
         history: {tab_id: 'history-tab', icon: 'fas fa-history', label: 'vendor.partinfo.history', disabled: datatable is null},
         projects: {tab_id: 'projects-tab', icon: 'fas fa-archive fa-fw', label: 'project.labelp', count: part.projectBomEntries | length, shown: part.projectBomEntries is not empty},
@@ -123,11 +137,30 @@
                 </div>
             {% endif %}
 
-            {% if part.orderdetails is not empty %}
+            {% if has_suppliers %}
             <div {{ _self.pane_attributes('suppliers', tabs, combined) }}>
                 {{ _self.pane_heading('suppliers', tabs, combined) }}
-                {%  include "parts/info/_order_infos.html.twig" %}
+                {% if part.kind.allowsConnections %}
+                    {% for connection in connections %}
+                        {% if connection.connectedPart.orderdetails is not empty %}
+                            <h6 class="mt-3">
+                                {{ helper.part_icon_link(connection.connectedPart) }}
+                                {% if not connection.usable %}<span class="badge text-bg-danger">{{ connection.status.translationKey|trans }}</span>{% endif %}
+                            </h6>
+                            {% include "parts/info/_order_infos.html.twig" with {part: connection.connectedPart} %}
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    {%  include "parts/info/_order_infos.html.twig" %}
+                {% endif %}
             </div>
+            {% endif %}
+
+            {% if part.kind.allowsConnections or connection_count > 0 %}
+                <div {{ _self.pane_attributes('connections', tabs, combined) }}>
+                    {{ _self.pane_heading('connections', tabs, combined) }}
+                    {% include "parts/info/_connections.html.twig" %}
+                </div>
             {% endif %}
 
             {% if part.associatedPartsAll is not empty %}

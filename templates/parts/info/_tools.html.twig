@@ -19,7 +19,7 @@
             <span class="caret"></span>
         </button>
         <div class="dropdown-menu" role="menu">
-            <a class="dropdown-item" href="{{ entity_url(part, 'create') }}">
+            <a class="dropdown-item" href="{{ part.kind.allowsConnections ? path('part_new', {kind: part.kind.value}) : entity_url(part, 'create') }}">
                 <i class="fas fa-plus-square"></i>
                 {% trans %}part.create.btn{% endtrans %}
             </a>
@@ -31,7 +31,7 @@
 {% include "parts/info/_merge_modal.html.twig" %}
 
 {# Update part from info provider button #}
-{% if is_granted('edit', part) and is_granted('@info_providers.create_parts') %}
+{% if part.kind.allowsManufacturerData and is_granted('edit', part) and is_granted('@info_providers.create_parts') %}
     <br>
     {# If the part was created by a provider, it can be refreshed directly, without searching for it again #}
     {% set part_provider = part.providerReference.providerCreated ? info_provider(part.providerReference.providerKey) : null %}
@@ -58,7 +58,7 @@
 <form method="post" class="mt-2" action="{{ entity_url(part, 'delete') }}"
         {{ stimulus_controller('elements/delete_btn') }} {{ stimulus_action('elements/delete_btn', "submit", "submit") }}
       data-delete-title="{% trans with {'%name%': part.name|escape }%}part.delete.confirm_title{% endtrans %}"
-      data-delete-message="{% trans %}part.delete.message{% endtrans %}">
+      data-delete-message="{% trans %}part.delete.message{% endtrans %}{% if part.connectionsAsPart is not empty %} {{ 'part.delete.connected_meta_parts'|trans({'%names%': part.connectionsAsPart|map(c => c.metaPart.name)|join(', ')}) }}{% endif %}">
     <input type="hidden" name="_method" value="DELETE">
     <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ part.id) }}">
     <div class="form-group">

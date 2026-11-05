@@ -24,6 +24,8 @@ namespace App\Services\LogSystem;
 
 use App\Entity\Attachments\AttachmentType;
 use App\Entity\Base\AbstractDBElement;
+use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
 use App\Entity\Base\AbstractStructuralDBElement;
 use App\Entity\Contracts\TimeStampableInterface;
 use App\Entity\Contracts\TimeTravelInterface;
@@ -117,6 +119,9 @@ class TimeTravel
                     $logEntry->getDeletedElementClass(),
                     $logEntry->getDeletedElementID()
                 );
+                if ($undeleted instanceof PartConnection && !$this->canRestoreConnection($undeleted)) {
+                    continue;
+                }
                 if ($this->repo->getElementExistedAtTimestamp($undeleted, $timestamp)) {
                     $this->revertEntityToTimestamp($undeleted, $timestamp, $reverted_elements);
                     $collection = $this->getField($element, $logEntry->getCollectionName());
@@ -134,6 +139,9 @@ class TimeTravel
             if (
                 ($element instanceof AbstractStructuralDBElement && ('parts' === $field || 'children' === $field))
                 || ($element instanceof AttachmentType && 'attachments' === $field)
+                //A connection joins two parts with stock of their own: following it would revert the stock of other parts
+                || ($element instanceof Part && ('part_connections' === $field || 'connections_as_part' === $field))
+                || ($element instanceof PartConnection && ('meta_part' === $field || 'connected_part' === $field))
             ) {
                 continue;
             }
@@ -249,6 +257,24 @@ class TimeTravel
         }
 
         $this->setField($element, 'lastModified', $logEntry->getTimestamp());
+    }
+
+    /**
+     * A removed connection can only come back if both its parts still exist, and the pair is not connected again.
+     */
+    public function canRestoreConnection(PartConnection $connection): bool
+    {
+        $meta = $connection->getMetaPart()?->getID();
+        $connected = $connection->getConnectedPart()?->getID();
+        if ($meta === null || $connected === null
+            || null === $this->em->find(Part::class, $meta) || null === $this->em->find(Part::class, $connected)) {
+            return false;
+        }
+
+        return null === $this->em->getRepository(PartConnection::class)->findOneBy([
+            'meta_part' => $meta,
+            'connected_part' => $connected,
+        ]);
     }
 
     protected function getField(AbstractDBElement $element, string $field): mixed

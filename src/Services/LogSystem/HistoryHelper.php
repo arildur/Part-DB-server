@@ -70,7 +70,9 @@ class HistoryHelper
             $array = array_merge(
                 $array,
                 $element->getPartLots()->toArray(),
-                $element->getOrderdetails()->toArray()
+                $element->getOrderdetails()->toArray(),
+                $element->getPartConnections()->toArray(),
+                $element->getConnectionsAsPart()->toArray()
             );
             foreach ($element->getOrderdetails() as $orderdetail) {
                 $array = array_merge($array, $orderdetail->getPricedetails()->toArray());

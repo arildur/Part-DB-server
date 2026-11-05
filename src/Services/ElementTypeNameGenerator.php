@@ -28,6 +28,7 @@ use App\Entity\Base\AbstractDBElement;
 use App\Entity\Contracts\NamedElementInterface;
 use App\Entity\Parameters\AbstractParameter;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartLot;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\PriceInformations\Pricedetail;
@@ -183,6 +184,8 @@ final readonly class ElementTypeNameGenerator
                 $on = $entity->getElement();
             } elseif ($entity instanceof PartLot && $entity->getPart() instanceof Part) {
                 $on = $entity->getPart();
+            } elseif ($entity instanceof PartConnection && $entity->getMetaPart() instanceof Part) {
+                $on = $entity->getMetaPart();
             } elseif ($entity instanceof Orderdetail && $entity->getPart() instanceof Part) {
                 $on = $entity->getPart();
             } elseif ($entity instanceof Pricedetail && $entity->getOrderdetail() instanceof Orderdetail && $entity->getOrderdetail()->getPart() instanceof Part) {

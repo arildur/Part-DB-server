@@ -25,6 +25,7 @@ namespace App\Controller;
 use App\DataTables\Filters\LogFilter;
 use App\DataTables\LogDataTable;
 use App\Entity\Base\AbstractDBElement;
+use App\Entity\Parts\PartConnection;
 use App\Entity\LogSystem\AbstractLogEntry;
 use App\Entity\LogSystem\CollectionElementDeleted;
 use App\Entity\LogSystem\ElementCreatedLogEntry;
@@ -170,6 +171,11 @@ class LogController extends AbstractController
         //If the element is not available in DB try to undelete it
         if (null === $element) {
             $element = $this->timeTravel->undeleteEntity($logEntry->getTargetClass(), $logEntry->getTargetID());
+            if ($element instanceof PartConnection && !$this->timeTravel->canRestoreConnection($element)) {
+                $this->addFlash('error', 'log.undo.part_connection_can_not_be_restored');
+
+                return;
+            }
             $this->entityManager->persist($element);
             $this->entityManager->flush();
             $this->dbRepository->changeID($element, $logEntry->getTargetID());
@@ -200,6 +206,11 @@ class LogController extends AbstractController
             //Check if the element we want to undelete already exits
             if (null === $this->entityManager->find($element_class, $element_id)) {
                 $undeleted_element = $this->timeTravel->undeleteEntity($element_class, $element_id);
+                if ($undeleted_element instanceof PartConnection && !$this->timeTravel->canRestoreConnection($undeleted_element)) {
+                    $this->addFlash('error', 'log.undo.part_connection_can_not_be_restored');
+
+                    return;
+                }
                 $this->entityManager->persist($undeleted_element);
                 $this->entityManager->flush();
                 $this->dbRepository->changeID($undeleted_element, $element_id);

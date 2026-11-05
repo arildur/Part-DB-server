@@ -16046,5 +16046,23 @@ Buerklin-API Authentication server:
         <target>The information provider (%host%) is temporarily unavailable (HTTP %status%). Please try again later.</target>
       </segment>
     </unit>
+    <unit id="pConn11" name="part_connection.label">
+      <segment state="translated">
+        <source>part_connection.label</source>
+        <target>Connected part</target>
+      </segment>
+    </unit>
+    <unit id="pConn12" name="part_connection.labelp">
+      <segment state="translated">
+        <source>part_connection.labelp</source>
+        <target>Connected parts</target>
+      </segment>
+    </unit>
+    <unit id="pConn13" name="log.undo.part_connection_can_not_be_restored">
+      <segment state="translated">
+        <source>log.undo.part_connection_can_not_be_restored</source>
+        <target>The connection could not be restored: a part no longer exists, or the two parts are connected again.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

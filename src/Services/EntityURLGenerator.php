@@ -35,6 +35,7 @@ use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
@@ -123,6 +124,12 @@ class EntityURLGenerator
             if ($entity instanceof PartLot) {
                 return $this->urlGenerator->generate('part_info', [
                     'id' => $entity->getPart()->getID(),
+                    'timestamp' => $dateTime->getTimestamp(),
+                ]);
+            }
+            if ($entity instanceof PartConnection && $entity->getMetaPart() instanceof Part) {
+                return $this->urlGenerator->generate('part_info', [
+                    'id' => $entity->getMetaPart()->getID(),
                     'timestamp' => $dateTime->getTimestamp(),
                 ]);
             }

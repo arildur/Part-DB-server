@@ -31,6 +31,7 @@ use App\Entity\LogSystem\ElementDeletedLogEntry;
 use App\Entity\LogSystem\ElementEditedLogEntry;
 use App\Entity\OAuthToken;
 use App\Entity\Parameters\AbstractParameter;
+use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartLot;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\PriceInformations\Pricedetail;
@@ -68,6 +69,7 @@ class EventLoggerListener
      */
     protected const TRIGGER_ASSOCIATION_LOG_WHITELIST = [
         PartLot::class => ['part'],
+        PartConnection::class => ['meta_part', 'connected_part'],
         Orderdetail::class => ['part'],
         Pricedetail::class => ['orderdetail'],
         Attachment::class => ['element'],

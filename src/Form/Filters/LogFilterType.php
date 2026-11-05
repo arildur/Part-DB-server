@@ -130,6 +130,7 @@ class LogFilterType extends AbstractType
                 LogTargetType::PARAMETER => 'parameter.label',
                 LogTargetType::LABEL_PROFILE => 'label_profile.label',
                 LogTargetType::PART_ASSOCIATION => 'part_association.label',
+                LogTargetType::PART_CONNECTION => 'part_connection.label',
                 LogTargetType::BULK_INFO_PROVIDER_IMPORT_JOB => 'bulk_info_provider_import_job.label',
                 LogTargetType::BULK_INFO_PROVIDER_IMPORT_JOB_PART => 'bulk_info_provider_import_job_part.label',
                 LogTargetType::PART_CUSTOM_STATE => 'part_custom_state.label',

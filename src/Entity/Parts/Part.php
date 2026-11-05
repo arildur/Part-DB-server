@@ -51,6 +51,7 @@ use App\Entity\Parameters\ParametersTrait;
 use App\Entity\Parameters\PartParameter;
 use App\Entity\Parts\PartTraits\AdvancedPropertyTrait;
 use App\Entity\Parts\PartTraits\AssociationTrait;
+use App\Entity\Parts\PartTraits\ConnectionTrait;
 use App\Entity\Parts\PartTraits\BasicPropertyTrait;
 use App\Entity\Parts\PartTraits\EDATrait;
 use App\Entity\Parts\PartTraits\InstockTrait;
@@ -275,6 +276,7 @@ class Part extends AttachmentContainingDBElement
     use ParametersTrait;
     use ProjectTrait;
     use AssociationTrait;
+    use ConnectionTrait;
     use EDATrait;
 
     /**
@@ -345,6 +347,8 @@ class Part extends AttachmentContainingDBElement
 
         $this->associated_parts_as_owner = new ArrayCollection();
         $this->associated_parts_as_other = new ArrayCollection();
+        $this->part_connections = new ArrayCollection();
+        $this->connections_as_part = new ArrayCollection();
         $this->bulkImportJobParts = new ArrayCollection();
 
         //By default, the part has no provider

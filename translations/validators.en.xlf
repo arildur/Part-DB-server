@@ -283,5 +283,29 @@
         <target>A meta part can not be used in a BOM yet.</target>
       </segment>
     </unit>
+    <unit id="pConn01" name="validator.part_connection.already_exists">
+      <segment state="translated">
+        <source>validator.part_connection.already_exists</source>
+        <target>This part is already connected to this meta part.</target>
+      </segment>
+    </unit>
+    <unit id="pConn02" name="validator.part_connection.first_end_must_allow_connections">
+      <segment state="translated">
+        <source>validator.part_connection.first_end_must_allow_connections</source>
+        <target>Parts can only be connected to a meta part.</target>
+      </segment>
+    </unit>
+    <unit id="pConn03" name="validator.part_connection.second_end_must_be_connectable">
+      <segment state="translated">
+        <source>validator.part_connection.second_end_must_be_connectable</source>
+        <target>Only a manufacturing part can be connected to a meta part.</target>
+      </segment>
+    </unit>
+    <unit id="pConn04" name="validator.part_connection.ends_are_fixed">
+      <segment state="translated">
+        <source>validator.part_connection.ends_are_fixed</source>
+        <target>The parts of a connection can not be changed. Remove it and add a new one.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

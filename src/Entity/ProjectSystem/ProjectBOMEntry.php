@@ -41,6 +41,7 @@ use Doctrine\DBAL\Types\Types;
 use App\Entity\Base\AbstractDBElement;
 use App\Entity\Base\TimestampTrait;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Entity\PriceInformations\Currency;
 use App\Validator\Constraints\BigDecimal\BigDecimalPositive;
 use App\Validator\Constraints\Selectable;
@@ -259,6 +260,13 @@ class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInte
     #[Assert\Callback(groups: ['Default', 'project_bom'])]
     public function validate(ExecutionContextInterface $context, $payload): void
     {
+        //Builds can not handle a meta part yet, so it can not be used in a BOM yet.
+        if ($this->part instanceof Part && $this->part->getKind() === PartKind::META) {
+            $context->buildViolation('validator.project_bom_entry.meta_part_not_supported')
+                ->atPath('part')
+                ->addViolation();
+        }
+
         //Round quantity to whole numbers, if the part is not a decimal part
         if ($this->part instanceof Part && (!$this->part->getPartUnit() || $this->part->getPartUnit()->isInteger())) {
             $this->quantity = round($this->quantity);

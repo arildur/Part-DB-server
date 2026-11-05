@@ -65,6 +65,56 @@ final class PartEndpointTest extends CrudEndpointTestCase
         ]);
     }
 
+    public function testNewPartIsAManufacturingPartByDefault(): void
+    {
+        $response = $this->_testPostItem([
+            'name' => 'Part with no kind',
+            'category' => '/api/categories/1',
+        ]);
+        $this->assertSame('manufacturing', $response->toArray()['kind']);
+    }
+
+    public function testCreateMetaPart(): void
+    {
+        $response = $this->_testPostItem([
+            'name' => 'Meta part',
+            'kind' => 'meta',
+            'category' => '/api/categories/1',
+        ]);
+        $this->assertSame('meta', $response->toArray()['kind']);
+    }
+
+    public function testCreatePartWithUnknownKindIsRefused(): void
+    {
+        self::createAuthenticatedClient()->request('POST', $this->getBasePath(), ['json' => [
+            'name' => 'Part with an unknown kind',
+            'kind' => 'not-a-kind',
+            'category' => '/api/categories/1',
+        ]]);
+        self::assertResponseStatusCodeSame(400);
+    }
+
+    public function testKindOfASavedPartCanNotBeChanged(): void
+    {
+        self::createAuthenticatedClient()->request('PATCH', $this->getItemPath(2), [
+            'json' => ['kind' => 'meta'],
+            'headers' => ['Content-Type' => 'application/merge-patch+json'],
+        ]);
+        self::assertResponseStatusCodeSame(422);
+
+        $response = self::createAuthenticatedClient()->request('GET', $this->getItemPath(2));
+        $this->assertSame('manufacturing', $response->toArray()['kind']);
+    }
+
+    public function testSendingTheSameKindBackIsAccepted(): void
+    {
+        self::createAuthenticatedClient()->request('PATCH', $this->getItemPath(2), [
+            'json' => ['kind' => 'manufacturing'],
+            'headers' => ['Content-Type' => 'application/merge-patch+json'],
+        ]);
+        self::assertResponseIsSuccessful();
+    }
+
     public function testDeleteItem(): void
     {
         $this->_testDeleteItem(1);

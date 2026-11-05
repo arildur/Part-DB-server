@@ -271,5 +271,17 @@
         <target>If you specify an info provider, you also need to provide a provider ID, or remove both.</target>
       </segment>
     </unit>
+    <unit id="pK1dFx1" name="validator.part.kind_is_fixed">
+      <segment state="translated">
+        <source>validator.part.kind_is_fixed</source>
+        <target>The kind of a part can not be changed once it is saved.</target>
+      </segment>
+    </unit>
+    <unit id="pK1dFx2" name="validator.project_bom_entry.meta_part_not_supported">
+      <segment state="translated">
+        <source>validator.project_bom_entry.meta_part_not_supported</source>
+        <target>A meta part can not be used in a BOM yet.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

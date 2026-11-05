@@ -81,8 +81,10 @@ use App\State\Mcp\UpdatePartInputProvider;
 use App\State\Mcp\UpdatePartProcessor;
 use App\State\Mcp\WithdrawPartStockProcessor;
 use App\Validator\Constraints\UniqueObjectCollection;
+use App\Validator\Constraints\ValidPartKind;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use SortDirection;
 use Symfony\Component\Serializer\Attribute\Groups;
@@ -100,6 +102,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
  */
 #[ORM\Entity(repositoryClass: PartRepository::class)]
 #[ORM\EntityListeners([TreeCacheInvalidationListener::class])]
+#[ValidPartKind]
 #[ORM\Table('`parts`')]
 #[ORM\Index(name: 'parts_idx_datet_name_last_id_needs', columns: ['datetime_added', 'name', 'last_modified', 'id', 'needs_review'])]
 #[ORM\Index(name: 'parts_idx_name', columns: ['name'])]
@@ -274,6 +277,13 @@ class Part extends AttachmentContainingDBElement
     use AssociationTrait;
     use EDATrait;
 
+    /**
+     * @var PartKind What kind of part this is. It decides what the part may hold, and is fixed once the part is saved.
+     */
+    #[ORM\Column(type: Types::STRING, length: 255, enumType: PartKind::class, options: ['default' => 'manufacturing'])]
+    #[Groups(['part:read', 'part:write'])]
+    protected PartKind $kind = PartKind::MANUFACTURING;
+
     /** @var Collection<int, PartParameter>
      */
     #[Assert\Valid]
@@ -378,6 +388,21 @@ class Part extends AttachmentContainingDBElement
             $this->eda_info = clone $this->eda_info;
         }
         parent::__clone();
+    }
+
+    public function getKind(): PartKind
+    {
+        return $this->kind;
+    }
+
+    /**
+     * Sets the kind of this part. Validation refuses a change on a saved part.
+     */
+    public function setKind(PartKind $kind): self
+    {
+        $this->kind = $kind;
+
+        return $this;
     }
 
     #[Assert\Callback]

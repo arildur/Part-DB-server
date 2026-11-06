@@ -23,6 +23,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use Doctrine\ORM\EntityManagerInterface;
+use App\Entity\Parts\StorageLocation;
+use App\Entity\Parts\PartLot;
+use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartConnectionStatus;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\Part;
+use App\Entity\Parts\Category;
 use App\DataFixtures\APITokenFixtures;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -325,4 +333,69 @@ final class KiCadApiControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(304);
     }
 
+    public function testAMetaPartIsListedWithItsStockAndKindAndNoManufacturerFields(): void
+    {
+        $client = $this->createClientWithCredentials();
+        $client->disableReboot();
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+
+        $location = (new StorageLocation())->setName('Drawer of a connected part');
+        $unusedLocation = (new StorageLocation())->setName('Drawer of an unused part');
+        $category = (new Category())->setName('Meta for KiCad');
+        $category->getEdaInfo()->setVisibility(true);
+        foreach ([$location, $unusedLocation, $category] as $entity) {
+            $em->persist($entity);
+        }
+
+        $meta = new Part();
+        $meta->setName('KiCad meta');
+        $meta->setKind(PartKind::META);
+        $meta->setCategory($category);
+        $em->persist($meta);
+
+        foreach ([[$location, 5.0, PartConnectionStatus::APPROVED], [$unusedLocation, 90.0, PartConnectionStatus::DO_NOT_USE]] as [$lotLocation, $amount, $status]) {
+            $lot = (new PartLot())->setAmount($amount)->setStorageLocation($lotLocation);
+            $connected = new Part();
+            $connected->setName('Connected to KiCad meta');
+            $connected->setCategory($em->find(Category::class, 1));
+            $connected->setManufacturerProductNumber('NOT-ON-THE-META');
+            $connected->addPartLot($lot);
+            $em->persist($connected);
+
+            $connection = new PartConnection();
+            $connection->setConnectedPart($connected);
+            $connection->setStatus($status);
+            $meta->addPartConnection($connection);
+        }
+        $em->flush();
+
+        $client->request('GET', self::BASE_URL.'/categories.json');
+        self::assertResponseIsSuccessful();
+        $this->assertContains((string) $category->getID(), array_column(json_decode((string) $client->getResponse()->getContent(), true), 'id'));
+
+        $client->request('GET', self::BASE_URL.'/parts/category/'.$category->getID().'.json');
+        self::assertResponseIsSuccessful();
+        $listed = array_column(json_decode((string) $client->getResponse()->getContent(), true), 'id');
+        $this->assertContains((string) $meta->getID(), $listed);
+
+        $client->request('GET', self::BASE_URL.'/parts/'.$meta->getID().'.json');
+        self::assertResponseIsSuccessful();
+        $fields = json_decode((string) $client->getResponse()->getContent(), true)['fields'];
+
+        $this->assertSame('5', $fields['Stock']['value']);
+        $this->assertSame('Drawer of a connected part', $fields['Storage Location']['value']);
+        $this->assertSame('Meta part', $fields['Part-DB Kind']['value']);
+        foreach (['Manufacturer', 'MPN', 'Manufacturing Status', 'manf', 'manf#'] as $absent) {
+            $this->assertArrayNotHasKey($absent, $fields);
+        }
+    }
+
+    public function testAManufacturingPartHasNoKindField(): void
+    {
+        $client = $this->createClientWithCredentials();
+        $client->request('GET', self::BASE_URL.'/parts/1.json');
+
+        self::assertResponseIsSuccessful();
+        $this->assertArrayNotHasKey('Part-DB Kind', json_decode((string) $client->getResponse()->getContent(), true)['fields']);
+    }
 }

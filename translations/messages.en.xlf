@@ -16274,5 +16274,47 @@ Buerklin-API Authentication server:
         <target>It will also be removed from these meta parts: %names%.</target>
       </segment>
     </unit>
+    <unit id="pMeta25" name="parts.import.help_connections">
+      <segment state="translated">
+        <source>parts.import.help_connections</source>
+        <target>Connections of meta parts are exported at level full, but they are not imported: a meta part is created without connections.</target>
+      </segment>
+    </unit>
+    <unit id="pMeta26" name="settings.misc.ipn_suggest.metaRegex">
+      <segment state="translated">
+        <source>settings.misc.ipn_suggest.metaRegex</source>
+        <target>Pattern for meta parts</target>
+      </segment>
+    </unit>
+    <unit id="pMeta27" name="settings.misc.ipn_suggest.metaRegex.help">
+      <segment state="translated">
+        <source>settings.misc.ipn_suggest.metaRegex.help</source>
+        <target>A PCRE-compatible regular expression the IPN of a meta part has to fulfill. Leave empty to use the pattern above for meta parts too.</target>
+      </segment>
+    </unit>
+    <unit id="pMeta28" name="settings.misc.ipn_suggest.metaRegexHelp">
+      <segment state="translated">
+        <source>settings.misc.ipn_suggest.metaRegexHelp</source>
+        <target>Help text for the pattern for meta parts</target>
+      </segment>
+    </unit>
+    <unit id="pMeta29" name="settings.misc.ipn_suggest.metaRegexHelp.help">
+      <segment state="translated">
+        <source>settings.misc.ipn_suggest.metaRegexHelp.help</source>
+        <target>Shown with the pattern for meta parts. It is only used when that pattern is set.</target>
+      </segment>
+    </unit>
+    <unit id="pMeta30" name="settings.misc.ipn_suggest.metaPrefix">
+      <segment state="translated">
+        <source>settings.misc.ipn_suggest.metaPrefix</source>
+        <target>Global prefix for meta parts</target>
+      </segment>
+    </unit>
+    <unit id="pMeta31" name="settings.misc.ipn_suggest.metaPrefix.help">
+      <segment state="translated">
+        <source>settings.misc.ipn_suggest.metaPrefix.help</source>
+        <target>Used for meta parts instead of the global prefix above. Leave empty to use that prefix for meta parts too.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

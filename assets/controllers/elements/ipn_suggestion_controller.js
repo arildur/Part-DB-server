@@ -17,6 +17,7 @@ export default class extends Controller {
         this.configureAutocomplete();
         this.watchCategoryChanges();
         this.watchDescriptionChanges();
+        this.watchKindChanges();
     }
 
     templates = {
@@ -214,12 +215,69 @@ export default class extends Controller {
         }
     }
 
+    watchKindChanges() {
+        const kindField = this.activeKindField();
+
+        if (kindField) {
+            kindField.addEventListener("change", () => {
+                const categoryField = document.querySelector('[data-ipn-suggestion="categoryField"]');
+                const descriptionField = document.querySelector('[data-ipn-suggestion="descriptionField"]');
+
+                this.applyPatternOfKind(kindField.value);
+                this.fetchNewSuggestions(Number(categoryField?.value), String(descriptionField?.value ?? ''));
+            });
+        }
+    }
+
+    // The kind can only change on the form for a new part. Everywhere else the field is disabled.
+    activeKindField() {
+        const kindField = document.querySelector('[data-ipn-suggestion="kindField"]');
+
+        return kindField && !kindField.disabled ? kindField : null;
+    }
+
+    applyPatternOfKind(kind) {
+        const input = this.inputTarget;
+        const settings = JSON.parse(input.dataset.ipnByKind ?? '{}')[kind];
+
+        if (!settings) return;
+
+        if (settings.pattern) {
+            input.pattern = settings.pattern;
+            input.placeholder = settings.pattern;
+        } else {
+            input.removeAttribute("pattern");
+            input.removeAttribute("placeholder");
+        }
+
+        // The description only belongs to a pattern, as the form does on the server
+        const help = settings.pattern ? (settings.help ?? '') : '';
+        if (help !== '') {
+            input.title = help;
+        } else {
+            input.removeAttribute("title");
+        }
+
+        let helpElement = document.getElementById(`${input.id}_help`);
+        if (!helpElement && help !== '') {
+            helpElement = document.createElement("div");
+            helpElement.id = `${input.id}_help`;
+            helpElement.className = "form-text mb-0 help-text";
+            input.parentNode.appendChild(helpElement);
+        }
+        if (helpElement) {
+            helpElement.textContent = help;
+            helpElement.classList.toggle("d-none", help === '');
+        }
+    }
+
     fetchNewSuggestions(categoryId, description) {
         const baseUrl = this.suggestUrlValue;
         const partId = this.partIdValue;
         const truncatedDescription = description.length > 150 ? description.substring(0, 150) : description;
         const encodedDescription = this.base64EncodeUtf8(truncatedDescription);
-        const url = `${baseUrl}?partId=${partId}&categoryId=${categoryId}` + (description !== '' ? `&description=${encodedDescription}` : '');
+        const url = `${baseUrl}?partId=${partId}&categoryId=${categoryId}` + (description !== '' ? `&description=${encodedDescription}` : '')
+            + (this.activeKindField() ? `&kind=${encodeURIComponent(this.activeKindField().value)}` : '');
 
         fetch(url, {
             method: "GET",

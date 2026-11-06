@@ -41,6 +41,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Services\LabelSystem;
 
+use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartConnectionStatus;
+use App\Entity\Parts\PartConnection;
 use PHPUnit\Framework\Attributes\DataProvider;
 use App\Entity\LabelSystem\LabelOptions;
 use App\Entity\LabelSystem\LabelProcessMode;
@@ -162,5 +165,33 @@ final class SandboxedTwigFactoryTest extends WebTestCase
         ]);
 
         $this->assertIsString($str);
+    }
+
+    public function testALabelCanReadTheKindAndTheConnections(): void
+    {
+        $connected = new Part();
+        $connected->setName('Connected');
+
+        $connection = new PartConnection();
+        $connection->setConnectedPart($connected);
+        $connection->setPosition(4);
+        $connection->setStatus(PartConnectionStatus::DO_NOT_USE);
+        $connection->setNote('Note');
+
+        $meta = new Part();
+        $meta->setName('Meta');
+        $meta->setKind(PartKind::META);
+        $meta->addPartConnection($connection);
+
+        $options = new LabelOptions();
+        $options->setSupportedElement(LabelSupportedElement::PART);
+        $options->setProcessMode(LabelProcessMode::TWIG);
+        $options->setLines(<<<'TWIG'
+            {{ part.kind.value }}|{% for connection in part.orderedConnections %}{{ connection.position }},{{ connection.status.value }},{{ connection.usable ? 'usable' : 'off' }},{{ connection.note }},{{ connection.connectedPart.name }},{{ connection.connectedPart.kind.value }},{{ connection.metaPart.name }}{% endfor %}|{% for connection in part.partConnections %}listed{% endfor %}|{{ part.ownAmountSum }}|{{ part.lotsCountedInStock|length }}|{% for connection in connected.connectionsAsPart %}listed{% endfor %}
+            TWIG);
+
+        $rendered = $this->service->createSandbox($options)->render('lines', ['part' => $meta, 'connected' => $connected]);
+
+        $this->assertSame('meta|4,do_not_use,off,Note,Connected,manufacturing,Meta|listed|0|0|', trim($rendered));
     }
 }

@@ -23,6 +23,7 @@ declare(strict_types=1);
 namespace App\Serializer;
 
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
@@ -30,6 +31,7 @@ use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\PriceInformations\Pricedetail;
 use Brick\Math\BigDecimal;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
+use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\Normalizer\DenormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\DenormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
@@ -140,6 +142,8 @@ class PartNormalizer implements NormalizerInterface, DenormalizerInterface, Norm
             $data['ipn'] = null;
         }
 
+        $this->normalizeKind($data);
+
         //Fill empty needs_review and needs_review_comment fields with false
         if (empty($data['needs_review'])) {
             $data['needs_review'] = false;
@@ -208,6 +212,33 @@ class PartNormalizer implements NormalizerInterface, DenormalizerInterface, Norm
         $this->applyEdaFields($object, $data);
 
         return $object;
+    }
+
+    /**
+     * A missing or blank kind leaves the default, so that one empty cell does not refuse a file. An unknown value does
+     * refuse it, and the message says which value it was.
+     */
+    private function normalizeKind(array &$data): void
+    {
+        if (!array_key_exists('kind', $data)) {
+            return;
+        }
+
+        $kind = is_string($data['kind']) ? trim($data['kind']) : $data['kind'];
+        if ($kind === null || $kind === '') {
+            unset($data['kind']);
+
+            return;
+        }
+
+        if (!is_string($kind) || PartKind::tryFrom($kind) === null) {
+            throw NotNormalizableValueException::createForUnexpectedDataType(
+                sprintf('Unknown part kind "%s". Valid values are: %s.', is_scalar($kind) ? $kind : get_debug_type($kind),
+                    implode(', ', array_map(static fn (PartKind $case): string => $case->value, PartKind::cases()))),
+                $kind, ['string'], 'kind', true);
+        }
+
+        $data['kind'] = $kind;
     }
 
     /**

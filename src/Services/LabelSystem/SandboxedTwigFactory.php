@@ -55,6 +55,9 @@ use App\Entity\Parts\InfoProviderReference;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartAssociation;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\PartConnectionStatus;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
@@ -144,8 +147,10 @@ final class SandboxedTwigFactory
             'getParameters', 'getGroupedParameters',
             'isProjectBuildPart', 'getBuiltProject',
             'getAssociatedPartsAsOwner', 'getAssociatedPartsAsOther', 'getAssociatedPartsAll',
-            'getEdaInfo', 'getGtin'
+            'getEdaInfo', 'getGtin',
+            'getKind', 'getOwnAmountSum', 'getLotsCountedInStock', 'getOrderedConnections', 'getPartConnections', 'getConnectionsAsPart',
             ],
+        PartConnection::class => ['getMetaPart', 'getConnectedPart', 'getPosition', 'getStatus', 'isUsable', 'getNote'],
         Currency::class => ['getIsoCode', 'getInverseExchangeRate', 'getExchangeRate'],
         Orderdetail::class => ['getPart', 'getSupplier', 'getSupplierPartNr', 'getObsolete',
             'getPricedetails', 'findPriceForQty', 'isObsolete', 'getSupplierProductUrl', 'getPricesIncludesVAT'],
@@ -158,7 +163,11 @@ final class SandboxedTwigFactory
         User::class => ['isAnonymousUser', 'getUsername', 'getFullName', 'getFirstName', 'getLastName',
             'getDepartment', 'getEmail', ],
     ];
-    private const ALLOWED_PROPERTIES = [];
+    private const ALLOWED_PROPERTIES = [
+        //So that a label can print these as text
+        PartKind::class => ['value'],
+        PartConnectionStatus::class => ['value'],
+    ];
 
     //Most tests are safe and allowed without this list, so this can be empty. Only add tests here that are not allowed by default.
     private const ALLOWED_TESTS = ["entity", "enum", "object", "instanceof"];

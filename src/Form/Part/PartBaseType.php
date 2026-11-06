@@ -102,10 +102,24 @@ class PartBaseType extends AbstractType
             'autocomplete' => 'off',
         ];
 
-        if ($this->ipnSuggestSettings->regex !== null && $this->ipnSuggestSettings->regex !== '') {
-            $ipnAttr['pattern'] = $this->ipnSuggestSettings->regex;
-            $ipnAttr['placeholder'] = $this->ipnSuggestSettings->regex;
-            $ipnAttr['title'] = $this->ipnSuggestSettings->regexHelp;
+        $ipnRegex = $this->ipnSuggestSettings->getRegexFor($part->getKind());
+        $ipnRegexHelp = $this->ipnSuggestSettings->getRegexHelpFor($part->getKind());
+        if ($ipnRegex !== null && $ipnRegex !== '') {
+            $ipnAttr['pattern'] = $ipnRegex;
+            $ipnAttr['placeholder'] = $ipnRegex;
+            $ipnAttr['title'] = $ipnRegexHelp;
+        }
+
+        //Where the kind can still change, the browser needs the pattern of each kind
+        if ($options['kind_mode'] === self::KIND_CHOOSE) {
+            $ipnByKind = [];
+            foreach (PartKind::cases() as $case) {
+                $ipnByKind[$case->value] = [
+                    'pattern' => $this->ipnSuggestSettings->getRegexFor($case),
+                    'help' => $this->ipnSuggestSettings->getRegexHelpFor($case),
+                ];
+            }
+            $ipnAttr['data-ipn-by-kind'] = json_encode($ipnByKind, JSON_THROW_ON_ERROR);
         }
 
         $ipnOptions = [
@@ -115,8 +129,8 @@ class PartBaseType extends AbstractType
             'attr' => $ipnAttr,
         ];
 
-        if (isset($ipnAttr['pattern']) && $this->ipnSuggestSettings->regexHelp !== null && $this->ipnSuggestSettings->regexHelp !== '') {
-            $ipnOptions['help'] = $this->ipnSuggestSettings->regexHelp;
+        if (isset($ipnAttr['pattern']) && $ipnRegexHelp !== null && $ipnRegexHelp !== '') {
+            $ipnOptions['help'] = $ipnRegexHelp;
         }
 
         //Common section
@@ -334,7 +348,7 @@ class PartBaseType extends AbstractType
             'label' => 'part.kind.label',
             'disabled' => !$chooseKind,
             'choice_label' => static fn (PartKind $choice): string => $choice->getTranslationKey(),
-            'attr' => ['data-pages--part-kind-target' => 'select'],
+            'attr' => ['data-pages--part-kind-target' => 'select', 'data-ipn-suggestion' => 'kindField'],
         ]);
 
         if ($chooseKind || $kind->allowsConnections()) {

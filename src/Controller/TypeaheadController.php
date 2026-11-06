@@ -271,6 +271,10 @@ class TypeaheadController extends AbstractController
 
         /** @var Part $part */
         $part = $partId !== null ? $entityManager->getRepository(Part::class)->find($partId) : new Part();
+        //A new part has no ID to tell its kind by, which the form tells instead. A saved part keeps its own.
+        if ($partId === null) {
+            $part->setKind(PartKind::tryFrom($request->query->getString('kind')) ?? PartKind::MANUFACTURING);
+        }
         /** @var Category|null $category */
         $category = $entityManager->getRepository(Category::class)->find($categoryId);
 

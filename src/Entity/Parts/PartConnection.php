@@ -35,6 +35,7 @@ use App\Entity\Base\AbstractDBElement;
 use App\Entity\Base\TimestampTrait;
 use App\Entity\Contracts\NamedElementInterface;
 use App\Entity\Contracts\TimeStampableInterface;
+use App\EntityListeners\TreeCacheInvalidationListener;
 use App\Repository\DBElementRepository;
 use App\Validator\Constraints\ValidPartConnection;
 use App\Validator\UniqueValidatableInterface;
@@ -52,6 +53,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Table('part_connections')]
 #[ORM\UniqueConstraint(name: 'part_connections_uniq_pair', columns: ['id_meta_part', 'id_connected_part'])]
 #[ORM\HasLifecycleCallbacks]
+#[ORM\EntityListeners([TreeCacheInvalidationListener::class])]
 #[UniqueEntity(fields: ['meta_part', 'connected_part'], message: 'validator.part_connection.already_exists')]
 #[ValidPartConnection]
 #[ApiResource(

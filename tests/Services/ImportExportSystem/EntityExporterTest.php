@@ -22,6 +22,11 @@ declare(strict_types=1);
  */
 namespace App\Tests\Services\ImportExportSystem;
 
+use App\Services\ImportExportSystem\EntityImporter;
+use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartConnectionStatus;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\Part;
 use App\Entity\Parts\Category;
 use App\Services\ImportExportSystem\EntityExporter;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -178,5 +183,70 @@ final class EntityExporterTest extends WebTestCase
 
         $this->assertSame('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $response->headers->get('Content-Type'));
         $this->assertStringContainsString('export_Category_simple.xlsx', (string) $response->headers->get('Content-Disposition'));
+    }
+
+    private function metaPart(): Part
+    {
+        $connected = new Part();
+        $connected->setName('Connected part');
+        $connected->setManufacturerProductNumber('MPN-1');
+
+        $connection = new PartConnection();
+        $connection->setConnectedPart($connected);
+        $connection->setPosition(3);
+        $connection->setStatus(PartConnectionStatus::DO_NOT_USE);
+
+        $meta = new Part();
+        $meta->setName('Meta part');
+        $meta->setKind(PartKind::META);
+        $meta->addPartConnection($connection);
+
+        return $meta;
+    }
+
+    public function testEveryLevelHoldsTheKind(): void
+    {
+        foreach (['simple', 'extended', 'full'] as $level) {
+            $data = json_decode($this->service->exportEntities($this->metaPart(), ['format' => 'json', 'level' => $level]), true);
+            $this->assertSame('meta', $data[0]['kind'], $level);
+
+            $csv = $this->service->exportEntities($this->metaPart(), ['format' => 'csv', 'level' => $level]);
+            $this->assertContains('kind', str_getcsv(strtok($csv, "\n"), ';', '"', '\\'), $level);
+        }
+    }
+
+    public function testOnlyFullHoldsConnectionsAndEndsThere(): void
+    {
+        foreach (['simple', 'extended'] as $level) {
+            $data = json_decode($this->service->exportEntities($this->metaPart(), ['format' => 'json', 'level' => $level]), true);
+            $this->assertArrayNotHasKey('part_connections', $data[0], $level);
+        }
+
+        $data = json_decode($this->service->exportEntities($this->metaPart(), ['format' => 'json', 'level' => 'full']), true);
+        $this->assertCount(1, $data[0]['part_connections']);
+        $connection = $data[0]['part_connections'][0];
+        $this->assertSame(3, $connection['position']);
+        $this->assertSame('do_not_use', $connection['status']);
+        $this->assertSame('Connected part', $connection['connected_part']['name']);
+        $this->assertArrayHasKey('id', $connection['connected_part']);
+        $this->assertArrayNotHasKey('manufacturer_product_number', $connection['connected_part'], 'A connected part is not written out in full');
+    }
+
+    public function testAFullExportImportsAsAMetaPartWithoutConnections(): void
+    {
+        $importer = self::getContainer()->get(EntityImporter::class);
+
+        foreach (['json' => ',', 'csv' => ';'] as $format => $delimiter) {
+            $file = $this->service->exportEntities($this->metaPart(), ['format' => $format, 'level' => 'full']);
+            $this->assertStringContainsString('part_connections', $file);
+
+            $errors = [];
+            $results = $importer->importString($file, ['class' => Part::class, 'format' => $format, 'csv_delimiter' => $delimiter, 'part_category' => (new Category())->setName('Kind')], $errors);
+
+            $this->assertEmpty($errors, $format);
+            $this->assertCount(1, $results, $format);
+            $this->assertSame(PartKind::META, $results[0]->getKind(), $format);
+            $this->assertCount(0, $results[0]->getPartConnections(), $format);
+        }
     }
 }

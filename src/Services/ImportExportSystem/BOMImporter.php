@@ -483,7 +483,34 @@ class BOMImporter
             $entries_by_key[$entry_key] = $bom_entry;
         }
 
+        $this->clearClashingNames($bom_entries);
+
         return $bom_entries;
+    }
+
+    /**
+     * Two linked rows can name different parts that share a name, which is allowed by hand as the entries differ by their
+     * part. A linked entry does not need its name, so it gives it up then, and otherwise keeps it.
+     * @param  ProjectBOMEntry[]  $entries
+     */
+    private function clearClashingNames(array $entries): void
+    {
+        $entries_by_name = [];
+        foreach ($entries as $entry) {
+            $entries_by_name[$entry->getName()][] = $entry;
+        }
+
+        foreach ($entries_by_name as $same_name) {
+            if (count($same_name) < 2) {
+                continue;
+            }
+
+            foreach ($same_name as $entry) {
+                if ($entry->getPart() !== null) {
+                    $entry->setName(null);
+                }
+            }
+        }
     }
 
     /**

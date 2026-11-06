@@ -23,6 +23,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Settings\MiscSettings\IpnSuggestSettings;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Part;
@@ -244,5 +245,33 @@ final class TypeaheadControllerTest extends WebTestCase
         $names = array_column($this->pickerResults('Picker', ['kind' => 'meta', 'name' => '1']), 'name');
 
         $this->assertSame(['Picker meta'], $names);
+    }
+
+    public function testIpnSuggestionsFollowTheKindOfANewPart(): void
+    {
+        $client = $this->loginClient('admin');
+        $client->disableReboot();
+        $settings = static::getContainer()->get(IpnSuggestSettings::class);
+
+        $titles = function (string $query) use ($client): array {
+            $client->request('GET', '/en/typeahead/parts/ipn-suggestions?categoryId=0'.$query);
+            self::assertResponseIsSuccessful();
+
+            return array_column(json_decode((string) $client->getResponse()->getContent(), true)['commonPrefixes'], 'title');
+        };
+
+        $settings->globalPrefix = 'ALL-';
+        $this->assertContains('ALL-', $titles(''), 'With no meta prefix, both kinds use the prefix of today');
+        $this->assertContains('ALL-', $titles('&kind=meta'));
+
+        $settings->metaPrefix = 'META-';
+        $this->assertContains('ALL-', $titles(''));
+        $this->assertContains('ALL-', $titles('&kind=manufacturing'));
+        $this->assertContains('META-', $titles('&kind=meta'));
+        $this->assertNotContains('ALL-', $titles('&kind=meta'));
+        $this->assertContains('ALL-', $titles('&kind=nonsense'), 'An unknown kind is a manufacturing part, as everywhere');
+
+        //The kind of a saved part is its own, whatever the form says
+        $this->assertContains('ALL-', $titles('&partId=1&kind=meta'));
     }
 }

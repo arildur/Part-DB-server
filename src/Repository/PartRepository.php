@@ -363,15 +363,16 @@ class PartRepository extends NamedDBElementRepository
         $ipnSuggestions = ['commonPrefixes' => [], 'prefixesPartIncrement' => []];
 
         //Show global prefix first if configured
-        if ($this->ipnSuggestSettings->globalPrefix !== null && $this->ipnSuggestSettings->globalPrefix !== '') {
+        $globalPrefix = $this->ipnSuggestSettings->getPrefixFor($part->getKind());
+        if ($globalPrefix !== null && $globalPrefix !== '') {
             $ipnSuggestions['commonPrefixes'][] = [
-                'title' => $this->ipnSuggestSettings->globalPrefix,
+                'title' => $globalPrefix,
                 'description' => $this->translator->trans('part.edit.tab.advanced.ipn.prefix.global_prefix')
             ];
 
-            $increment = $this->generateNextPossibleGlobalIncrement();
+            $increment = $this->generateNextPossibleGlobalIncrement($globalPrefix);
             $ipnSuggestions['prefixesPartIncrement'][] = [
-                'title' => $this->ipnSuggestSettings->globalPrefix . $increment,
+                'title' => $globalPrefix . $increment,
                 'description' => $this->translator->trans('part.edit.tab.advanced.ipn.prefix.global_prefix')
             ];
         }
@@ -491,14 +492,14 @@ class PartRepository extends NamedDBElementRepository
         return $this->getNextIpnSuggestion($givenIpnsWithSameDescription);
     }
 
-    private function generateNextPossibleGlobalIncrement(): string
+    private function generateNextPossibleGlobalIncrement(string $globalPrefix): string
     {
         $qb = $this->createQueryBuilder('part');
 
 
         $qb->select('part.ipn')
             ->where('REGEXP(part.ipn, :ipnPattern) = TRUE')
-            ->setParameter('ipnPattern', '^' . preg_quote($this->ipnSuggestSettings->globalPrefix, '/') . '\d+$')
+            ->setParameter('ipnPattern', '^' . preg_quote($globalPrefix, '/') . '\d+$')
             ->orderBy('NATSORT(part.ipn)', 'DESC')
             ->setMaxResults(1)
         ;
@@ -506,7 +507,7 @@ class PartRepository extends NamedDBElementRepository
         $highestIPN = $qb->getQuery()->getOneOrNullResult();
         if ($highestIPN !== null) {
             //Remove the prefix and extract the increment part
-            $incrementPart = substr($highestIPN['ipn'], strlen($this->ipnSuggestSettings->globalPrefix));
+            $incrementPart = substr($highestIPN['ipn'], strlen($globalPrefix));
             //Extract a number using regex
             preg_match('/(\d+)$/', $incrementPart, $matches);
             $incrementInt = isset($matches[1]) ? (int) $matches[1] + 1 : 0;

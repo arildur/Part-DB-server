@@ -92,12 +92,12 @@ trait ConnectionTrait
     }
 
     /**
-     * What clients read about the connections of this part: a fixed list of fields, so that a connected part is never
-     * written out in full and the output ends there. Connections are written through their own resource. A part
-     * that can not hold connections has none, and the check saves it a query.
+     * What clients and export files read about the connections of this part: a fixed list of fields, so that a connected
+     * part is never written out in full and the output ends there. Connections are written through their own resource,
+     * and are not read from an import file. A part that can not hold connections has none, and the check saves it a query.
      * @return list<array<string, mixed>>
      */
-    #[Groups(['part:read'])]
+    #[Groups(['full', 'part:read'])]
     #[SerializedName('part_connections')]
     #[ApiProperty(
         description: 'The manufacturing parts connected to this meta part, in the order they are used. Empty for a manufacturing part.',

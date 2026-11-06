@@ -22,6 +22,7 @@ declare(strict_types=1);
  */
 namespace App\Tests\Services\ImportExportSystem;
 
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Part;
@@ -809,5 +810,89 @@ final class BOMImporterTest extends WebTestCase
         }
 
         return $categories[0];
+    }
+
+    /**
+     * @return ProjectBOMEntry[]
+     */
+    private function importLinks(Part ...$parts): array
+    {
+        $this->entityManager->flush();
+
+        $rows = ['"Reference","Value","Part-DB ID","Quantity"'];
+        foreach ($parts as $index => $part) {
+            $rows[] = sprintf('"R%d","10k","%d","1"', $index, $part->getID());
+        }
+
+        return $this->service->stringToBOMEntries(implode("\n", $rows), [
+            'type' => 'kicad_schematic',
+            'field_mapping' => ['Reference' => 'Designator', 'Value' => 'Value', 'Part-DB ID' => 'Part-DB ID', 'Quantity' => 'Quantity'],
+            'delimiter' => ',',
+        ]);
+    }
+
+    private function namedPart(string $name): Part
+    {
+        $part = new Part();
+        $part->setName($name);
+        $part->setCategory($this->getDefaultCategory($this->entityManager));
+        $this->entityManager->persist($part);
+
+        return $part;
+    }
+
+    public function testRowsLinkingDifferentPartsWithTheSameNameAreAccepted(): void
+    {
+        $first = $this->namedPart('Same name');
+        $second = $this->namedPart('Same name');
+        $other = $this->namedPart('Other name');
+
+        $entries = $this->importLinks($first, $second, $other);
+
+        $this->assertCount(3, $entries);
+        $this->assertSame([$first, $second, $other], array_map(static fn (ProjectBOMEntry $entry) => $entry->getPart(), $entries));
+        $this->assertNull($entries[0]->getName());
+        $this->assertNull($entries[1]->getName());
+        $this->assertSame('Other name', $entries[2]->getName(), 'A row that does not clash keeps its name');
+
+        //The project accepts them, as it would by hand
+        $project = new Project();
+        $project->setName('Same names');
+        foreach ($entries as $entry) {
+            $project->addBomEntry($entry);
+        }
+        $this->assertCount(0, self::getContainer()->get(ValidatorInterface::class)->validate($project, null, ['project_bom']));
+    }
+
+    public function testAnUnlinkedRowKeepsItsNameWhenALinkedRowHasTheSame(): void
+    {
+        $part = $this->namedPart('10k');
+        $this->entityManager->flush();
+
+        $input = <<<CSV
+        "Reference","Value","Part-DB ID","Quantity"
+        "R1","10k","","1"
+        "R2","10k","{$part->getID()}","1"
+        CSV;
+
+        $entries = $this->service->stringToBOMEntries($input, [
+            'type' => 'kicad_schematic',
+            'field_mapping' => ['Reference' => 'Designator', 'Value' => 'Value', 'Part-DB ID' => 'Part-DB ID', 'Quantity' => 'Quantity'],
+            'delimiter' => ',',
+        ]);
+
+        $this->assertSame('10k', $entries[0]->getName());
+        $this->assertNull($entries[0]->getPart());
+        $this->assertNull($entries[1]->getName());
+    }
+
+    public function testRowsWithNoClashStoreTheNamesOfToday(): void
+    {
+        $first = $this->namedPart('First name');
+        $second = $this->namedPart('Second name');
+
+        $entries = $this->importLinks($first, $second);
+
+        $this->assertSame(['First name', 'Second name'], array_map(static fn (ProjectBOMEntry $entry) => $entry->getName(), $entries));
     }
 }

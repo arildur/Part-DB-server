@@ -20,6 +20,7 @@
 
 declare(strict_types=1);namespace App\Tests\Controller;
 
+use App\Settings\MiscSettings\IpnSuggestSettings;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Part;
@@ -569,5 +570,40 @@ final class MetaPartPagesTest extends WebTestCase
         $crawler = $this->client->request('GET', '/en/parts?'.$meta);
         $this->assertSame(1, $crawler->filter('#filter-common input[value="meta"][checked]')->count());
         $this->assertSame(0, $crawler->filter('#filter-common input[value="manufacturing"][checked]')->count());
+    }
+
+    public function testTheNewPartFormGivesTheIpnPatternOfEachKind(): void
+    {
+        $settings = self::getContainer()->get(IpnSuggestSettings::class);
+        $settings->regex = '^ALL-\d+$';
+        $settings->regexHelp = 'All parts';
+        $settings->metaRegex = '^META-\d+$';
+        $settings->metaRegexHelp = 'Meta parts';
+        $this->client->disableReboot();
+
+        $input = $this->client->request('GET', '/en/part/new')->filter('input[name="part_base[ipn]"]');
+        $this->assertSame('^ALL-\d+$', $input->attr('pattern'));
+        $this->assertSame([
+            'manufacturing' => ['pattern' => '^ALL-\d+$', 'help' => 'All parts'],
+            'meta' => ['pattern' => '^META-\d+$', 'help' => 'Meta parts'],
+        ], json_decode((string) $input->attr('data-ipn-by-kind'), true));
+
+        $input = $this->client->request('GET', '/en/part/new?kind=meta')->filter('input[name="part_base[ipn]"]');
+        $this->assertSame('^META-\d+$', $input->attr('pattern'));
+
+        //The kind of a saved part is fixed, so it only needs its own
+        $meta = $this->part('Saved for its pattern', PartKind::META);
+        $this->em->flush();
+        $input = $this->client->request('GET', '/en/part/'.$meta->getID().'/edit')->filter('input[name="part_base[ipn]"]');
+        $this->assertSame('^META-\d+$', $input->attr('pattern'));
+        $this->assertNull($input->attr('data-ipn-by-kind'));
+    }
+
+    public function testTheImportPageSaysConnectionsAreNotImported(): void
+    {
+        $this->client->request('GET', '/en/parts/import');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('.card-body', 'they are not imported');
     }
 }

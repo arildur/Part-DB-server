@@ -79,8 +79,16 @@
                             {% endfor %}
                             </tbody>
                         </table>
-                    {% else %}
+                    {% elseif not part.kind.allowsConnections or part.lotsCountedInStock is empty %}
                         <div class="text-muted">{% trans %}label_scanner.no_locations{% endtrans %}</div>
+                    {% endif %}
+
+                    {# The stock of a meta part is mostly in its connected parts, which the stock tab lists #}
+                    {% if part.kind.allowsConnections %}
+                        <div class="part-kind-total">
+                            <b>{% trans %}part_lots.total{% endtrans %}:</b> {{ part.amountSum | format_amount(part.partUnit, {'decimals': 5}) }}
+                            <a href="{{ entity_url(part) }}#part_lots" target="_blank" class="ms-2">{% trans %}part.part_lots.label{% endtrans %}</a>
+                        </div>
                     {% endif %}
 
                 </div>

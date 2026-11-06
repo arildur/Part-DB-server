@@ -27,6 +27,7 @@ use App\Entity\Attachments\Attachment;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
 use App\Services\Cache\ElementCacheTagGenerator;
 use App\Services\EntityURLGenerator;
 use App\Services\Trees\NodesListBuilder;
@@ -154,6 +155,8 @@ final readonly class KiCadHelper
                 $item->tag([
                     $this->tagGenerator->getElementTypeCacheTag(Category::class),
                     $this->tagGenerator->getElementTypeCacheTag(Part::class),
+                    //The stock of a meta part depends on its connections, and a change to one does not touch the part
+                    $this->tagGenerator->getElementTypeCacheTag(PartConnection::class),
                     //Visibility can change based on the footprint
                     $this->tagGenerator->getElementTypeCacheTag(Footprint::class)
                 ]);
@@ -246,6 +249,22 @@ final readonly class KiCadHelper
                 }
                 $qb->getQuery()->getResult();
             }
+
+            //A meta part also reads the lots of its connected parts. This needs a second step, as it is nested deeper
+            $metaParts = array_filter($chunk, static fn (Part $part): bool => $part->getKind()->allowsConnections());
+            if ($metaParts !== []) {
+                $this->em->createQueryBuilder()
+                    ->select('PARTIAL meta.{id}', 'connections', 'connected', 'lots', 'location')
+                    ->from(Part::class, 'meta')
+                    ->leftJoin('meta.part_connections', 'connections')
+                    ->leftJoin('connections.connected_part', 'connected')
+                    ->leftJoin('connected.partLots', 'lots')
+                    ->leftJoin('lots.storage_location', 'location')
+                    ->where('meta IN (:parts)')
+                    ->setParameter('parts', array_values($metaParts))
+                    ->getQuery()
+                    ->getResult();
+            }
         }
     }
 
@@ -296,10 +315,17 @@ final readonly class KiCadHelper
         if ($part->getManufacturerProductNumber() !== "") {
             $result['fields']["MPN"] = $this->createField($part->getManufacturerProductNumber());
         }
-        if ($this->kiCadEDASettings->exportPartInfoFields && $part->getManufacturingStatus() !== null) {
+        if ($this->kiCadEDASettings->exportPartInfoFields && $part->getManufacturingStatus() !== null && $part->getKind()->allowsManufacturerData()) {
             $result["fields"]["Manufacturing Status"] = $this->createField(
             //Always use the english translation
                 $this->translator->trans($part->getManufacturingStatus()->toTranslationKey(), locale: 'en')
+            );
+        }
+        //Only a meta part gets this, so that the fields of a manufacturing part stay as they are
+        if ($this->kiCadEDASettings->exportPartInfoFields && $part->getKind()->allowsConnections()) {
+            $result["fields"]["Part-DB Kind"] = $this->createField(
+                //Always use the english translation
+                $this->translator->trans($part->getKind()->getTranslationKey(), locale: 'en')
             );
         }
         if ($this->kiCadEDASettings->exportPartInfoFields && $part->getFootprint() !== null) {
@@ -388,7 +414,7 @@ final readonly class KiCadHelper
         if ($this->kiCadEDASettings->exportStockFields) {
             $totalStock = 0;
             $locations = [];
-            foreach ($part->getPartLots() as $lot) {
+            foreach ($part->getLotsCountedInStock() as $lot) {
                 $isAvailable = !$lot->isInstockUnknown() && $lot->isExpired() !== true;
                 if ($isAvailable) {
                     $totalStock += $lot->getAmount();

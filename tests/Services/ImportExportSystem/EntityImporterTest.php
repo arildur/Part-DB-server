@@ -22,6 +22,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Services\ImportExportSystem;
 
+use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
+use App\Entity\Parts\PartKind;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\DataProvider;
 use App\Entity\Attachments\AttachmentContainingDBElement;
@@ -463,5 +465,57 @@ EOT;
         $this->assertSame('Test Excel 2 notes', $results[1]->getComment());
         
         unlink($tempFile);
+    }
+
+    public function testImportSetsTheKindFromTheFile(): void
+    {
+        $input = <<<EOT
+        name,kind
+        Meta row,meta
+        Manufacturing row,manufacturing
+        Blank row,
+        EOT;
+
+        $errors = [];
+        $results = $this->service->importString($input, ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ',', 'part_category' => (new Category())->setName('Kind')], $errors);
+
+        $this->assertEmpty($errors);
+        $this->assertSame([PartKind::META, PartKind::MANUFACTURING, PartKind::MANUFACTURING], array_map(static fn (Part $part): PartKind => $part->getKind(), $results));
+
+        //A file with no kind column at all
+        $results = $this->service->importString("name\nNo column", ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ',', 'part_category' => (new Category())->setName('Kind')], $errors);
+        $this->assertEmpty($errors);
+        $this->assertSame(PartKind::MANUFACTURING, $results[0]->getKind());
+    }
+
+    public function testAMetaRowWithAManufacturerIsRefusedForThatRow(): void
+    {
+        $input = <<<EOT
+        name,kind,manufacturer,mpn,supplier,spn
+        Good meta,meta,,,,
+        With manufacturer,meta,Some manufacturer,,,
+        With number,meta,,ABC-1,,
+        With supplier,meta,,,Some supplier,S-1
+        Good part,manufacturing,Some manufacturer,ABC-1,Some supplier,S-1
+        EOT;
+
+        $errors = [];
+        $results = $this->service->importString($input, [
+            'class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ',',
+            'create_unknown_datastructures' => true, 'part_category' => (new Category())->setName('Kind'),
+        ], $errors);
+
+        $this->assertSame(['With manufacturer', 'With number', 'With supplier'], array_keys($errors));
+        $this->assertSame(['Good meta', 'Good part'], array_values(array_map(static fn (Part $part): string => $part->getName(), $results)), 'The other rows are still read');
+    }
+
+    public function testAnUnknownKindRefusesTheFileAndNamesTheValue(): void
+    {
+        $errors = [];
+
+        $this->expectException(NotNormalizableValueException::class);
+        $this->expectExceptionMessage('Unknown part kind "sorcery"');
+
+        $this->service->importString("name,kind\nGood,meta\nBad,sorcery", ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ',', 'part_category' => (new Category())->setName('Kind')], $errors);
     }
 }

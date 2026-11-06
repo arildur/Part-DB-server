@@ -22,6 +22,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Services\EDA;
 
+use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartConnectionStatus;
+use App\Entity\Parts\PartConnection;
 use App\Entity\Attachments\AttachmentType;
 use App\Entity\Attachments\PartAttachment;
 use App\Entity\Parameters\PartParameter;
@@ -902,5 +905,96 @@ final class KiCadHelperTest extends KernelTestCase
         $this->settings->exportStockFields = false;
         $after = $this->helper->getCategoryParts($category);
         self::assertArrayNotHasKey('Stock', $after[0]['fields']);
+    }
+
+    private function metaCategory(string $name, int $metaParts): Category
+    {
+        $category = (new Category())->setName($name);
+        $category->getEdaInfo()->setVisibility(true);
+        $other = (new Category())->setName($name.' connected');
+        $location = (new StorageLocation())->setName($name);
+        foreach ([$category, $other, $location] as $entity) {
+            $this->em->persist($entity);
+        }
+
+        for ($i = 0; $i < $metaParts; $i++) {
+            $connected = new Part();
+            $connected->setName($name.' part '.$i);
+            $connected->setCategory($other);
+            $connected->addPartLot((new PartLot())->setAmount(2)->setStorageLocation($location));
+            $this->em->persist($connected);
+
+            $connection = new PartConnection();
+            $connection->setConnectedPart($connected);
+
+            $meta = new Part();
+            $meta->setName($name.' meta '.$i);
+            $meta->setKind(PartKind::META);
+            $meta->setCategory($category);
+            $meta->addPartConnection($connection);
+            $this->em->persist($meta);
+        }
+
+        $this->em->flush();
+
+        return $category;
+    }
+
+    public function testAChangeToAConnectionInvalidatesTheCategoryList(): void
+    {
+        $category = $this->metaCategory('Cached meta', 1);
+        $stock = fn (): string => $this->helper->getCategoryParts($category)[0]['fields']['Stock']['value'];
+        $meta = $this->em->getRepository(Part::class)->findOneBy(['name' => 'Cached meta meta 0']);
+
+        $this->assertSame('2', $stock());
+
+        //Reading again comes from the cache, which is what the next step has to get past
+        $connection = $meta->getOrderedConnections()[0];
+        $connection->setStatus(PartConnectionStatus::DO_NOT_USE);
+        $this->em->flush();
+        $this->assertSame('0', $stock(), 'A connection that changes must show on the next read');
+
+        $this->em->remove($connection);
+        $meta->removePartConnection($connection);
+        $connected = new Part();
+        $connected->setName('Another connected');
+        $connected->setCategory($this->em->find(Category::class, 1));
+        $connected->addPartLot((new PartLot())->setAmount(11));
+        $this->em->persist($connected);
+        $this->em->flush();
+        $this->assertSame('0', $stock());
+
+        $added = new PartConnection();
+        $added->setConnectedPart($connected);
+        $meta->addPartConnection($added);
+        $this->em->flush();
+        $this->assertSame('11', $stock(), 'A new connection must show on the next read');
+    }
+
+    public function testTheCategoryListReadsMetaPartsInANumberOfQueriesIndependentOfTheirNumber(): void
+    {
+        $holder = self::getContainer()->get('doctrine.debug_data_holder');
+
+        $count = function (string $name, int $metaParts) use ($holder): int {
+            $id = $this->metaCategory($name, $metaParts)->getID();
+            $this->em->clear();
+            $category = $this->em->find(Category::class, $id);
+            $holder->reset();
+
+            $parts = $this->helper->getCategoryParts($category);
+
+            $this->assertCount($metaParts, $parts);
+            $this->assertSame('2', $parts[0]['fields']['Stock']['value']);
+
+            return count($holder->getData()['default'] ?? []);
+        };
+
+        //The first read also reads things shared by all, which has nothing to do with the rows
+        $count('Warm up', 1);
+        $few = $count('Few metas', 10);
+        $many = $count('Many metas', 100);
+
+        $this->assertGreaterThan(0, $few, 'The count must really see the queries');
+        $this->assertSame($few, $many);
     }
 }

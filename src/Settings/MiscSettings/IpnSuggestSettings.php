@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace App\Settings\MiscSettings;
 
+use App\Entity\Parts\PartKind;
 use App\Settings\SettingsIcon;
 use Jbtronics\SettingsBundle\Metadata\EnvVarMode;
 use Jbtronics\SettingsBundle\ParameterTypes\StringType;
@@ -106,4 +107,54 @@ class IpnSuggestSettings
         options: ['type' => StringType::class],
     )]
     public ?string $globalPrefix = null;
+
+    #[SettingsParameter(
+        label: new TM("settings.misc.ipn_suggest.metaRegex"),
+        description: new TM("settings.misc.ipn_suggest.metaRegex.help"),
+        options: ['type' => StringType::class],
+    )]
+    public ?string $metaRegex = null;
+
+    #[SettingsParameter(
+        label: new TM("settings.misc.ipn_suggest.metaRegexHelp"),
+        description: new TM("settings.misc.ipn_suggest.metaRegexHelp.help"),
+        options: ['type' => StringType::class],
+    )]
+    public ?string $metaRegexHelp = null;
+
+    #[SettingsParameter(
+        label: new TM("settings.misc.ipn_suggest.metaPrefix"),
+        description: new TM("settings.misc.ipn_suggest.metaPrefix.help"),
+        options: ['type' => StringType::class],
+    )]
+    public ?string $metaPrefix = null;
+
+    /**
+     * The pattern IPNs of the given kind have to fulfill. Meta parts share the pattern of all parts, until they have their own.
+     */
+    public function getRegexFor(PartKind $kind): ?string
+    {
+        return $this->hasOwnRegex($kind) ? $this->metaRegex : $this->regex;
+    }
+
+    /**
+     * The description of the pattern from getRegexFor(), so that it never describes the pattern of the other kind.
+     */
+    public function getRegexHelpFor(PartKind $kind): ?string
+    {
+        return $this->hasOwnRegex($kind) ? $this->metaRegexHelp : $this->regexHelp;
+    }
+
+    /**
+     * The global prefix for IPNs of the given kind. Meta parts share the prefix of all parts, until they have their own.
+     */
+    public function getPrefixFor(PartKind $kind): ?string
+    {
+        return $kind === PartKind::META && $this->metaPrefix !== null && $this->metaPrefix !== '' ? $this->metaPrefix : $this->globalPrefix;
+    }
+
+    private function hasOwnRegex(PartKind $kind): bool
+    {
+        return $kind === PartKind::META && $this->metaRegex !== null && $this->metaRegex !== '';
+    }
 }

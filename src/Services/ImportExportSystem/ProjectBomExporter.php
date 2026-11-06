@@ -276,7 +276,7 @@ final readonly class ProjectBomExporter
 
         $locations = [];
 
-        foreach ($part->getPartLots() as $partLot) {
+        foreach ($part->getLotsCountedInStock() as $partLot) {
             $storageLocation = $partLot->getStorageLocation();
 
             if (!$storageLocation instanceof StorageLocation) {
@@ -292,6 +292,10 @@ final readonly class ProjectBomExporter
 
     private function formatUnitPrice(ProjectBOMEntry $entry): string
     {
+        if ($entry->getPart()?->getKind()->allowsConnections() === true) {
+            return $this->formatMetaPartCost($entry, BigDecimal::one());
+        }
+
         $price = $this->projectBuildHelper->getEntryUnitPrice($entry);
 
         return $this->moneyFormatter->format(
@@ -305,6 +309,13 @@ final readonly class ProjectBomExporter
     private function formatExtendedPrice(
         ProjectBOMEntry $entry,
     ): string {
+        if ($entry->getPart()?->getKind()->allowsConnections() === true) {
+            return $this->formatMetaPartCost(
+                $entry,
+                BigDecimal::fromFloatShortest($entry->getQuantity()),
+            );
+        }
+
         $price = $this->projectBuildHelper->getEntryUnitPrice($entry);
 
         $extendedPrice = $price->multipliedBy(
@@ -313,6 +324,29 @@ final readonly class ProjectBomExporter
 
         return $this->moneyFormatter->format(
             $extendedPrice
+                ->toScale(2, RoundingMode::Up)
+                ->toFloat(),
+            null,
+            2,
+            true,
+        );
+    }
+
+    /**
+     * What a meta part costs comes from its connected parts: the first one with a price. It may have none.
+     */
+    private function formatMetaPartCost(
+        ProjectBOMEntry $entry,
+        BigDecimal $factor,
+    ): string {
+        $cost = $this->projectBuildHelper->getEntryUnitCost($entry);
+
+        if ($cost === null) {
+            return '';
+        }
+
+        return $this->moneyFormatter->format(
+            $cost->multipliedBy($factor)
                 ->toScale(2, RoundingMode::Up)
                 ->toFloat(),
             null,

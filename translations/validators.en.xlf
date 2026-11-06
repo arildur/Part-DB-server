@@ -163,43 +163,43 @@
         <target>You have selected more quantity to withdraw than needed! Remove unnecessary quantity.</target>
       </segment>
     </unit>
-    <unit id="pMetaVal35" name="validator.project_build.lot_must_not_bigger_than_stock">
+    <unit id="6R0PBce" name="validator.project_build.lot_must_not_bigger_than_stock">
       <segment state="translated">
         <source>validator.project_build.lot_must_not_bigger_than_stock</source>
         <target>You can not withdraw more than this lot holds, counted over all BOM entries using it.</target>
       </segment>
     </unit>
-    <unit id="pMetaVal36" name="validator.project_build.lot_must_not_smaller_0">
+    <unit id="6WGxMSK" name="validator.project_build.lot_must_not_smaller_0">
       <segment state="translated">
         <source>validator.project_build.lot_must_not_smaller_0</source>
         <target>You can not withdraw a negative amount.</target>
       </segment>
     </unit>
-    <unit id="pMetaVal33" name="validator.project.build_part_kind_not_allowed">
+    <unit id="DY7O5hl" name="validator.project.build_part_kind_not_allowed">
       <segment state="translated">
         <source>validator.project.build_part_kind_not_allowed</source>
         <target>A meta part can not be the build part of a project.</target>
       </segment>
     </unit>
-    <unit id="pMetaVal34" name="validator.part_connection.would_reach_own_build_part">
+    <unit id="6vMu3gH" name="validator.part_connection.would_reach_own_build_part">
       <segment state="translated">
         <source>validator.part_connection.would_reach_own_build_part</source>
         <target>This part is the build part of a project that uses this meta part in its BOM, so the project would contain itself.</target>
       </segment>
     </unit>
-    <unit id="pMetaVal30" name="validator.project_build.no_lots_offered">
+    <unit id="Nkj97u8" name="validator.project_build.no_lots_offered">
       <segment state="translated">
         <source>validator.project_build.no_lots_offered</source>
         <target>%entry% has no stock to take from: the meta part has no lots and no connected part that may be used.</target>
       </segment>
     </unit>
-    <unit id="pMetaVal31" name="validator.project_build.lot_not_withdrawable">
+    <unit id="EjYKUiW" name="validator.project_build.lot_not_withdrawable">
       <segment state="translated">
         <source>validator.project_build.lot_not_withdrawable</source>
         <target>You may not withdraw from this lot.</target>
       </segment>
     </unit>
-    <unit id="pMetaVal32" name="validator.project_build.lot_out_of_reach">
+    <unit id="JlsZNZw" name="validator.project_build.lot_out_of_reach">
       <segment state="translated">
         <source>validator.project_build.lot_out_of_reach</source>
         <target>%entry% may no longer take from the lot %lot%.</target>
@@ -313,55 +313,55 @@
         <target>If you specify an info provider, you also need to provide a provider ID, or remove both.</target>
       </segment>
     </unit>
-    <unit id="pK1dFx1" name="validator.part.kind_is_fixed">
+    <unit id="DoSARn5" name="validator.part.kind_is_fixed">
       <segment state="translated">
         <source>validator.part.kind_is_fixed</source>
         <target>The kind of a part can not be changed once it is saved.</target>
       </segment>
     </unit>
-    <unit id="pConn01" name="validator.part_connection.already_exists">
+    <unit id="pHrnXqx" name="validator.part_connection.already_exists">
       <segment state="translated">
         <source>validator.part_connection.already_exists</source>
         <target>This part is already connected to this meta part.</target>
       </segment>
     </unit>
-    <unit id="pConn02" name="validator.part_connection.first_end_must_allow_connections">
+    <unit id="mZ5aG7k" name="validator.part_connection.first_end_must_allow_connections">
       <segment state="translated">
         <source>validator.part_connection.first_end_must_allow_connections</source>
         <target>Parts can only be connected to a meta part.</target>
       </segment>
     </unit>
-    <unit id="pConn03" name="validator.part_connection.second_end_must_be_connectable">
+    <unit id="jWlut0g" name="validator.part_connection.second_end_must_be_connectable">
       <segment state="translated">
         <source>validator.part_connection.second_end_must_be_connectable</source>
         <target>Only a manufacturing part can be connected to a meta part.</target>
       </segment>
     </unit>
-    <unit id="pConn04" name="validator.part_connection.ends_are_fixed">
+    <unit id="wIroXOO" name="validator.part_connection.ends_are_fixed">
       <segment state="translated">
         <source>validator.part_connection.ends_are_fixed</source>
         <target>The parts of a connection can not be changed. Remove it and add a new one.</target>
       </segment>
     </unit>
-    <unit id="pConn05" name="validator.part_connection.units_must_match">
+    <unit id="3kcKrSZ" name="validator.part_connection.units_must_match">
       <segment state="translated">
         <source>validator.part_connection.units_must_match</source>
         <target>A connected part must have the same measurement unit as its meta part.</target>
       </segment>
     </unit>
-    <unit id="pKind03" name="validator.part.kind_does_not_allow_manufacturer_data">
+    <unit id="MkFlvVY" name="validator.part.kind_does_not_allow_manufacturer_data">
       <segment state="translated">
         <source>validator.part.kind_does_not_allow_manufacturer_data</source>
         <target>A part of this kind can not hold data that identifies one manufacturer's product.</target>
       </segment>
     </unit>
-    <unit id="pKind04" name="validator.part.kind_can_not_be_build_part">
+    <unit id="G_KLCeX" name="validator.part.kind_can_not_be_build_part">
       <segment state="translated">
         <source>validator.part.kind_can_not_be_build_part</source>
         <target>A part of this kind can not be the part a project builds.</target>
       </segment>
     </unit>
-    <unit id="pKind05" name="validator.orderdetail.kind_does_not_allow_suppliers">
+    <unit id="ofM37s9" name="validator.orderdetail.kind_does_not_allow_suppliers">
       <segment state="translated">
         <source>validator.orderdetail.kind_does_not_allow_suppliers</source>
         <target>A part of this kind can not have suppliers of its own.</target>

@@ -38,6 +38,7 @@ use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * @see \App\Tests\Serializer\PartNormalizerTest
@@ -75,6 +76,7 @@ class PartNormalizer implements NormalizerInterface, DenormalizerInterface, Norm
 
     public function __construct(
         private readonly StructuralElementFromNameDenormalizer $locationDenormalizer,
+        private readonly TranslatorInterface $translator,
     )
     {
     }
@@ -233,8 +235,10 @@ class PartNormalizer implements NormalizerInterface, DenormalizerInterface, Norm
 
         if (!is_string($kind) || PartKind::tryFrom($kind) === null) {
             throw NotNormalizableValueException::createForUnexpectedDataType(
-                sprintf('Unknown part kind "%s". Valid values are: %s.', is_scalar($kind) ? $kind : get_debug_type($kind),
-                    implode(', ', array_map(static fn (PartKind $case): string => $case->value, PartKind::cases()))),
+                $this->translator->trans('parts.import.error.unknown_kind', [
+                    '%kind%' => is_scalar($kind) ? $kind : get_debug_type($kind),
+                    '%values%' => implode(', ', array_map(static fn (PartKind $case): string => $case->value, PartKind::cases())),
+                ]),
                 $kind, ['string'], 'kind', true);
         }
 

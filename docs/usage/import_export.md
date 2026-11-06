@@ -69,6 +69,10 @@ field names are case-sensitive (so `name` is not the same as `Name`). All fields
 leave them empty or do not include the column in your file.
 
 * **`name`** (required): The name of the part. This is the only required field, all other fields are optional.
+* **`kind`**: The kind of the part, either `manufacturing` or `meta` (see [Meta parts](meta_parts.md)). A missing or
+  empty value gives a manufacturing part. Any other value refuses the whole file, and the error message names the value.
+  A row with kind `meta` that gives a manufacturer, manufacturer part number or supplier is refused, with an error for
+  that row.
 * **`description`**: The description of the part, you can use markdown/HTML syntax here for rich text formatting.
 * **`notes`** or **`comment`**: The notes of the part, you can use markdown/HTML syntax here for rich text formatting.
 * **`category`**: The category of the part. This can be a path (e.g. `Category 1->Category 1.1`), which will
@@ -177,3 +181,7 @@ You can export parts in all part tables. Select the parts you want via the check
 export format and level in the appearing menu.
 
 See the section about exporting data structures for more information about the export formats and levels.
+
+Every level includes the `kind` of a part. The level `full` also lists the connections of a meta part, with their
+position, status and note and the ID, name, kind and total stock of the connected part. These are for reading only: an
+import creates a meta part without connections, so you have to connect the parts again afterwards.

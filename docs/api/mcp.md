@@ -268,9 +268,12 @@ API token/OAuth2 grant (see [Permissions](#permissions) above) and the correspon
   matched by database ID with `=`/`!=`, and additionally `INCLUDING_CHILDREN`/`EXCLUDING_CHILDREN` for the
   hierarchical ones to match an entire subtree; and a `parameters` list matches parts having at least one parameter
   satisfying each given name/symbol/unit/value constraint. Results can be sorted (`orderBy`/`orderDirection`) and
-  are capped at `limit` (default 50, max 200).
+  are capped at `limit` (default 50, max 200). `kind` restricts the results to `manufacturing` or `meta` parts (see
+  [Meta parts](../usage/meta_parts.md)), and the stock amount filters use the same total as `total_instock`.
 * **get_part_details** – Get full details about a specific part by its database ID, including stock, prices,
-  order details, attachments, parameters and EDA info.
+  order details, attachments, parameters and EDA info. For a meta part, `total_instock` includes its usable connected
+  parts while `own_instock` counts its own lots only, and `part_connections` lists the connected parts, which hold the
+  supplier data.
 * **get_part_preview_image** – Get the preview/thumbnail picture for a part by its database ID. Uses the same
   fallback logic as the part list in the web UI: the part's own master picture if set, otherwise the picture of its
   footprint, and otherwise the picture of the project it is built from. Returns a short text message instead of an
@@ -278,14 +281,18 @@ API token/OAuth2 grant (see [Permissions](#permissions) above) and the correspon
 * **create_part** *(write)* – Create a new part. Only the name is required; every other field (category, footprint,
   manufacturer, stock lots, parameters, orderdetails with price breaks, associated parts, EDA info, the external
   info provider it was sourced from, ...) is optional. Attachment file uploads are not supported here - use the
-  web UI or REST API to attach files to a part after creating it.
+  web UI or REST API to attach files to a part after creating it. `kind` is `manufacturing` (the default) or `meta`,
+  and is fixed once the part exists. A meta part can not hold manufacturer data or orderdetails, and can take its
+  connected parts directly in `connectedParts`.
 * **update_part** *(write)* – Update an existing part by its database ID. Only the fields you actually provide are
   changed; anything you omit - including nested collections like stock lots or parameters - is left untouched.
   Stock amounts can only be set here when adding a brand-new lot; to change an *existing* lot's amount, use one of
   the stock-adjustment tools below instead. `providerKey`/`providerId` link or unlink the part to an external info
-  provider (e.g. Digikey) - set both to link it, both to null to unlink; they must be changed together.
+  provider (e.g. Digikey) - set both to link it, both to null to unlink; they must be changed together. On a meta
+  part, `connectedParts` adds, changes or removes connections; trying to change `kind` is an error.
 * **delete_part** *(write)* – Permanently delete a part by its database ID, including its stock lots, parameters,
-  orderdetails and associations. This cannot be undone and there is no confirmation step.
+  orderdetails, associations and connections. The parts connected to a deleted meta part stay. This cannot be undone
+  and there is no confirmation step.
 * **withdraw_part_stock** / **add_part_stock** / **stocktake_part_lot** *(write)* – Adjust the stock of a part lot
   by its database ID: remove or add a given amount, or set a lot's stock to a known actual amount (a
   stocktake/inventory count). These mirror the same withdraw/add/stocktake actions available in the web UI,
@@ -322,7 +329,7 @@ Measurement units and part custom states don't have write tools yet.
 
 * **list_projects** / **get_project_details** – Same behavior as the master data tools above.
   `get_project_details` additionally returns the project's BOM entries, status, description and associated build
-  part.
+  part, with the `kind` of each part in the BOM.
 
 ### Attachments
 

@@ -120,6 +120,10 @@ To avoid this, you can disable groups of fields that you do not need in your sch
 
 All groups are enabled by default, so existing installations keep exporting the same fields as before.
 
+A [meta part](meta_parts.md) is exported like any other part, with no manufacturer, MPN, manufacturing status or supplier
+fields. `Stock` and `Storage Location` cover its own lots and those of its usable connected parts, and the part info
+fields add `Part-DB Kind`. The fields of a manufacturing part do not change.
+
 ### Kicad:populate command
 
 Part-DB also provides a command that attempts to automatically populate the KiCad symbol and footprint fields based on the part's category and footprint names.

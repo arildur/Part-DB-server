@@ -140,6 +140,34 @@ To get all parts with the category "Resistor" (Category ID 1) and all children c
 
 See the endpoint documentation for the available entity filters.
 
+## Meta parts and connected parts
+
+A part is either a manufacturing part (one concrete product of one manufacturer, as parts have always been) or a meta
+part (a part definition that several manufacturing parts can meet). See [Meta parts](../usage/meta_parts.md) for the
+concept.
+
+* The `kind` field of a part is `manufacturing` (the default) or `meta`. It can be set when a part is created and is
+  fixed afterwards: sending another kind in a PATCH is refused.
+* Use the `kind` query parameter to list only one kind, for example `/api/parts.jsonld?kind=meta`. Without it, parts of
+  both kinds are returned.
+* A meta part has no manufacturer, manufacturer part number or orderdetails of its own.
+* For a meta part, `total_instock` is the stock of its own lots plus the stock of the lots of its usable connected
+  parts. `own_instock` and `partLots` only cover the part's own lots.
+* The `part_connections` field of a meta part lists its connected manufacturing parts, in the order they are used.
+
+The connections themselves are a resource of their own at `/api/part_connections`:
+
+| Field | Meaning |
+|---|---|
+| `meta_part`, `connected_part` | The meta part and the manufacturing part it is connected to, as IRIs. Set when the connection is created and fixed afterwards. |
+| `position` | The order of priority, lowest first. When it is omitted, the connection is put last. |
+| `status` | `approved` (the default) or `do_not_use`. The stock of a part connected as `do_not_use` is not counted for the meta part. |
+| `note` | A free text. |
+
+Connections can be filtered by `meta_part`, `connected_part` and `status`, and ordered by `position`. Creating, changing
+or deleting a connection needs the right to edit the meta part. A connection is refused if it would connect anything
+other than a manufacturing part, or connect the same two parts twice.
+
 ## Ordering results
 
 When retrieving a list of entities, you can order the results by various fields using the `order` query parameter.

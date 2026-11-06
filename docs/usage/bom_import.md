@@ -26,6 +26,10 @@ select the BOM file you want to import and some options for the import process:
 * **Clear existing BOM entries before import**: If this is checked, all existing BOM entries, which are currently
   associated with the project, will be deleted before the import.
 
+Rows in one file can link different parts that have the same name: such entries are saved without a name of their own. A
+row whose name clashes with an entry already in the project is still refused. A row can link a
+[meta part](meta_parts.md) by its Part-DB ID. A row linked by a supplier part number links that manufacturing part.
+
 ### Supported BOM file formats
 
 * **KiCAD Pcbnew BOM (CSV file)**: A CSV file of the Bill of Material (BOM) generated

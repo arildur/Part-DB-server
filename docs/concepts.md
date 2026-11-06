@@ -52,6 +52,13 @@ A part entity has many fields, which can be used to describe it better. Most of 
   database. This ID depends on when a part was created and cannot be changed. If you want to assign your own unique
   identifiers, or sync parts identifiers with the identifiers of another database, you can use this field.
 
+### Meta part
+
+A part has a kind, which is fixed once the part is saved. The parts described above are **manufacturing parts**: one
+product of one manufacturer. A **meta part** is a specification standing above them, like "10k resistor, 0603, 1%", to
+which you connect the interchangeable manufacturing parts that fulfill it. It has no manufacturer data or suppliers of
+its own, and its stock includes the stock of its connected parts. See [Meta parts](usage/meta_parts.md).
+
 ### Stock / Part lot
 
 A part can have many stocks at multiple different locations. This is represented by part lots/stocks, which consists

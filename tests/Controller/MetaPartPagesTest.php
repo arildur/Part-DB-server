@@ -606,4 +606,30 @@ final class MetaPartPagesTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('.card-body', 'they are not imported');
     }
+
+    public function testTheImportPageNamesAnUnknownKindAndWritesNothing(): void
+    {
+        $file = tempnam(sys_get_temp_dir(), 'kind').'.csv';
+        file_put_contents($file, "name;kind\nGood row of a refused file;meta\nBad row;sorcery\n");
+
+        $crawler = $this->client->request('GET', '/en/parts/import');
+        $form = $crawler->filter('input[type="file"]')->closest('form')->form();
+        $form[$crawler->filter('input[type="file"]')->attr('name')]->upload($file);
+        $this->client->submit($form);
+        unlink($file);
+
+        self::assertResponseIsSuccessful();
+        $content = html_entity_decode((string) $this->client->getResponse()->getContent());
+        $this->assertStringContainsString('Unknown kind of part "sorcery"', $content);
+        $this->assertNull($this->em->getRepository(Part::class)->findOneBy(['name' => 'Good row of a refused file']));
+    }
+
+    public function testKindTextsNameThePartByItsSynonymTokenOnAPage(): void
+    {
+        $crawler = $this->client->request('GET', '/en/part/new');
+
+        $labels = $crawler->filter('select[name="part_base[kind]"] option')->each(static fn (Crawler $option): string => $option->text());
+        $this->assertSame(['Manufacturing part', 'Meta part'], $labels);
+        $this->assertStringNotContainsString('[part]', (string) $this->client->getResponse()->getContent());
+    }
 }

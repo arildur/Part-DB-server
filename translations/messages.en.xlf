@@ -16046,103 +16046,103 @@ Buerklin-API Authentication server:
         <target>The information provider (%host%) is temporarily unavailable (HTTP %status%). Please try again later.</target>
       </segment>
     </unit>
-    <unit id="pConn11" name="part_connection.label">
+    <unit id="aQyEysW" name="part_connection.label">
       <segment state="translated">
         <source>part_connection.label</source>
         <target>Connected part</target>
       </segment>
     </unit>
-    <unit id="pConn12" name="part_connection.labelp">
+    <unit id="CcfJNc_" name="part_connection.labelp">
       <segment state="translated">
         <source>part_connection.labelp</source>
         <target>Connected parts</target>
       </segment>
     </unit>
-    <unit id="pConn13" name="log.undo.part_connection_can_not_be_restored">
+    <unit id="3.eZQfP" name="log.undo.part_connection_can_not_be_restored">
       <segment state="translated">
         <source>log.undo.part_connection_can_not_be_restored</source>
-        <target>The connection could not be restored: a part no longer exists, or the two parts are connected again.</target>
+        <target>The connection could not be restored: a [part] no longer exists, or the two [[part]] are connected again.</target>
       </segment>
     </unit>
-    <unit id="pKind11" name="parts.table.action_handler.error.kind_no_manufacturer">
+    <unit id="P6X6HgK" name="parts.table.action_handler.error.kind_no_manufacturer">
       <segment state="translated">
         <source>parts.table.action_handler.error.kind_no_manufacturer</source>
-        <target>A part of this kind can not have a manufacturer.</target>
+        <target>A [part] of this kind can not have a [manufacturer].</target>
       </segment>
     </unit>
-    <unit id="pKind12" name="parts.table.action_handler.error.unit_differs_from_connected">
+    <unit id="YJCCe5u" name="parts.table.action_handler.error.unit_differs_from_connected">
       <segment state="translated">
         <source>parts.table.action_handler.error.unit_differs_from_connected</source>
-        <target>This unit would differ from that of a part it is connected to.</target>
+        <target>This unit would differ from that of a [part] it is connected to.</target>
       </segment>
     </unit>
-    <unit id="pKind13" name="parts.table.action_handler.error.meta_part_has_no_lot">
+    <unit id="5Ilekp6" name="parts.table.action_handler.error.meta_part_has_no_lot">
       <segment state="translated">
         <source>parts.table.action_handler.error.meta_part_has_no_lot</source>
-        <target>This meta part has no stock lot of its own to move.</target>
+        <target>This meta [part] has no stock lot of its own to move.</target>
       </segment>
     </unit>
-    <unit id="pKind14" name="part.merge.flash.different_kinds">
+    <unit id="h.0Cjys" name="part.merge.flash.different_kinds">
       <segment state="translated">
         <source>part.merge.flash.different_kinds</source>
-        <target>Parts of different kinds can not be merged.</target>
+        <target>[[Part]] of different kinds can not be merged.</target>
       </segment>
     </unit>
-    <unit id="pKind15" name="info_providers.flash.kind_can_not_hold_provider_data">
+    <unit id="8lt4ldT" name="info_providers.flash.kind_can_not_hold_provider_data">
       <segment state="translated">
         <source>info_providers.flash.kind_can_not_hold_provider_data</source>
-        <target>A part of this kind can not be updated from an info provider.</target>
+        <target>A [part] of this kind can not be updated from an info provider.</target>
       </segment>
     </unit>
-    <unit id="pKind16" name="info_providers.bulk.parts_left_out">
+    <unit id="bT2HW9y" name="info_providers.bulk.parts_left_out">
       <segment state="translated">
         <source>info_providers.bulk.parts_left_out</source>
         <target>Left out, as they can not hold provider data: %names%</target>
       </segment>
     </unit>
-    <unit id="pKind17" name="statistics.meta_parts_count">
+    <unit id="Y0snJ.1" name="statistics.meta_parts_count">
       <segment state="translated">
         <source>statistics.meta_parts_count</source>
-        <target>Of which meta parts</target>
+        <target>Of which meta [[part]]</target>
       </segment>
     </unit>
-    <unit id="pMeta01" name="part.kind.label">
+    <unit id="Vn3VLU3" name="part.kind.label">
       <segment state="translated">
         <source>part.kind.label</source>
-        <target>Kind of part</target>
+        <target>Kind of [part]</target>
       </segment>
     </unit>
-    <unit id="pMeta02" name="part.kind.manufacturing">
+    <unit id="qAMz3N." name="part.kind.manufacturing">
       <segment state="translated">
         <source>part.kind.manufacturing</source>
-        <target>Manufacturing part</target>
+        <target>Manufacturing [part]</target>
       </segment>
     </unit>
-    <unit id="pMeta03" name="part.kind.meta">
+    <unit id="Ui3PAV4" name="part.kind.meta">
       <segment state="translated">
         <source>part.kind.meta</source>
-        <target>Meta part</target>
+        <target>Meta [part]</target>
       </segment>
     </unit>
-    <unit id="pMetaCost5" name="project.info.unpriced_entries">
+    <unit id="CxjpcOV" name="project.info.unpriced_entries">
       <segment state="translated">
         <source>project.info.unpriced_entries</source>
-        <target>Part entries with no price, left out of this cost</target>
+        <target>[Part] entries with no price, left out of this cost</target>
       </segment>
     </unit>
-    <unit id="pMetaBuild3" name="project.build.flash.success">
+    <unit id="Rg5OdS0" name="project.build.flash.success">
       <segment state="translated">
         <source>project.build.flash.success</source>
-        <target>The project was built, and the parts were withdrawn from stock.</target>
+        <target>The [project] was built, and the [[part]] were withdrawn from stock.</target>
       </segment>
     </unit>
-    <unit id="pMetaBuild1" name="project.build.meta_part_own_lots">
+    <unit id="lqSWumx" name="project.build.meta_part_own_lots">
       <segment state="translated">
         <source>project.build.meta_part_own_lots</source>
-        <target>Own stock of the meta part</target>
+        <target>Own stock of the meta [part]</target>
       </segment>
     </unit>
-    <unit id="pMetaBuild2" name="project.build.lot_shared_with">
+    <unit id="_5KkQd8" name="project.build.lot_shared_with">
       <segment state="translated">
         <source>project.build.lot_shared_with</source>
         <target>Also used by</target>
@@ -16154,166 +16154,172 @@ Buerklin-API Authentication server:
         <target>Approved</target>
       </segment>
     </unit>
-    <unit id="pMeta05" name="part_connection.status.do_not_use">
+    <unit id="AaoaDRk" name="part_connection.status.do_not_use">
       <segment state="translated">
         <source>part_connection.status.do_not_use</source>
         <target>Do not use</target>
       </segment>
     </unit>
-    <unit id="pMeta06" name="part_connection.edit.connected_part">
+    <unit id="0GLwWiI" name="part_connection.edit.connected_part">
       <segment state="translated">
         <source>part_connection.edit.connected_part</source>
-        <target>Manufacturing part</target>
+        <target>Manufacturing [part]</target>
       </segment>
     </unit>
-    <unit id="pMeta07" name="part_connection.edit.position">
+    <unit id="S4Gmhd2" name="part_connection.edit.position">
       <segment state="translated">
         <source>part_connection.edit.position</source>
         <target>Priority</target>
       </segment>
     </unit>
-    <unit id="pMeta08" name="part_connection.edit.position.help">
+    <unit id="kE1ROPc" name="part_connection.edit.position.help">
       <segment state="translated">
         <source>part_connection.edit.position.help</source>
         <target>The lowest comes first. Leave it empty to add it at the end.</target>
       </segment>
     </unit>
-    <unit id="pMeta09" name="part_connection.edit.status">
+    <unit id="S_BYv_B" name="part_connection.edit.status">
       <segment state="translated">
         <source>part_connection.edit.status</source>
         <target>Status</target>
       </segment>
     </unit>
-    <unit id="pMeta10" name="part_connection.edit.note">
+    <unit id="dvPvZpb" name="part_connection.edit.note">
       <segment state="translated">
         <source>part_connection.edit.note</source>
         <target>Note</target>
       </segment>
     </unit>
-    <unit id="pMeta11" name="part_connection.edit.create">
+    <unit id="KUybpd5" name="part_connection.edit.create">
       <segment state="translated">
         <source>part_connection.edit.create</source>
-        <target>Connect a part</target>
+        <target>Connect a [part]</target>
       </segment>
     </unit>
-    <unit id="pMeta12" name="part_connection.edit.delete.confirm">
+    <unit id="m4zCBBQ" name="part_connection.edit.delete.confirm">
       <segment state="translated">
         <source>part_connection.edit.delete.confirm</source>
-        <target>Do you really want to remove this connection? Both parts and their stock stay.</target>
+        <target>Do you really want to remove this connection? Both [[part]] and their stock stay.</target>
       </segment>
     </unit>
-    <unit id="pMeta13" name="part_connection.table.part">
+    <unit id="wl8nySE" name="part_connection.table.part">
       <segment state="translated">
         <source>part_connection.table.part</source>
-        <target>Part</target>
+        <target>[Part]</target>
       </segment>
     </unit>
-    <unit id="pMeta14" name="part_connection.table.suppliers">
+    <unit id="q.n.Je6" name="part_connection.table.suppliers">
       <segment state="translated">
         <source>part_connection.table.suppliers</source>
-        <target>Suppliers</target>
+        <target>[[Supplier]]</target>
       </segment>
     </unit>
-    <unit id="pMeta15" name="part_connection.table.used_by">
+    <unit id="RnGdGC8" name="part_connection.table.used_by">
       <segment state="translated">
         <source>part_connection.table.used_by</source>
-        <target>This part is connected to these meta parts</target>
+        <target>This [part] is connected to these meta [[part]]</target>
       </segment>
     </unit>
-    <unit id="pMeta16" name="part_connection.none_yet">
+    <unit id="rhoMNg6" name="part_connection.none_yet">
       <segment state="translated">
         <source>part_connection.none_yet</source>
-        <target>No parts are connected yet. Connect them on the edit page.</target>
+        <target>No [[part]] are connected yet. Connect them on the edit page.</target>
       </segment>
     </unit>
-    <unit id="pMeta17" name="part_connection.footprint_differs">
+    <unit id="nfSJbNm" name="part_connection.footprint_differs">
       <segment state="translated">
         <source>part_connection.footprint_differs</source>
-        <target>%part% has another footprint than this meta part.</target>
+        <target>%part% has another [footprint] than this meta [part].</target>
       </segment>
     </unit>
-    <unit id="pMeta18" name="part_lots.own_lots">
+    <unit id="VkauRWa" name="part_lots.own_lots">
       <segment state="translated">
         <source>part_lots.own_lots</source>
-        <target>Own lots of this meta part</target>
+        <target>Own lots of this meta [part]</target>
       </segment>
     </unit>
-    <unit id="pMeta19" name="part_lots.not_counted">
+    <unit id="oMoocj1" name="part_lots.not_counted">
       <segment state="translated">
         <source>part_lots.not_counted</source>
         <target>Not counted</target>
       </segment>
     </unit>
-    <unit id="pMeta20" name="part_lots.total">
+    <unit id="7I.8tnI" name="part_lots.total">
       <segment state="translated">
         <source>part_lots.total</source>
         <target>Total</target>
       </segment>
     </unit>
-    <unit id="pMeta21" name="part_lots.connected_stock_is_current">
+    <unit id="b09Q4pX" name="part_lots.connected_stock_is_current">
       <segment state="translated">
         <source>part_lots.connected_stock_is_current</source>
-        <target>The stock of connected parts below is the current stock, not that of this time.</target>
+        <target>The stock of connected [[part]] below is the current stock, not that of this time.</target>
       </segment>
     </unit>
-    <unit id="pMeta22" name="part.create_meta.btn">
+    <unit id="fbnbOXx" name="part.create_meta.btn">
       <segment state="translated">
         <source>part.create_meta.btn</source>
-        <target>Create new meta part</target>
+        <target>Create new meta [part]</target>
       </segment>
     </unit>
-    <unit id="pMeta23" name="tree.tools.edit.meta_part">
+    <unit id="NM2ERbB" name="tree.tools.edit.meta_part">
       <segment state="translated">
         <source>tree.tools.edit.meta_part</source>
-        <target>New meta part</target>
+        <target>New meta [part]</target>
       </segment>
     </unit>
-    <unit id="pMeta24" name="part.delete.connected_meta_parts">
+    <unit id="ljuEvj3" name="part.delete.connected_meta_parts">
       <segment state="translated">
         <source>part.delete.connected_meta_parts</source>
-        <target>It will also be removed from these meta parts: %names%.</target>
+        <target>It will also be removed from these meta [[part]]: %names%.</target>
       </segment>
     </unit>
-    <unit id="pMeta25" name="parts.import.help_connections">
+    <unit id="bb73TF1" name="parts.import.help_connections">
       <segment state="translated">
         <source>parts.import.help_connections</source>
-        <target>Connections of meta parts are exported at level full, but they are not imported: a meta part is created without connections.</target>
+        <target>Connections of meta [[part]] are exported at level full, but they are not imported: a meta [part] is created without connections.</target>
       </segment>
     </unit>
-    <unit id="pMeta26" name="settings.misc.ipn_suggest.metaRegex">
+    <unit id="PkiV0wv" name="settings.misc.ipn_suggest.metaRegex">
       <segment state="translated">
         <source>settings.misc.ipn_suggest.metaRegex</source>
-        <target>Pattern for meta parts</target>
+        <target>Pattern for meta [[part]]</target>
       </segment>
     </unit>
-    <unit id="pMeta27" name="settings.misc.ipn_suggest.metaRegex.help">
+    <unit id="GJuBK0p" name="settings.misc.ipn_suggest.metaRegex.help">
       <segment state="translated">
         <source>settings.misc.ipn_suggest.metaRegex.help</source>
-        <target>A PCRE-compatible regular expression the IPN of a meta part has to fulfill. Leave empty to use the pattern above for meta parts too.</target>
+        <target>A PCRE-compatible regular expression the IPN of a meta [part] has to fulfill. Leave empty to use the pattern above for meta [[part]] too.</target>
       </segment>
     </unit>
-    <unit id="pMeta28" name="settings.misc.ipn_suggest.metaRegexHelp">
+    <unit id="tRRJaoF" name="settings.misc.ipn_suggest.metaRegexHelp">
       <segment state="translated">
         <source>settings.misc.ipn_suggest.metaRegexHelp</source>
-        <target>Help text for the pattern for meta parts</target>
+        <target>Help text for the pattern for meta [[part]]</target>
       </segment>
     </unit>
-    <unit id="pMeta29" name="settings.misc.ipn_suggest.metaRegexHelp.help">
+    <unit id="oOPEqxl" name="settings.misc.ipn_suggest.metaRegexHelp.help">
       <segment state="translated">
         <source>settings.misc.ipn_suggest.metaRegexHelp.help</source>
-        <target>Shown with the pattern for meta parts. It is only used when that pattern is set.</target>
+        <target>Shown with the pattern for meta [[part]]. It is only used when that pattern is set.</target>
       </segment>
     </unit>
-    <unit id="pMeta30" name="settings.misc.ipn_suggest.metaPrefix">
+    <unit id="uj6IkGs" name="settings.misc.ipn_suggest.metaPrefix">
       <segment state="translated">
         <source>settings.misc.ipn_suggest.metaPrefix</source>
-        <target>Global prefix for meta parts</target>
+        <target>Global prefix for meta [[part]]</target>
       </segment>
     </unit>
-    <unit id="pMeta31" name="settings.misc.ipn_suggest.metaPrefix.help">
+    <unit id="H6u4TVc" name="settings.misc.ipn_suggest.metaPrefix.help">
       <segment state="translated">
         <source>settings.misc.ipn_suggest.metaPrefix.help</source>
-        <target>Used for meta parts instead of the global prefix above. Leave empty to use that prefix for meta parts too.</target>
+        <target>Used for meta [[part]] instead of the global prefix above. Leave empty to use that prefix for meta [[part]] too.</target>
+      </segment>
+    </unit>
+    <unit id="3wQH1sC" name="parts.import.error.unknown_kind">
+      <segment state="translated">
+        <source>parts.import.error.unknown_kind</source>
+        <target>Unknown kind of [part] "%kind%". Valid values are: %values%.</target>
       </segment>
     </unit>
   </file>

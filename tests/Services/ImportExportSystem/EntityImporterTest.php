@@ -514,7 +514,7 @@ EOT;
         $errors = [];
 
         $this->expectException(NotNormalizableValueException::class);
-        $this->expectExceptionMessage('Unknown part kind "sorcery"');
+        $this->expectExceptionMessage('"sorcery"');
 
         $this->service->importString("name,kind\nGood,meta\nBad,sorcery", ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ',', 'part_category' => (new Category())->setName('Kind')], $errors);
     }

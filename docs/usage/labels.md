@@ -162,10 +162,26 @@ Please not that the field names might change in the future.
 | `ipn`               | The internal part number of the part                                                          |
 | `partUnit`          | The unit of the part                                                                          |
 | `amountSum`         | The sum of the amount of all part lots of this part                                           |
+| `kind`              | The kind of the part. Use `part.kind.value` to print `manufacturing` or `meta` |
+| `ownAmountSum`      | The sum of the part's own lots, without connected parts. For a meta part, `amountSum` includes them |
+| `lotsCountedInStock` | The lots making up `amountSum`: for a meta part, its own and those of usable connected parts |
+| `orderedConnections` | The connections of a meta part, in their order, as an array of Part connections |
+| `connectionsAsPart` | The connections of this part to meta parts, as Part connections |
 | `amountUnknwon`     | Bool: True if there is at least one part lot with unknown amount                              |
 | `partLots`          | The part lots of the part                                                                     |
 | `parameters`        | The parameters of the part                                                                    |
 | `orderdetails`      | The order details of the part as array of Orderdetails                                        |
+
+#### Part connection
+
+| Field name      | Description                                                 |
+|-----------------|-------------------------------------------------------------|
+| `metaPart`      | The meta part                                               |
+| `connectedPart` | The connected manufacturing part                            |
+| `position`      | The priority of the connection, the lowest comes first      |
+| `status`        | The status. Use `status.value` to print `approved` or `do_not_use` |
+| `usable`        | Bool: True if the connected part may be used                |
+| `note`          | The note of the connection                                  |
 
 #### Part lot
 

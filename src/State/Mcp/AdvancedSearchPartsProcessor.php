@@ -39,6 +39,7 @@ use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartCustomState;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
 use App\Entity\ProjectSystem\Project;
@@ -130,6 +131,14 @@ final class AdvancedSearchPartsProcessor implements ProcessorInterface
 
         if ($data->tags !== null) {
             $filter->tags->setValue(implode(',', $data->tags->tags))->setOperator($data->tags->operator);
+        }
+
+        if ($data->kind !== null) {
+            $kind = PartKind::tryFrom($data->kind);
+            if (!$kind instanceof PartKind) {
+                throw new BadRequestHttpException(sprintf('"%s" is not a valid kind of part.', $data->kind));
+            }
+            $filter->kind->setValue([$kind]);
         }
 
         if ($data->manufacturingStatus !== null) {

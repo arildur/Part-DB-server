@@ -54,6 +54,8 @@ final readonly class AdvancedPartSearchInput
         public ?TextFilterInput $lotDescription,
         public ?TextFilterInput $attachmentName,
         public ?TagsFilterInput $tags,
+        /** @var string|null Only parts of this kind: "meta" or "manufacturing". Both if omitted. */
+        public ?string $kind,
         public ?ChoiceFilterInput $manufacturingStatus,
         public ?NumberFilterInput $minAmount,
         public ?NumberFilterInput $mass,
@@ -114,6 +116,7 @@ final readonly class AdvancedPartSearchInput
             lotDescription: $textFilter('lotDescription'),
             attachmentName: $textFilter('attachmentName'),
             tags: isset($data['tags']) && is_array($data['tags']) ? TagsFilterInput::fromArray($data['tags']) : null,
+            kind: PartInputHelpers::str($data, 'kind'),
             manufacturingStatus: isset($data['manufacturingStatus']) && is_array($data['manufacturingStatus'])
                 ? ChoiceFilterInput::fromArray($data['manufacturingStatus']) : null,
             minAmount: $numberFilter('minAmount'),

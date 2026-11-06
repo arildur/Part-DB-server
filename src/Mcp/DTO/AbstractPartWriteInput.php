@@ -44,6 +44,7 @@ namespace App\Mcp\DTO;
 abstract readonly class AbstractPartWriteInput
 {
     /**
+     * @param string|null $kind                        "manufacturing" (the default for a new part) or "meta". Fixed once the part exists: another kind on update is an error.
      * @param string|null $description               Pass null (or "") to clear.
      * @param string|null $comment                    Pass null (or "") to clear.
      * @param bool|null   $favorite                    Pass null to reset to false.
@@ -66,6 +67,7 @@ abstract readonly class AbstractPartWriteInput
      * @param array<int, array<string, mixed>> $parameters             Raw nested items, converted via ParameterInput::fromArray(). Omitting this key leaves the whole collection untouched; an explicit empty array removes every existing parameter.
      * @param array<int, array<string, mixed>> $orderdetails           Raw nested items, converted via OrderdetailInput::fromArray(). Omitting this key leaves the whole collection untouched; an explicit empty array removes every existing orderdetail.
      * @param array<int, array<string, mixed>> $associatedPartsAsOwner Raw nested items, converted via AssociatedPartInput::fromArray(). Omitting this key leaves the whole collection untouched; an explicit empty array removes every existing association.
+     * @param array<int, array<string, mixed>> $connectedParts         Raw nested items, converted via ConnectedPartInput::fromArray(), only for a meta part. Omitting this key leaves the whole collection untouched; an explicit empty array removes every existing connection.
      * @param EdaInfoInput|null $edaInfo                Pass null to clear every EDA info field. When provided, wholesale-replaces all of them rather than merging field-by-field.
      * @param string|null $providerKey                 The key of the external info provider (e.g. "digikey", "mouser", "lcsc") this part was imported from. Must be set together with providerId - pass null on both to unlink the part from any provider.
      * @param string|null $providerId                  The part's ID within the external provider's system. Must be set together with providerKey.
@@ -74,6 +76,7 @@ abstract readonly class AbstractPartWriteInput
      * @param array<string, bool>              $providedFields         Which top-level keys were actually present in the raw MCP arguments
      */
     public function __construct(
+        public ?string $kind,
         public ?string $description,
         public ?string $comment,
         public ?bool $favorite,
@@ -96,6 +99,7 @@ abstract readonly class AbstractPartWriteInput
         public array $parameters,
         public array $orderdetails,
         public array $associatedPartsAsOwner,
+        public array $connectedParts,
         public ?EdaInfoInput $edaInfo,
         public ?string $providerKey,
         public ?string $providerId,
@@ -118,6 +122,7 @@ abstract readonly class AbstractPartWriteInput
      * into `new self(...)` actually supplies exactly the parent constructor's remaining named parameters.
      *
      * @return array{
+     *     kind: string|null,
      *     description: string|null,
      *     comment: string|null,
      *     favorite: bool|null,
@@ -140,6 +145,7 @@ abstract readonly class AbstractPartWriteInput
      *     parameters: array<int, array<string, mixed>>,
      *     orderdetails: array<int, array<string, mixed>>,
      *     associatedPartsAsOwner: array<int, array<string, mixed>>,
+     *     connectedParts: array<int, array<string, mixed>>,
      *     edaInfo: EdaInfoInput|null,
      *     providerKey: string|null,
      *     providerId: string|null,
@@ -150,6 +156,7 @@ abstract readonly class AbstractPartWriteInput
     protected static function extractSharedFields(array $data): array
     {
         return [
+            'kind' => PartInputHelpers::str($data, 'kind'),
             'description' => PartInputHelpers::str($data, 'description'),
             'comment' => PartInputHelpers::str($data, 'comment'),
             'favorite' => PartInputHelpers::bool($data, 'favorite'),
@@ -172,6 +179,7 @@ abstract readonly class AbstractPartWriteInput
             'parameters' => PartInputHelpers::arr($data, 'parameters'),
             'orderdetails' => PartInputHelpers::arr($data, 'orderdetails'),
             'associatedPartsAsOwner' => PartInputHelpers::arr($data, 'associatedPartsAsOwner'),
+            'connectedParts' => PartInputHelpers::arr($data, 'connectedParts'),
             'edaInfo' => is_array($data['edaInfo'] ?? null) ? EdaInfoInput::fromArray($data['edaInfo']) : null,
             'providerKey' => PartInputHelpers::str($data, 'providerKey'),
             'providerId' => PartInputHelpers::str($data, 'providerId'),

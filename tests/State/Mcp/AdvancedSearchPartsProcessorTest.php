@@ -27,6 +27,9 @@ use ApiPlatform\Metadata\GetCollection;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\ManufacturingStatus;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartLot;
 use App\Entity\UserSystem\User;
 use App\Mcp\DTO\AdvancedPartSearchInput;
 use App\State\Mcp\AdvancedSearchPartsProcessor;
@@ -307,5 +310,65 @@ class AdvancedSearchPartsProcessorTest extends WebTestCase
 
         self::assertCount(1, $result);
         self::assertSame($part->getID(), $result[0]->getID());
+    }
+
+    /**
+     * A meta part with no lot of its own and 30 on a connected part.
+     */
+    private function makeMetaPartWithConnectedStock(string $name, float $minAmount = 0.0): Part
+    {
+        $connected = $this->makePart($name.' connected', static function (Part $part): void {
+            $lot = new PartLot();
+            $lot->setAmount(30);
+            $part->addPartLot($lot);
+        });
+
+        return $this->makePart($name, static function (Part $part) use ($connected, $minAmount): void {
+            $part->setKind(PartKind::META);
+            $part->setMinAmount($minAmount);
+            $connection = new PartConnection();
+            $connection->setConnectedPart($connected);
+            $part->addPartConnection($connection);
+        });
+    }
+
+    public function testFilterByKind(): void
+    {
+        $meta = $this->makeMetaPartWithConnectedStock('MCP-Kind-Search');
+
+        $names = fn (array $filter): array => array_map(
+            static fn (Part $part): string => $part->getName(),
+            $this->search(['name' => ['operator' => 'STARTS', 'value' => 'MCP-Kind-Search']] + $filter)
+        );
+
+        self::assertSame(['MCP-Kind-Search'], $names(['kind' => 'meta']));
+        self::assertSame(['MCP-Kind-Search connected'], $names(['kind' => 'manufacturing']));
+        self::assertSame(['MCP-Kind-Search', 'MCP-Kind-Search connected'], $names([]));
+        self::assertSame(PartKind::META, $meta->getKind());
+    }
+
+    public function testUnknownKindIsAToolError(): void
+    {
+        $result = $this->search(['kind' => 'not-a-kind']);
+
+        self::assertInstanceOf(CallToolResult::class, $result);
+        self::assertTrue($result->isError);
+        self::assertInstanceOf(TextContent::class, $result->content[0]);
+        self::assertStringContainsString('not-a-kind', $result->content[0]->text);
+    }
+
+    public function testStockFiltersAgreeWithTheTotal(): void
+    {
+        $meta = $this->makeMetaPartWithConnectedStock('MCP-Stock-Search', 40);
+        self::assertEqualsWithDelta(30.0, $meta->getAmountSum(), 0.001);
+
+        $found = fn (array $filter): bool => in_array($meta, $this->search(['kind' => 'meta', 'name' => ['operator' => '=', 'value' => 'MCP-Stock-Search']] + $filter), true);
+
+        self::assertTrue($found(['amountSum' => ['operator' => '=', 'value' => 30]]));
+        self::assertFalse($found(['amountSum' => ['operator' => '=', 'value' => 0]]));
+        self::assertTrue($found(['lessThanDesired' => true]));
+        $meta->setMinAmount(20);
+        $this->em->flush();
+        self::assertFalse($found(['lessThanDesired' => true]));
     }
 }

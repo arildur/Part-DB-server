@@ -26,7 +26,7 @@ namespace App\Mcp\DTO;
  * Input for update_part. Every field besides `id` is optional and, unlike create_part, a field that is *omitted*
  * from the tool call must leave the corresponding part property untouched - that's what wasProvided() (declared
  * on AbstractPartWriteInput) is for. Nested collections (partLots, parameters, orderdetails,
- * associatedPartsAsOwner) follow the same rule at the top level: the collection is only reconciled at all if its
+ * associatedPartsAsOwner, connectedParts) follow the same rule at the top level: the collection is only reconciled at all if its
  * key was provided (an omitted key leaves the whole collection untouched; an explicit empty array removes every
  * existing item).
  */
@@ -39,6 +39,7 @@ final readonly class UpdatePartInput extends AbstractPartWriteInput
     public function __construct(
         public int $id,
         public ?string $name,
+        ?string $kind,
         ?string $description,
         ?string $comment,
         ?bool $favorite,
@@ -61,6 +62,7 @@ final readonly class UpdatePartInput extends AbstractPartWriteInput
         array $parameters,
         array $orderdetails,
         array $associatedPartsAsOwner,
+        array $connectedParts,
         ?EdaInfoInput $edaInfo,
         ?string $providerKey,
         ?string $providerId,
@@ -69,6 +71,7 @@ final readonly class UpdatePartInput extends AbstractPartWriteInput
         array $providedFields,
     ) {
         parent::__construct(
+            kind: $kind,
             description: $description,
             comment: $comment,
             favorite: $favorite,
@@ -91,6 +94,7 @@ final readonly class UpdatePartInput extends AbstractPartWriteInput
             parameters: $parameters,
             orderdetails: $orderdetails,
             associatedPartsAsOwner: $associatedPartsAsOwner,
+            connectedParts: $connectedParts,
             edaInfo: $edaInfo,
             providerKey: $providerKey,
             providerId: $providerId,

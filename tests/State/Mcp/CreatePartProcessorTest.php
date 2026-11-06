@@ -28,6 +28,7 @@ use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
 use App\Entity\UserSystem\User;
@@ -194,6 +195,74 @@ class CreatePartProcessorTest extends WebTestCase
         self::assertCount(1, $result->getOrderdetails()->first()->getPricedetails());
         self::assertCount(1, $result->getAssociatedPartsAsOwner());
         self::assertSame($otherPart, $result->getAssociatedPartsAsOwner()->first()->getOther());
+    }
+
+    private function category(): Category
+    {
+        $category = $this->em->getRepository(Category::class)->findOneBy(['name' => 'Node 1']);
+        self::assertNotNull($category);
+
+        return $category;
+    }
+
+    public function testKindIsAsAskedOrManufacturingWithNone(): void
+    {
+        foreach ([['meta', PartKind::META], ['manufacturing', PartKind::MANUFACTURING]] as [$value, $kind]) {
+            $result = $this->processor->process($this->buildInput(['name' => 'Kind '.$value, 'categoryId' => $this->category()->getID(), 'kind' => $value]), $this->getOperation());
+            self::assertInstanceOf(Part::class, $result);
+            self::assertSame($kind, $result->getKind());
+        }
+
+        $result = $this->processor->process($this->buildInput(['name' => 'No kind', 'categoryId' => $this->category()->getID()]), $this->getOperation());
+        self::assertSame(PartKind::MANUFACTURING, $result->getKind());
+    }
+
+    public function testUnknownKindIsAToolError(): void
+    {
+        $result = $this->processor->process($this->buildInput(['name' => 'Unknown kind', 'categoryId' => $this->category()->getID(), 'kind' => 'not-a-kind']), $this->getOperation());
+
+        $this->assertErrorResult($result, 'not-a-kind');
+        self::assertNull($this->em->getRepository(Part::class)->findOneBy(['name' => 'Unknown kind']));
+    }
+
+    public function testAMetaPartWithAManufacturerIsAToolError(): void
+    {
+        $manufacturer = new Manufacturer();
+        $manufacturer->setName('Refused');
+        $this->em->persist($manufacturer);
+        $this->em->flush();
+
+        $result = $this->processor->process($this->buildInput([
+            'name' => 'Meta with a manufacturer',
+            'categoryId' => $this->category()->getID(),
+            'kind' => 'meta',
+            'manufacturerId' => $manufacturer->getID(),
+        ]), $this->getOperation());
+
+        $this->assertErrorResult($result, 'manufacturer');
+    }
+
+    public function testCreatesAMetaPartWithItsConnections(): void
+    {
+        $connected = new Part();
+        $connected->setName('To connect');
+        $connected->setCategory($this->category());
+        $this->em->persist($connected);
+        $this->em->flush();
+
+        $result = $this->processor->process($this->buildInput([
+            'name' => 'Meta in one call',
+            'categoryId' => $this->category()->getID(),
+            'kind' => 'meta',
+            'connectedParts' => [['connectedPartId' => $connected->getID(), 'note' => 'First choice']],
+        ]), $this->getOperation());
+
+        self::assertInstanceOf(Part::class, $result);
+        self::assertCount(1, $result->getPartConnections());
+        $connection = $result->getPartConnections()->first();
+        self::assertSame($connected, $connection->getConnectedPart());
+        self::assertSame(1, $connection->getPosition());
+        self::assertSame('First choice', $connection->getNote());
     }
 
     public function testRejectsExistingLotIdOnCreate(): void

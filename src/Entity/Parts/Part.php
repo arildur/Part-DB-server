@@ -39,6 +39,7 @@ use ApiPlatform\Metadata\Post;
 use ApiPlatform\Serializer\Filter\PropertyFilter;
 use App\ApiPlatform\Filter\EntityFilter;
 use App\ApiPlatform\Filter\LikeFilter;
+use App\ApiPlatform\Filter\PartKindFilter;
 use App\ApiPlatform\Filter\PartStoragelocationFilter;
 use App\ApiPlatform\Filter\TagFilter;
 use App\DataTables\Filters\PartSearchFilter;
@@ -136,7 +137,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
     mcp: [
         'search_parts' => new McpToolCollection(
             title: "Search parts by keyword",
-            description: 'Search for parts',
+            description: 'Search for parts of both kinds. A part with kind "meta" is a specification, and a part with kind "manufacturing" is a concrete product; see get_part_details.',
             annotations: ['readOnlyHint' => true, 'destructiveHint' => false, 'idempotentHint' => true, 'openWorldHint' => false],
             security: 'is_granted("@parts.read")',
             input: PartSearchFilter::class,
@@ -144,7 +145,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'advanced_search_parts' => new McpToolCollection(
             title: 'Advanced part search with structured filters',
-            description: 'Search for parts using precise, structured filter criteria instead of a single free-text keyword (see search_parts for that). Every argument is optional and, if given, narrows the results further (all given constraints are combined with AND). Supports text fields (name, description, comment, ipn, gtin, manufacturer product number/url, stock lot description, attachment name) with operators like CONTAINS/STARTS/ENDS/=/!=; numeric fields (minAmount, mass, total stock amount, lot/orderdetails/attachments/parameters count) with </=/>=/BETWEEN; date fields (lastModified, addedDate, lot expiration date); booleans (favorite, needsReview, obsolete, lessThanDesired, lot needs refill/unknown amount); tags (ANY/ALL/NONE of a given list); manufacturing status (ANY/NONE of announced/active/nrfnd/eol/discontinued); relations by database ID (category, footprint, manufacturer, storage location, supplier, measurement unit, part custom state, attachment type, project), which for hierarchical relations also support INCLUDING_CHILDREN/EXCLUDING_CHILDREN to match an entire subtree; and a list of parameter constraints (each part must have at least one parameter matching all of a given entry\'s name/symbol/unit and numeric/text value comparison). Results can be sorted (orderBy/orderDirection) and are capped at "limit" (default 50, max 200).',
+            description: 'Search for parts using precise, structured filter criteria instead of a single free-text keyword (see search_parts for that). Every argument is optional and, if given, narrows the results further (all given constraints are combined with AND). Supports text fields (name, description, comment, ipn, gtin, manufacturer product number/url, stock lot description, attachment name) with operators like CONTAINS/STARTS/ENDS/=/!=; numeric fields (minAmount, mass, total stock amount as in total_instock, lot/orderdetails/attachments/parameters count) with </=/>=/BETWEEN; date fields (lastModified, addedDate, lot expiration date); booleans (favorite, needsReview, obsolete, lessThanDesired, lot needs refill/unknown amount); the kind of part ("meta" or "manufacturing", both if omitted); tags (ANY/ALL/NONE of a given list); manufacturing status (ANY/NONE of announced/active/nrfnd/eol/discontinued); relations by database ID (category, footprint, manufacturer, storage location, supplier, measurement unit, part custom state, attachment type, project), which for hierarchical relations also support INCLUDING_CHILDREN/EXCLUDING_CHILDREN to match an entire subtree; and a list of parameter constraints (each part must have at least one parameter matching all of a given entry\'s name/symbol/unit and numeric/text value comparison). Results can be sorted (orderBy/orderDirection) and are capped at "limit" (default 50, max 200).',
             annotations: ['readOnlyHint' => true, 'destructiveHint' => false, 'idempotentHint' => true, 'openWorldHint' => false],
             security: 'is_granted("@parts.read")',
             input: AdvancedPartSearchInput::class,
@@ -154,7 +155,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'get_part_details' => new McpTool(
             title: 'Get part details by ID',
-            description: 'Get detailed information about a specific part by its database ID',
+            description: 'Get detailed information about a specific part by its database ID. "kind" says what the part is. A "manufacturing" part is a concrete product. A "meta" part is a specification: it holds no manufacturer or supplier data, which are found on the manufacturing parts listed in part_connections, in the order they are used. For a meta part, total_instock is its own lots plus the lots of its usable connections, while own_instock and partLots are its own lots only.',
             annotations: ['readOnlyHint' => true, 'destructiveHint' => false, 'idempotentHint' => true, 'openWorldHint' => false],
             normalizationContext: [
                 'groups' => ['part:read', 'provider_reference:read', 'api:basic:read', 'part_lot:read', 'orderdetail:read', 'pricedetail:read', 'parameter:read', 'attachment:read', 'eda_info:read'],
@@ -180,7 +181,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'create_part' => new McpTool(
             title: 'Create a new part',
-            description: 'Create a new part in the inventory. Only "name" is required; every other field is optional and, if omitted, the part is created with its normal default value for that field. Supports nested stock lots, parameters, orderdetails (with price breaks), associated parts, EDA info, and linking the part to the external info provider (providerKey/providerId/providerUrl) it was sourced from in a single call. Attachment file uploads are not supported here (MCP has no good way to transport binary file data) - use the web UI or REST API to upload attachments to a part after creating it.',
+            description: 'Create a new part in the inventory. Only "name" is required; every other field is optional and, if omitted, the part is created with its normal default value for that field. "kind" is "manufacturing" (the default, a concrete product) or "meta" (a specification with no manufacturer or supplier data, standing above manufacturing parts), and is fixed once the part exists. Supports nested stock lots, parameters, orderdetails (with price breaks), associated parts, connected parts (connectedParts, for a meta part), EDA info, and linking the part to the external info provider (providerKey/providerId/providerUrl) it was sourced from in a single call. Attachment file uploads are not supported here (MCP has no good way to transport binary file data) - use the web UI or REST API to upload attachments to a part after creating it.',
             annotations: ['readOnlyHint' => false, 'destructiveHint' => false, 'idempotentHint' => false, 'openWorldHint' => false],
             normalizationContext: [
                 'groups' => ['part:read', 'provider_reference:read', 'api:basic:read', 'part_lot:read', 'orderdetail:read', 'pricedetail:read', 'parameter:read', 'attachment:read', 'eda_info:read'],
@@ -194,7 +195,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'update_part' => new McpTool(
             title: 'Update an existing part',
-            description: 'Update an existing part by its database ID. Only the fields you actually provide are changed; any field you omit is left completely untouched, including nested collections (partLots, parameters, orderdetails, associatedPartsAsOwner) - provide an item\'s "id" to update it, omit "id" to create a new one, and omit a previously-existing item entirely to remove it. To change a lot\'s stock amount use the withdraw_part_stock/add_part_stock/stocktake_part_lot tools instead - "amount" may only be set here when creating a brand-new lot. providerKey/providerId can be used to link or unlink the part to an external info provider (set both to link, both to null to unlink - they must be changed together).',
+            description: 'Update an existing part by its database ID. Only the fields you actually provide are changed; any field you omit is left completely untouched, including nested collections (partLots, parameters, orderdetails, associatedPartsAsOwner, connectedParts) - provide an item\'s "id" to update it, omit "id" to create a new one, and omit a previously-existing item entirely to remove it. To change a lot\'s stock amount use the withdraw_part_stock/add_part_stock/stocktake_part_lot tools instead - "amount" may only be set here when creating a brand-new lot. providerKey/providerId can be used to link or unlink the part to an external info provider (set both to link, both to null to unlink - they must be changed together). "kind" can not be changed: sending another kind is an error. connectedParts only applies to a meta part; each item has connectedPartId (needed for a new item, and fixed afterwards), position, status ("active" or "do_not_use") and note.',
             annotations: ['readOnlyHint' => false, 'destructiveHint' => false, 'idempotentHint' => false, 'openWorldHint' => false],
             normalizationContext: [
                 'groups' => ['part:read', 'provider_reference:read', 'api:basic:read', 'part_lot:read', 'orderdetail:read', 'pricedetail:read', 'parameter:read', 'attachment:read', 'eda_info:read'],
@@ -208,7 +209,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'delete_part' => new McpTool(
             title: 'Delete a part',
-            description: 'Permanently delete a part by its database ID, including its stock lots, parameters, orderdetails and associations. This cannot be undone - there is no confirmation step, so make sure this is really the part the user wants deleted before calling this tool.',
+            description: 'Permanently delete a part by its database ID, including its stock lots, parameters, orderdetails, associations and connections. The parts connected to a deleted meta part stay. This cannot be undone - there is no confirmation step, so make sure this is really the part the user wants deleted before calling this tool.',
             structuredContent: false,
             annotations: ['readOnlyHint' => false, 'destructiveHint' => true, 'idempotentHint' => true, 'openWorldHint' => false], // Not enforced by the MCP call pipeline - see create_part's note; the real check is manual, inside DeletePartProcessor.
             security: 'is_granted("@parts.delete")', // The processor returns a plain text confirmation via CallToolResult, not a normalized Part (which no longer exists)
@@ -260,6 +261,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 #[ApiFilter(PropertyFilter::class)]
 #[ApiFilter(EntityFilter::class, properties: ["category", "footprint", "manufacturer", "partUnit", "partCustomState"])]
 #[ApiFilter(PartStoragelocationFilter::class, properties: ["storage_location"])]
+#[ApiFilter(PartKindFilter::class, properties: ["kind"])]
 #[ApiFilter(LikeFilter::class, properties: ["name", "comment", "description", "ipn", "manufacturer_product_number"])]
 #[ApiFilter(TagFilter::class, properties: ["tags"])]
 #[ApiFilter(BooleanFilter::class, properties: ["favorite", "needs_review"])]
@@ -284,7 +286,7 @@ class Part extends AttachmentContainingDBElement
      * @var PartKind What kind of part this is. It decides what the part may hold, and is fixed once the part is saved.
      */
     #[ORM\Column(type: Types::STRING, length: 255, enumType: PartKind::class, options: ['default' => 'manufacturing'])]
-    #[Groups(['part:read', 'part:write', 'bom_entry:read'])]
+    #[Groups(['part:read', 'part:write', 'bom_entry:read', 'mcp_project_details:read'])]
     protected PartKind $kind = PartKind::MANUFACTURING;
 
     /** @var Collection<int, PartParameter>

@@ -36,7 +36,10 @@ use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartAssociation;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartCustomState;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
@@ -46,6 +49,7 @@ use App\Entity\PriceInformations\Pricedetail;
 use App\Entity\UserSystem\User;
 use App\Mcp\DTO\AbstractPartWriteInput;
 use App\Mcp\DTO\AssociatedPartInput;
+use App\Mcp\DTO\ConnectedPartInput;
 use App\Mcp\DTO\EdaInfoInput;
 use App\Mcp\DTO\OrderdetailInput;
 use App\Mcp\DTO\ParameterInput;
@@ -65,7 +69,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * here, so neither subclass can forget them - each subclass only implements mutatePart() with its own
  * entity-resolution/permission-check/field-application logic. Also provides the shared helpers for resolving
  * related entities by ID (mirrors GetPartByIdProcessor's manual find()-or-404 idiom) and reconciling the nested
- * collection inputs (partLots/parameters/orderdetails/pricedetails/associatedPartsAsOwner) onto the corresponding
+ * collection inputs (partLots/parameters/orderdetails/pricedetails/associatedPartsAsOwner/connectedParts) onto the corresponding
  * Doctrine collections via the entity's own adder/remover methods.
  */
 abstract class AbstractPartMutationProcessor implements ProcessorInterface
@@ -101,6 +105,11 @@ abstract class AbstractPartMutationProcessor implements ProcessorInterface
      */
     protected function applyProvidedFields(Part $part, AbstractPartWriteInput $data): void
     {
+        //First, as what else a part may hold depends on its kind
+        if ($data->kind !== null) {
+            $this->applyKind($part, $data->kind);
+        }
+
         //Non-nullable string/scalar fields on Part coerce an explicit `null` to their empty/default value, since
         //the entity's own setters don't accept null for them. Nullable fields (mass/ipn/gtin/relations) pass null
         //through as-is, which clears them (subject to the entity's own validation, e.g. category can never be null).
@@ -172,6 +181,9 @@ abstract class AbstractPartMutationProcessor implements ProcessorInterface
         }
         if ($data->wasProvided('associatedPartsAsOwner')) {
             $this->reconcileAssociatedParts($part, $data->associatedPartsAsOwner);
+        }
+        if ($data->wasProvided('connectedParts')) {
+            $this->reconcileConnectedParts($part, $data->connectedParts);
         }
         if ($data->wasProvided('edaInfo') && $data->edaInfo !== null) {
             $this->applyEdaInfo($part, $data->edaInfo);
@@ -274,6 +286,20 @@ abstract class AbstractPartMutationProcessor implements ProcessorInterface
         }
 
         return $entity;
+    }
+
+    /**
+     * Sets the kind that was asked for, also on an existing part: validation then refuses a change and names the
+     * field, instead of the request being ignored and reported as a success.
+     */
+    protected function applyKind(Part $part, string $kind): void
+    {
+        $value = PartKind::tryFrom($kind);
+        if (!$value instanceof PartKind) {
+            throw new BadRequestHttpException(sprintf('"%s" is not a valid kind of part.', $kind));
+        }
+
+        $part->setKind($value);
     }
 
     /**
@@ -634,6 +660,64 @@ abstract class AbstractPartMutationProcessor implements ProcessorInterface
             if (!in_array($id, $seenIds, true)) {
                 $part->removeAssociatedPartsAsOwner($association);
             }
+        }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rawItems
+     * @see self::reconcilePartLots() for the general by-id reconciliation rule
+     */
+    protected function reconcileConnectedParts(Part $part, array $rawItems): void
+    {
+        $existingById = [];
+        foreach ($part->getPartConnections() as $connection) {
+            if ($connection->getID() !== null) {
+                $existingById[$connection->getID()] = $connection;
+            }
+        }
+
+        $seenIds = [];
+        foreach ($rawItems as $raw) {
+            $input = ConnectedPartInput::fromArray($raw);
+            if ($input->id !== null) {
+                $connection = $existingById[$input->id]
+                    ?? throw new NotFoundHttpException(sprintf('Connection with id %d does not belong to this part.', $input->id));
+                $this->applyConnectionFields($connection, $input);
+                $seenIds[] = $input->id;
+            } else {
+                if ($input->connectedPartId === null) {
+                    throw new BadRequestHttpException('A new item of connectedParts needs a connectedPartId.');
+                }
+                $connection = new PartConnection();
+                $this->applyConnectionFields($connection, $input);
+                $part->addPartConnection($connection);
+            }
+        }
+
+        foreach ($existingById as $id => $connection) {
+            if (!in_array($id, $seenIds, true)) {
+                $part->removePartConnection($connection);
+            }
+        }
+    }
+
+    protected function applyConnectionFields(PartConnection $connection, ConnectedPartInput $input): void
+    {
+        if ($input->connectedPartId !== null) {
+            $connection->setConnectedPart($this->resolveOtherPart($input->connectedPartId));
+        }
+        if ($input->position !== null) {
+            $connection->setPosition($input->position);
+        }
+        if ($input->status !== null) {
+            $status = PartConnectionStatus::tryFrom($input->status);
+            if (!$status instanceof PartConnectionStatus) {
+                throw new BadRequestHttpException(sprintf('"%s" is not a valid status of a connection.', $input->status));
+            }
+            $connection->setStatus($status);
+        }
+        if ($input->note !== null) {
+            $connection->setNote($input->note);
         }
     }
 }

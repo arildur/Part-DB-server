@@ -28,6 +28,8 @@ use App\Entity\Parts\Category;
 use App\Entity\Parts\InfoProviderReference;
 use App\Entity\Parts\ManufacturingStatus;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnectionStatus;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\UserSystem\User;
@@ -39,6 +41,7 @@ use Mcp\Schema\Content\TextContent;
 use Mcp\Schema\Result\CallToolResult;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class UpdatePartProcessorTest extends WebTestCase
 {
@@ -246,6 +249,156 @@ class UpdatePartProcessorTest extends WebTestCase
         $result = $this->processor->process($input, $this->getOperation());
 
         $this->assertErrorResult($result, 'not found');
+    }
+
+    public function testChangingTheKindIsAToolErrorNamingTheField(): void
+    {
+        $result = $this->processor->process($this->buildInput(['id' => $this->part->getID(), 'kind' => 'meta', 'name' => 'Should not change']), $this->getOperation());
+
+        $this->assertErrorResult($result, 'kind');
+        $this->em->clear();
+        $stored = $this->em->find(Part::class, $this->part->getID());
+        self::assertSame(PartKind::MANUFACTURING, $stored->getKind());
+        self::assertSame('MCP Update Test Part', $stored->getName());
+    }
+
+    public function testSendingTheSameKindIsAccepted(): void
+    {
+        $result = $this->processor->process($this->buildInput(['id' => $this->part->getID(), 'kind' => 'manufacturing', 'name' => 'Renamed']), $this->getOperation());
+
+        self::assertInstanceOf(Part::class, $result);
+        self::assertSame('Renamed', $result->getName());
+    }
+
+    private function makePart(string $name, PartKind $kind = PartKind::MANUFACTURING): Part
+    {
+        $part = new Part();
+        $part->setName($name);
+        $part->setKind($kind);
+        $part->setCategory($this->part->getCategory());
+        $this->em->persist($part);
+        $this->em->flush();
+
+        return $part;
+    }
+
+    public function testConnectionsAreAddedChangedAndLeftOutOnesRemoved(): void
+    {
+        $meta = $this->makePart('Meta', PartKind::META);
+        [$kept, $removed, $added] = [$this->makePart('Kept'), $this->makePart('Removed'), $this->makePart('Added')];
+
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [
+            ['connectedPartId' => $kept->getID()],
+            ['connectedPartId' => $removed->getID()],
+        ]]), $this->getOperation());
+        self::assertInstanceOf(Part::class, $result);
+        self::assertSame([1, 2], array_map(static fn ($c) => $c->getPosition(), $result->getOrderedConnections()), 'Next free positions, in the order given');
+
+        $keptId = $result->getOrderedConnections()[0]->getID();
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [
+            ['id' => $keptId, 'status' => 'do_not_use', 'note' => 'Retired', 'position' => 5],
+            ['connectedPartId' => $added->getID(), 'position' => 1],
+        ]]), $this->getOperation());
+        self::assertInstanceOf(Part::class, $result);
+
+        $this->em->clear();
+        $connections = $this->em->find(Part::class, $meta->getID())->getOrderedConnections();
+        self::assertCount(2, $connections);
+        self::assertSame('Added', $connections[0]->getConnectedPart()->getName());
+        self::assertSame($keptId, $connections[1]->getID());
+        self::assertSame(PartConnectionStatus::DO_NOT_USE, $connections[1]->getStatus());
+        self::assertSame('Retired', $connections[1]->getNote());
+        self::assertSame(5, $connections[1]->getPosition());
+
+        //Leaving the key out touches nothing, an empty list removes all of them
+        $this->processor->process($this->buildInput(['id' => $meta->getID(), 'name' => 'Still connected']), $this->getOperation());
+        self::assertCount(2, $this->em->find(Part::class, $meta->getID())->getPartConnections());
+        $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => []]), $this->getOperation());
+        $this->em->clear();
+        self::assertCount(0, $this->em->find(Part::class, $meta->getID())->getPartConnections());
+    }
+
+    /**
+     * @return iterable<string, array{callable(int, int): list<array<string, mixed>>, string}>
+     */
+    public static function refusedConnections(): iterable
+    {
+        yield 'two equal rows' => [static fn (int $other): array => [['connectedPartId' => $other], ['connectedPartId' => $other]], 'connected'];
+        yield 'unknown status' => [static fn (int $other): array => [['connectedPartId' => $other, 'status' => 'not-a-status']], 'not-a-status'];
+        yield 'no part' => [static fn (int $other): array => [['note' => 'Nothing to connect']], 'connectedPartId'];
+        yield 'unknown part' => [static fn (int $other): array => [['connectedPartId' => 99999999]], 'not found'];
+        yield 'row of another part' => [static fn (int $other): array => [['id' => 99999999]], 'does not belong'];
+        yield 'position of zero' => [static fn (int $other): array => [['connectedPartId' => $other, 'position' => 0]], 'position'];
+    }
+
+    #[DataProvider('refusedConnections')]
+    public function testRefusedConnectionsAreToolErrorsAndChangeNothing(callable $rows, string $message): void
+    {
+        $meta = $this->makePart('Meta', PartKind::META);
+        $other = $this->makePart('Other');
+
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => $rows($other->getID())]), $this->getOperation());
+
+        self::assertInstanceOf(CallToolResult::class, $result);
+        self::assertTrue($result->isError);
+        self::assertInstanceOf(TextContent::class, $result->content[0]);
+        self::assertStringContainsStringIgnoringCase($message, $result->content[0]->text);
+        $this->em->clear();
+        self::assertCount(0, $this->em->find(Part::class, $meta->getID())->getPartConnections());
+    }
+
+    public function testConnectingAMetaPartToAMetaPartIsAToolError(): void
+    {
+        $meta = $this->makePart('Meta', PartKind::META);
+        $other = $this->makePart('Other meta', PartKind::META);
+
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [['connectedPartId' => $other->getID()]]]), $this->getOperation());
+
+        self::assertInstanceOf(CallToolResult::class, $result);
+        self::assertTrue($result->isError);
+    }
+
+    public function testChangingThePartOfAConnectionIsAToolError(): void
+    {
+        $meta = $this->makePart('Meta', PartKind::META);
+        [$first, $other] = [$this->makePart('First'), $this->makePart('Other')];
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [['connectedPartId' => $first->getID()]]]), $this->getOperation());
+        $id = $result->getPartConnections()->first()->getID();
+
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [['id' => $id, 'connectedPartId' => $other->getID()]]]), $this->getOperation());
+
+        self::assertInstanceOf(CallToolResult::class, $result);
+        self::assertTrue($result->isError);
+        $this->em->clear();
+        self::assertSame('First', $this->em->find(Part::class, $meta->getID())->getPartConnections()->first()->getConnectedPart()->getName());
+    }
+
+    public function testAManufacturingPartHasNoConnections(): void
+    {
+        $other = $this->makePart('Other');
+
+        $result = $this->processor->process($this->buildInput(['id' => $this->part->getID(), 'connectedParts' => [['connectedPartId' => $other->getID()]]]), $this->getOperation());
+
+        self::assertInstanceOf(CallToolResult::class, $result);
+        self::assertTrue($result->isError);
+        $this->em->clear();
+        self::assertCount(0, $this->em->find(Part::class, $this->part->getID())->getPartConnections());
+    }
+
+    public function testConnectionsAreNotWrittenWithEditingOffOrWithoutPermission(): void
+    {
+        $meta = $this->makePart('Meta', PartKind::META);
+        $input = $this->buildInput(['id' => $meta->getID(), 'connectedParts' => [['connectedPartId' => $this->makePart('Other')->getID()]]]);
+
+        $this->mcpSettings->editingEnabled = false;
+        $this->assertErrorResult($this->processor->process($input, $this->getOperation()), 'Editing via MCP tools is disabled');
+
+        $this->mcpSettings->editingEnabled = true;
+        $this->client->loginUser(self::getContainer()->get('doctrine')->getRepository(User::class)->findOneBy(['name' => 'noread']));
+        $this->assertErrorResult($this->processor->process($input, $this->getOperation()), 'Access denied');
+
+        $this->em->clear();
+        self::assertCount(0, $this->em->find(Part::class, $meta->getID())->getPartConnections());
     }
 
     public function testDeniesAccessForUserWithoutEditPermission(): void

@@ -34,6 +34,7 @@ final readonly class CreatePartInput extends AbstractPartWriteInput
      */
     public function __construct(
         public string $name,
+        ?string $kind,
         ?string $description,
         ?string $comment,
         ?bool $favorite,
@@ -56,6 +57,7 @@ final readonly class CreatePartInput extends AbstractPartWriteInput
         array $parameters,
         array $orderdetails,
         array $associatedPartsAsOwner,
+        array $connectedParts,
         ?EdaInfoInput $edaInfo,
         ?string $providerKey,
         ?string $providerId,
@@ -64,6 +66,7 @@ final readonly class CreatePartInput extends AbstractPartWriteInput
         array $providedFields,
     ) {
         parent::__construct(
+            kind: $kind,
             description: $description,
             comment: $comment,
             favorite: $favorite,
@@ -86,6 +89,7 @@ final readonly class CreatePartInput extends AbstractPartWriteInput
             parameters: $parameters,
             orderdetails: $orderdetails,
             associatedPartsAsOwner: $associatedPartsAsOwner,
+            connectedParts: $connectedParts,
             edaInfo: $edaInfo,
             providerKey: $providerKey,
             providerId: $providerId,

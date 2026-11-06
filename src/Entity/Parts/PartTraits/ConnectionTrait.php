@@ -20,9 +20,12 @@
 
 declare(strict_types=1);namespace App\Entity\Parts\PartTraits;
 
+use ApiPlatform\Metadata\ApiProperty;
 use App\Entity\Parts\PartConnection;
 use App\Validator\Constraints\UniqueObjectCollection;
 use Doctrine\Common\Collections\Collection;
+use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\SerializedName;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints\Valid;
 
@@ -86,5 +89,63 @@ trait ConnectionTrait
             <=> [$b->isUsable() ? 0 : 1, $b->getPosition() ?? PHP_INT_MAX, $b->getID() ?? PHP_INT_MAX]);
 
         return $connections;
+    }
+
+    /**
+     * What clients read about the connections of this part: a fixed list of fields, so that a connected part is never
+     * written out in full and the output ends there. Connections are written through their own resource. A part
+     * that can not hold connections has none, and the check saves it a query.
+     * @return list<array<string, mixed>>
+     */
+    #[Groups(['part:read'])]
+    #[SerializedName('part_connections')]
+    #[ApiProperty(
+        description: 'The manufacturing parts connected to this meta part, in the order they are used. Empty for a manufacturing part.',
+        schema: [
+            'type' => 'array',
+            'items' => [
+                'type' => 'object',
+                'properties' => [
+                    'id' => ['type' => 'integer'],
+                    'position' => ['type' => 'integer'],
+                    'status' => ['type' => 'string', 'enum' => ['approved', 'do_not_use']],
+                    'note' => ['type' => 'string'],
+                    'connected_part' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'id' => ['type' => 'integer'],
+                            'name' => ['type' => 'string'],
+                            'kind' => ['type' => 'string'],
+                            'total_instock' => ['type' => 'number'],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    )]
+    public function getConnectionsOverview(): array
+    {
+        if (!$this->getKind()->allowsConnections()) {
+            return [];
+        }
+
+        $overview = [];
+        foreach ($this->getOrderedConnections() as $connection) {
+            $part = $connection->getConnectedPart();
+            $overview[] = [
+                'id' => $connection->getID(),
+                'position' => $connection->getPosition(),
+                'status' => $connection->getStatus()->value,
+                'note' => $connection->getNote(),
+                'connected_part' => $part === null ? null : [
+                    'id' => $part->getID(),
+                    'name' => $part->getName(),
+                    'kind' => $part->getKind()->value,
+                    'total_instock' => $part->getAmountSum(),
+                ],
+            ];
+        }
+
+        return $overview;
     }
 }

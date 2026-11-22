@@ -24,6 +24,11 @@ namespace App\Tests\Services\Parts;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\PartConnectionStatus;
+use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartLot;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\PriceInformations\Currency;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\PriceInformations\Pricedetail;
@@ -265,5 +270,71 @@ final class PricedetailHelperTest extends WebTestCase
         $result = $this->service->convertMoneyToCurrency($value, $currency, $currency);
         $this->assertNotNull($result);
         $this->assertTrue($value->isEqualTo($result));
+    }
+
+    private function pricedPart(string $price, float $stock = 0.0): Part
+    {
+        $part = new Part();
+        $orderdetail = new Orderdetail();
+        $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity(1.0)->setPrice(BigDecimal::of($price)));
+        $part->addOrderdetail($orderdetail);
+        if ($stock > 0) {
+            $part->addPartLot((new PartLot())->setAmount($stock));
+        }
+
+        return $part;
+    }
+
+    private function metaOf(PartPriceMethod $method, Part ...$parts): Part
+    {
+        $meta = (new Part())->setKind(PartKind::META)->setPriceMethod($method);
+        foreach ($parts as $i => $part) {
+            $meta->addPartConnection((new PartConnection())->setConnectedPart($part)->setPosition($i + 1));
+        }
+
+        return $meta;
+    }
+
+    public function testAMetaPartPriceFollowsThePricesAndStockOfItsConnectedPartsAsTheyChange(): void
+    {
+        $first = $this->pricedPart('1', 1);
+        $second = $this->pricedPart('3', 1);
+        $meta = $this->metaOf(PartPriceMethod::WEIGHTED_BY_STOCK, $first, $second);
+        $this->assertSame('2.00000', (string) $this->service->calculateMetaPartPrice($meta));
+
+        $first->getOrderdetails()->first()->getPricedetails()->first()->setPrice(BigDecimal::of('2'));
+        $this->assertSame('2.50000', (string) $this->service->calculateMetaPartPrice($meta), 'A changed price changes the result');
+
+        $first->getPartLots()->first()->setAmount(3);
+        $this->assertSame('2.25000', (string) $this->service->calculateMetaPartPrice($meta), 'A changed stock changes the result');
+    }
+
+    public function testAMetaPartPriceUsesOnlyUsableConnections(): void
+    {
+        $meta = $this->metaOf(PartPriceMethod::CHEAPEST, $this->pricedPart('5'), $this->pricedPart('1'), $this->pricedPart('2'));
+        $connections = $meta->getPartConnections()->toArray();
+        $connections[1]->setStatus(PartConnectionStatus::UNDER_EVALUATION);
+        $connections[2]->setStatus(PartConnectionStatus::USE_UP);
+
+        $this->assertSame('2.00000', (string) $this->service->calculateMetaPartPrice($meta));
+        $this->assertSame('5.00000', (string) $this->service->calculateMetaPartPrice($meta->setPriceMethod(PartPriceMethod::PRIMARY_SOURCE)));
+    }
+
+    public function testAMetaPartPriceIsTakenAtTheQuantityAsked(): void
+    {
+        $part = $this->pricedPart('2');
+        $part->getOrderdetails()->first()->addPricedetail((new Pricedetail())->setMinDiscountQuantity(100.0)->setPrice(BigDecimal::of('1')));
+        $meta = $this->metaOf(PartPriceMethod::AVERAGE, $part);
+
+        $this->assertSame('2.00000', (string) $this->service->calculateMetaPartPrice($meta, 1));
+        $this->assertSame('1.00000', (string) $this->service->calculateMetaPartPrice($meta, 100));
+    }
+
+    public function testOnlyAMetaPartHasAPriceByAMethod(): void
+    {
+        $this->assertNull($this->service->calculateMetaPartPrice($this->pricedPart('1')));
+        $this->assertNull($this->service->getEffectivePriceMethod($this->pricedPart('1')));
+        $this->assertNull($this->service->calculateMetaPartPrice($this->metaOf(PartPriceMethod::CHEAPEST)), 'No connected part, no price');
+        $this->assertSame(PartPriceMethod::PRIMARY_SOURCE, $this->service->getEffectivePriceMethod($this->metaOf(PartPriceMethod::SYSTEM_DEFAULT)));
     }
 }

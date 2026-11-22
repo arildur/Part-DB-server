@@ -16340,5 +16340,107 @@ Buerklin-API Authentication server:
         <target>Unknown kind of [part] "%kind%". Valid values are: %values%.</target>
       </segment>
     </unit>
+    <unit id="VvOXEjv" name="part.price_method.label">
+      <segment state="translated">
+        <source>part.price_method.label</source>
+        <target>Price method</target>
+      </segment>
+    </unit>
+    <unit id="oWlN_8c" name="part.price_method.heading">
+      <segment state="translated">
+        <source>part.price_method.heading</source>
+        <target>Price</target>
+      </segment>
+    </unit>
+    <unit id="o5xwRXK" name="part.price_method.system_default">
+      <segment state="translated">
+        <source>part.price_method.system_default</source>
+        <target>System default</target>
+      </segment>
+    </unit>
+    <unit id="FffFoDb" name="part.price_method.primary_source">
+      <segment state="translated">
+        <source>part.price_method.primary_source</source>
+        <target>Primary source</target>
+      </segment>
+    </unit>
+    <unit id="YYYok50" name="part.price_method.cheapest">
+      <segment state="translated">
+        <source>part.price_method.cheapest</source>
+        <target>Cheapest</target>
+      </segment>
+    </unit>
+    <unit id="09HD5nq" name="part.price_method.average">
+      <segment state="translated">
+        <source>part.price_method.average</source>
+        <target>Average</target>
+      </segment>
+    </unit>
+    <unit id="wh4WvUw" name="part.price_method.weighted_by_stock">
+      <segment state="translated">
+        <source>part.price_method.weighted_by_stock</source>
+        <target>Weighted by stock</target>
+      </segment>
+    </unit>
+    <unit id="jk0ryq." name="part.price_method.user_value">
+      <segment state="translated">
+        <source>part.price_method.user_value</source>
+        <target>User value</target>
+      </segment>
+    </unit>
+    <unit id="Szd5SOK" name="part.price_method.system_default_currently">
+      <segment state="translated">
+        <source>part.price_method.system_default_currently</source>
+        <target>System default (currently: %method%)</target>
+      </segment>
+    </unit>
+    <unit id="nvgn_Dk" name="part.price_method.summary_system_default">
+      <segment state="translated">
+        <source>part.price_method.summary_system_default</source>
+        <target>System default: %method%</target>
+      </segment>
+    </unit>
+    <unit id="kBLWe8p" name="part.price_method.user_currency">
+      <segment state="translated">
+        <source>part.price_method.user_currency</source>
+        <target>Currency of the user value</target>
+      </segment>
+    </unit>
+    <unit id="9qss6a4" name="part.price_method.calculated">
+      <segment state="translated">
+        <source>part.price_method.calculated</source>
+        <target>Calculated price</target>
+      </segment>
+    </unit>
+    <unit id="aBUlL5t" name="part.price_method.no_price">
+      <segment state="translated">
+        <source>part.price_method.no_price</source>
+        <target>No price: no usable connected [part] has one</target>
+      </segment>
+    </unit>
+    <unit id="tMFdtJz" name="part.price_method.after_saving">
+      <segment state="translated">
+        <source>part.price_method.after_saving</source>
+        <target>Worked out after saving</target>
+      </segment>
+    </unit>
+    <unit id="r07SY1N" name="settings.misc.meta_parts">
+      <segment state="translated">
+        <source>settings.misc.meta_parts</source>
+        <target>Meta [[part]]</target>
+      </segment>
+    </unit>
+    <unit id="j2sK9e0" name="settings.misc.meta_parts.defaultPriceMethod">
+      <segment state="translated">
+        <source>settings.misc.meta_parts.defaultPriceMethod</source>
+        <target>Default price method</target>
+      </segment>
+    </unit>
+    <unit id="w0ewiGG" name="settings.misc.meta_parts.defaultPriceMethod.help">
+      <segment state="translated">
+        <source>settings.misc.meta_parts.defaultPriceMethod.help</source>
+        <target>The price method of every meta [part] whose own method is system default. Primary source is the first usable connected [part] with a price, in their order; weighted by stock weighs each usable connected [part] by its stock.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

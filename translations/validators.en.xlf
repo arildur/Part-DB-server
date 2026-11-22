@@ -367,5 +367,17 @@
         <target>A part of this kind can not have suppliers of its own.</target>
       </segment>
     </unit>
+    <unit id="MXZqNvu" name="validator.part.kind_does_not_allow_price_method">
+      <segment state="translated">
+        <source>validator.part.kind_does_not_allow_price_method</source>
+        <target>A part of this kind has no price method and no user value for its price.</target>
+      </segment>
+    </unit>
+    <unit id="eneSWt5" name="validator.part.price_method_user_value_needs_value">
+      <segment state="translated">
+        <source>validator.part.price_method_user_value_needs_value</source>
+        <target>The price method user value needs a user value.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

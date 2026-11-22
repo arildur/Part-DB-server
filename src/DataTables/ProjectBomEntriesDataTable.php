@@ -317,7 +317,7 @@ final readonly class ProjectBomEntriesDataTable implements DataTableTypeInterfac
     }
 
     /**
-     * Blank when no connected part has a price: 0.00 would read as a free part.
+     * The price of the meta part by its price method, blank when it has none: 0.00 would read as a free part.
      */
     private function renderMetaPartPrice(ProjectBOMEntry $entry, BigDecimal $factor): string
     {

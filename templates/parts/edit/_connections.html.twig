@@ -1,6 +1,46 @@
 {% form_theme form with ['parts/edit/edit_form_styles.html.twig'] %}
 {% import 'components/collection_type.macro.html.twig' as collection %}
 
+{% if form.priceMethod is defined %}
+    {% set user_value_chosen = form.priceMethod.vars.value == 'user_value' %}
+    {% set effective_method = part.id is not null ? pricedetail_helper.effectivePriceMethod(part) : null %}
+    <div class="mb-3" id="meta_part_price" {{ stimulus_controller('pages/meta_part_price') }}>
+        <h6>{% trans %}part.price_method.heading{% endtrans %}</h6>
+        {{ form_row(form.priceMethod) }}
+        {# Only hidden, never cleared: the stored user value stays until the user changes it #}
+        <div class="row mb-2 {{ user_value_chosen ? '' : 'd-none' }}" {{ stimulus_target('pages/meta_part_price', 'userValue') }}>
+            <label class="col-form-label {{ col_label }}" for="{{ form.priceUserValue.vars.id }}">{% trans %}part.price_method.user_value{% endtrans %}</label>
+            <div class="{{ col_input }}">
+                <div class="input-group">
+                    {{ form_widget(form.priceUserValue) }}
+                    {{ form_widget(form.priceUserCurrency) }}
+                </div>
+                {{ form_errors(form.priceUserValue) }}
+                {{ form_errors(form.priceUserCurrency) }}
+            </div>
+        </div>
+        {# The calculated price is text, never an input #}
+        <div class="row mb-2 {{ user_value_chosen ? 'd-none' : '' }}" {{ stimulus_target('pages/meta_part_price', 'calculated') }}>
+            <div class="col-form-label {{ col_label }}">{% trans %}part.price_method.calculated{% endtrans %}</div>
+            <div class="{{ col_input }}">
+                <span class="form-control-plaintext" id="meta_part_calculated_price">
+                    {% if effective_method is not null and effective_method.calculated %}
+                        {% set calculated_price = pricedetail_helper.calculateMetaPartPrice(part, 1, app.user.currency ?? null) %}
+                        {% if calculated_price is not null %}
+                            {{ calculated_price | format_money(app.user.currency ?? null) }}
+                            <small class="text-muted">({{ effective_method | trans }})</small>
+                        {% else %}
+                            <span class="text-muted">{% trans %}part.price_method.no_price{% endtrans %}</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-muted">{% trans %}part.price_method.after_saving{% endtrans %}</span>
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
 <div {{ collection.controller(form.part_connections, 'part_connection.edit.delete.confirm') }}>
     <table class="table table-striped table-sm" id="connection_table" {{ collection.target() }}>
         <tbody>

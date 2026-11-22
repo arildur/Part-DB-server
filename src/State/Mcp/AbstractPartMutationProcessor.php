@@ -40,6 +40,7 @@ use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartCustomState;
 use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
@@ -58,6 +59,7 @@ use App\Mcp\DTO\PricedetailInput;
 use App\Services\LogSystem\EventCommentHelper;
 use App\Settings\AISettings\McpSettings;
 use Brick\Math\BigDecimal;
+use Brick\Math\Exception\MathException;
 use Doctrine\ORM\EntityManagerInterface;
 use Mcp\Schema\Result\CallToolResult;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -108,6 +110,17 @@ abstract class AbstractPartMutationProcessor implements ProcessorInterface
         //First, as what else a part may hold depends on its kind
         if ($data->kind !== null) {
             $this->applyKind($part, $data->kind);
+        }
+
+        //The price fields only belong to a meta part. On another kind, validation refuses them and names the field.
+        if ($data->wasProvided('priceMethod')) {
+            $this->applyPriceMethod($part, $data->priceMethod);
+        }
+        if ($data->wasProvided('userPrice')) {
+            $this->applyUserPrice($part, $data->userPrice);
+        }
+        if ($data->wasProvided('userPriceCurrencyId')) {
+            $part->setPriceUserCurrency($data->userPriceCurrencyId !== null ? $this->resolveCurrency($data->userPriceCurrencyId) : null);
         }
 
         //Non-nullable string/scalar fields on Part coerce an explicit `null` to their empty/default value, since
@@ -300,6 +313,45 @@ abstract class AbstractPartMutationProcessor implements ProcessorInterface
         }
 
         $part->setKind($value);
+    }
+
+    /**
+     * Only called when the field was provided. Null resets the method to system default and clears the user value, as
+     * a part starts.
+     */
+    protected function applyPriceMethod(Part $part, ?string $method): void
+    {
+        if ($method === null) {
+            $part->setPriceMethod(null);
+            $part->setPriceUserValue(null);
+            return;
+        }
+
+        $value = PartPriceMethod::tryFrom($method);
+        if (!$value instanceof PartPriceMethod) {
+            throw new BadRequestHttpException(sprintf('"%s" is not a valid price method. Valid values are: %s.',
+                $method, implode(', ', array_map(static fn (PartPriceMethod $case): string => '"'.$case->value.'"', PartPriceMethod::cases()))));
+        }
+
+        $part->setPriceMethod($value);
+    }
+
+    /**
+     * Stores the user value as given, whatever the price method. A value that is not a decimal is refused here, so that
+     * the agent learns what was wrong.
+     */
+    protected function applyUserPrice(Part $part, ?string $price): void
+    {
+        if ($price === null) {
+            $part->setPriceUserValue(null);
+            return;
+        }
+
+        try {
+            $part->setPriceUserValue(BigDecimal::of(trim($price)));
+        } catch (MathException) {
+            throw new BadRequestHttpException(sprintf('"%s" is not a valid price. Give a decimal number such as "0.25".', $price));
+        }
     }
 
     /**

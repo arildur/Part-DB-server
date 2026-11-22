@@ -304,7 +304,7 @@ final readonly class ProjectBuildHelper
 
     /**
      * Returns the unit price of the given BOM entry, or null if it has no price. A meta part entry costs the price of
-     * the first part in the order of priority of its usable connections that has one.
+     * its meta part, by its price method, at the quantity of the entry.
      */
     public function getEntryUnitCost(ProjectBOMEntry $entry, int $number_of_builds = 1, ?Currency $currency = null): ?BigDecimal
     {
@@ -321,11 +321,8 @@ final readonly class ProjectBuildHelper
         $total = BigDecimal::zero();
         $has_price = false;
         $unpriced = 0;
-        $has_meta_part = false;
 
         foreach ($project->getBomEntries() as $entry) {
-            $has_meta_part = $has_meta_part || $entry->getPart()?->getKind()->allowsConnections() === true;
-
             $unit = $this->unitCostOfEntry($entry, $number_of_builds, $currency, $visited);
             if ($unit === null) {
                 if ($entry->isPartBomEntry()) {
@@ -339,7 +336,7 @@ final readonly class ProjectBuildHelper
             $total = $total->plus($unit->multipliedBy($quantity)->multipliedBy($number_of_builds));
         }
 
-        return new ProjectCost($has_price ? $total : null, $unpriced, $has_meta_part);
+        return new ProjectCost($has_price ? $total : null, $unpriced);
     }
 
     /**
@@ -358,32 +355,7 @@ final readonly class ProjectBuildHelper
             return $this->pricedetailHelper->convertMoneyToCurrency($price, $entry->getPriceCurrency(), $currency);
         }
 
-        $quantity = $entry->getQuantity() * $number_of_builds;
-
-        if (!$part->getKind()->allowsConnections()) {
-            return $this->unitCostOfPart($part, $quantity, $currency, $visited);
-        }
-
-        //A meta part has no price of its own: it costs what the first part that can be used for it and has a price costs
-        foreach ($part->getOrderedConnections() as $connection) {
-            $connected = $connection->getConnectedPart();
-            if (!$connection->isUsable() || !$connected instanceof Part) {
-                continue;
-            }
-            $unit = $this->unitCostOfPart($connected, $quantity, $currency, $visited);
-            if ($unit !== null) {
-                return $unit;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @param  array<int, true>  $visited
-     */
-    private function unitCostOfPart(Part $part, float $quantity, ?Currency $currency, array $visited): ?BigDecimal
-    {
+        //The build part of a sub-project costs one build of that project, whatever its kind
         $built_project = $part->getBuiltProject();
         if ($built_project instanceof Project) {
             if (isset($visited[spl_object_id($built_project)])) {
@@ -391,6 +363,13 @@ final readonly class ProjectBuildHelper
             }
 
             return $this->costOfProject($built_project, 1, $currency, $visited)->total;
+        }
+
+        $quantity = $entry->getQuantity() * $number_of_builds;
+
+        //A meta part costs its price by its price method, which applies the minimum order to each connected part
+        if ($part->getKind()->allowsPriceMethod()) {
+            return $this->pricedetailHelper->calculateMetaPartPrice($part, $quantity, $currency);
         }
 
         $min_order = $this->pricedetailHelper->getMinOrderAmount($part);

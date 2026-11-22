@@ -56,9 +56,30 @@ unknown amount and expired lots do not count. The own lots of a meta part never 
 
 * The **Stock** tab lists its own lots and those of its connected parts with a total, and marks what is not counted. You
   can only change its own lots there: to withdraw from another part, use the page of that part.
-* The **Shopping** tab lists the suppliers of each connected part, and the summary shows the price range.
+* The **Shopping** tab lists the suppliers of each connected part, and the summary shows the price of the meta part for
+  one unit, followed by its price method.
 * In part tables, the amount, its sorting and its filter use the total. The storage location column includes the locations
   of every connected part, those of parts that are not usable last and greyed, while the filters on lots, including the storage location filter, only look at a part's own lots.
+
+### Price
+
+A meta part has one price, worked out on each read by its price method, which is chosen on the edit page of the meta
+part:
+
+* **System default**: Follows the default price method in the server settings (Miscellaneous, Meta parts), which is
+  primary source until it is changed there or by the environment variable `META_PART_DEFAULT_PRICE_METHOD`. A new
+  meta part starts with this method.
+* **Primary source**: The price of the first usable connected part, in the order of priority, that has a price.
+* **Cheapest**: The lowest price of the usable connected parts.
+* **Average**: The average of the prices of the usable connected parts.
+* **Weighted by stock**: The average of the prices of the usable connected parts, each weighted by its stock. The own
+  lots of the meta part do not weigh. With no stock at all, it is the average.
+* **User value**: A fixed unit price typed on the meta part, with its own currency, whatever the quantity.
+
+A calculated price takes each connected part at the quantity asked for, with its bulk prices and minimum order, and
+follows their prices and stock as they change. It can not be edited. The user value is only shown while the method is
+user value, and is kept when another method is chosen. Merging two meta parts keeps the method of the target unless it
+is system default, and takes the user value of the other only when the target has none.
 
 ## Projects
 
@@ -68,11 +89,9 @@ no field. The proposal takes the meta part's own lots first, then those of use u
 in the order of priority. Several entries can reach the same lot, so the proposal and
 the buildable count look at the whole BOM, and a lot can not be used for more than it holds.
 
-A project has a setting for what a meta part costs in its BOM:
-
-* **Primary source**: The price of the first connected part that has one.
-* **Cheapest**: The lowest price of the connected parts.
-* **Range**: The lowest and the highest price.
+The cost of a BOM entry pointing at a meta part is the price of the meta part at the quantity of the entry times the
+number of builds. A meta part with no price leaves its entry blank, and the project page counts the entries with no price
+next to the total cost.
 
 ## Other parts of Part-DB
 
@@ -87,5 +106,6 @@ A project has a setting for what a meta part costs in its BOM:
   meta parts. When these are empty, both kinds use the same settings. Both kinds share one set of unique numbers.
 * **REST API**: `GET /api/parts?kind=meta` or `kind=manufacturing` filters by kind, and any other value is answered with a
   400. A part shows `kind`, `total_instock`, `own_instock` and `part_connections`, and connections are written through
-  `/api/part_connections`.
-* **[MCP](../api/mcp.md)**: The part tools take and show the kind and the connections.
+  `/api/part_connections`. A meta part also has `price_method`, `user_price` and `user_price_currency`, and the
+  response for a single meta part holds its read-only `price`.
+* **[MCP](../api/mcp.md)**: The part tools take and show the kind, the connections and the price method.

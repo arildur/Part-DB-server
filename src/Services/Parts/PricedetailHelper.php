@@ -23,8 +23,10 @@ declare(strict_types=1);
 namespace App\Services\Parts;
 
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\PriceInformations\Currency;
 use App\Entity\PriceInformations\Pricedetail;
+use App\Settings\MiscSettings\MetaPartSettings;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Doctrine\ORM\PersistentCollection;
@@ -39,7 +41,7 @@ class PricedetailHelper
 {
     protected string $locale;
 
-    public function __construct()
+    public function __construct(private readonly MetaPartSettings $metaPartSettings)
     {
         $this->locale = Locale::getDefault();
     }
@@ -123,27 +125,96 @@ class PricedetailHelper
     }
 
     /**
-     * Returns the lowest and highest average price over the usable connected parts of a meta part, or null if none has a
-     * price. Connections that are not usable never count.
-     * @return array{BigDecimal, BigDecimal}|null
+     * Returns the price method that applies to the given part: its own, or the default of the settings for system
+     * default. Null for a part whose kind has no price method.
      */
-    public function getMetaPartPriceRange(Part $part, ?Currency $currency = null): ?array
+    public function getEffectivePriceMethod(Part $part): ?PartPriceMethod
     {
-        $low = null;
-        $high = null;
-        foreach ($part->getOrderedConnections() as $connection) {
-            if (!$connection->isUsable() || !$connection->getConnectedPart() instanceof Part) {
+        return $part->getPriceMethod()?->resolve($this->metaPartSettings->getDefaultPriceMethod());
+    }
+
+    /**
+     * Works out the unit price of a meta part when $amount of it is needed, by its price method. A calculated method
+     * reads the usable connected parts as they are now, each priced at that amount (bulk tiers, minimum order); a user
+     * value is the same whatever the amount. Prices that can not be converted to the currency are left out.
+     *
+     * @param  Part  $metaPart  The meta part. Another kind of part has no price here.
+     * @param  float  $amount  How many units are needed
+     * @param  Currency|null  $currency  The currency of the result, null for the base currency
+     *
+     * @return BigDecimal|null The unit price, or null if the meta part has none
+     */
+    public function calculateMetaPartPrice(Part $metaPart, float $amount = 1.0, ?Currency $currency = null): ?BigDecimal
+    {
+        $method = $this->getEffectivePriceMethod($metaPart);
+        if (!$method instanceof PartPriceMethod) {
+            return null;
+        }
+
+        if ($method === PartPriceMethod::USER_VALUE) {
+            $value = $metaPart->getPriceUserValue();
+
+            return $value instanceof BigDecimal ? $this->convertMoneyToCurrency($value, $metaPart->getPriceUserCurrency(), $currency) : null;
+        }
+
+        $prices = [];
+        $stocks = [];
+        foreach ($metaPart->getOrderedConnections() as $connection) {
+            $part = $connection->getConnectedPart();
+            if (!$connection->isUsable() || !$part instanceof Part) {
                 continue;
             }
-            $price = $this->calculateAvgPrice($connection->getConnectedPart(), null, $currency);
+            $minOrder = $this->getMinOrderAmount($part);
+            $price = $this->calculateAvgPrice($part, $minOrder !== null ? max($amount, $minOrder) : $amount, $currency);
             if (!$price instanceof BigDecimal) {
                 continue;
             }
-            $low = $low === null || $price->isLessThan($low) ? $price : $low;
-            $high = $high === null || $price->isGreaterThan($high) ? $price : $high;
+            //The connections are in their order of priority, so the first price is that of the primary source
+            if ($method === PartPriceMethod::PRIMARY_SOURCE) {
+                return $price;
+            }
+            $prices[] = $price;
+            $stocks[] = BigDecimal::fromFloatShortest(max(0.0, $part->getAmountSum()));
         }
 
-        return $low === null || $high === null ? null : [$low, $high];
+        if ($prices === []) {
+            return null;
+        }
+
+        //The primary source and the user value have returned above
+        return match ($method) {
+            PartPriceMethod::CHEAPEST => BigDecimal::min(...$prices),
+            PartPriceMethod::WEIGHTED_BY_STOCK => $this->weightedAverage($prices, $stocks),
+            default => $this->average($prices),
+        };
+    }
+
+    /**
+     * @param  non-empty-list<BigDecimal>  $prices
+     */
+    private function average(array $prices): BigDecimal
+    {
+        return BigDecimal::sum(...$prices)->dividedBy(count($prices), Pricedetail::PRICE_PRECISION, RoundingMode::HalfUp);
+    }
+
+    /**
+     * Each price counts as often as its part has stock. With no stock at all, every price counts once.
+     * @param  non-empty-list<BigDecimal>  $prices
+     * @param  list<BigDecimal>  $stocks  The stock of the part of each price
+     */
+    private function weightedAverage(array $prices, array $stocks): BigDecimal
+    {
+        $total = BigDecimal::sum(...$stocks);
+        if ($total->isZero()) {
+            return $this->average($prices);
+        }
+
+        $sum = BigDecimal::zero();
+        foreach ($prices as $i => $price) {
+            $sum = $sum->plus($price->multipliedBy($stocks[$i]));
+        }
+
+        return $sum->dividedBy($total, Pricedetail::PRICE_PRECISION, RoundingMode::HalfUp);
     }
 
     /**

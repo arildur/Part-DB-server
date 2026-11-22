@@ -41,6 +41,7 @@ final class PartKindTest extends TestCase
         $this->assertFalse($kind->allowsConnections());
         $this->assertTrue($kind->canBeConnected());
         $this->assertTrue($kind->canBeBuildPart());
+        $this->assertFalse($kind->allowsPriceMethod());
     }
 
     public function testMetaPartAllows(): void
@@ -51,6 +52,7 @@ final class PartKindTest extends TestCase
         $this->assertTrue($kind->allowsConnections());
         $this->assertFalse($kind->canBeConnected());
         $this->assertFalse($kind->canBeBuildPart());
+        $this->assertTrue($kind->allowsPriceMethod());
     }
 
     public function testNewPartIsAManufacturingPart(): void

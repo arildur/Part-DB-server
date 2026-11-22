@@ -154,6 +154,14 @@ concept.
 * For a meta part, `total_instock` is the stock of its own lots plus the stock of the lots of its usable connected
   parts. `own_instock` and `partLots` only cover the part's own lots.
 * The `part_connections` field of a meta part lists its connected manufacturing parts, in the order they are used.
+* The `price_method` field of a meta part says how its price is worked out: `system_default` (the default for a new
+  meta part, following the server setting), `primary_source`, `cheapest`, `average`, `weighted_by_stock` or
+  `user_value`. Any other value is answered with 400. A manufacturing part reads `null`.
+* `user_price` is a fixed unit price as a decimal string, in the currency `user_price_currency` (`null` for the base
+  currency). The method `user_value` uses it, and it is kept as written whatever the method; `null` clears it.
+* Setting `price_method` (any method, `system_default` too) or `user_price` on a manufacturing part is answered with 422.
+* The response for a single meta part holds `price`: its unit price for one unit by its price method, in the base
+  currency, or `null` when it has none. It is worked out on each read and can not be written; lists do not hold it.
 
 The connections themselves are a resource of their own at `/api/part_connections`:
 

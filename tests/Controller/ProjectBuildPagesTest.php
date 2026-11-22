@@ -27,6 +27,7 @@ use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\Supplier;
 use App\Entity\PriceInformations\Orderdetail;
@@ -368,9 +369,10 @@ final class ProjectBuildPagesTest extends WebTestCase
         $part->addOrderdetail($orderdetail);
     }
 
-    public function testTheBomTableAndProjectPageShowAMetaPartByItsFirstPricedPart(): void
+    public function testTheBomTableAndProjectPageShowAMetaPartByItsPriceMethod(): void
     {
         $meta = $this->part('Priced meta', PartKind::META);
+        $meta->setPriceMethod(PartPriceMethod::CHEAPEST);
         $this->lot($meta, 3, 'Own');
         $cheap = $this->part('Cheap source');
         $this->price($cheap, '1');
@@ -385,24 +387,29 @@ final class ProjectBuildPagesTest extends WebTestCase
         $rows = $this->tableRows($project);
         $byName = array_column($rows, null, 'partId');
         $row = $byName[(string) $meta->getID()];
-        //The first usable connected part with a price: Dear source
-        $this->assertMatchesRegularExpression('/2[.,]00/', $row['price']);
-        $this->assertMatchesRegularExpression('/4[.,]00/', $row['ext_price']);
+        $this->assertMatchesRegularExpression('/^\D*1[.,]00\D*$/', $row['price'], 'One value, by the method');
+        $this->assertMatchesRegularExpression('/^\D*2[.,]00\D*$/', $row['ext_price']);
         $this->assertStringContainsString('10', $row['instockAmount']);
         $this->assertSame('', $byName[(string) $unpricedMeta->getID()]['price']);
 
         $text = $this->client->request('GET', '/en/project/'.$project->getID().'/info')->text();
-        $this->assertMatchesRegularExpression('/4[.,]00/', $text);
-        $this->assertStringContainsString('Part entries with no price', $text);
+        $this->assertMatchesRegularExpression('/2[.,]00/', $text);
+        $this->assertDoesNotMatchRegularExpression('/2[.,]00\D*–/', $text, 'No range');
+        $this->assertMatchesRegularExpression('/Part entries with no price, left out of this cost: 1\b/', $text);
     }
 
-    public function testABomWithNoMetaPartShowsWhatItAlwaysShowed(): void
+    public function testTheProjectPageCountsEveryUnpricedEntry(): void
     {
-        $project = $this->project([[$this->part('Plain unpriced'), 1]]);
+        $meta = $this->part('Meta with a user value', PartKind::META);
+        $meta->setPriceMethod(PartPriceMethod::USER_VALUE)->setPriceUserValue(BigDecimal::of('0.5'));
+        $project = $this->project([[$this->part('Plain unpriced'), 1], [$meta, 4], [$this->part('Unpriced meta part', PartKind::META), 1]]);
 
-        $this->assertStringContainsString('0.00', $this->tableRows($project)[0]['price']);
+        $rows = array_column($this->tableRows($project), null, 'partId');
+        $this->assertStringContainsString('0.00', $rows[(string) $project->getBomEntries()->first()->getPart()->getID()]['price'], 'Other entries show what they always showed');
+        $this->assertMatchesRegularExpression('/^\D*0[.,]50\D*$/', $rows[(string) $meta->getID()]['price']);
         $text = $this->client->request('GET', '/en/project/'.$project->getID().'/info')->text();
-        $this->assertStringNotContainsString('Part entries with no price', $text);
+        $this->assertMatchesRegularExpression('/2[.,]00/', $text);
+        $this->assertMatchesRegularExpression('/Part entries with no price, left out of this cost: 2\b/', $text);
     }
 
     public function testQueriesDoNotDependOnTheNumberOfMetaPartEntries(): void

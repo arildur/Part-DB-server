@@ -96,17 +96,18 @@
     </div>
 
     {% if part.kind.allowsConnections %}
-        {% set price_range = pricedetail_helper.metaPartPriceRange(part, app.user.currency ?? null) %}
-        {% if price_range is not null %}
+        {% set meta_price = pricedetail_helper.calculateMetaPartPrice(part, 1, app.user.currency ?? null) %}
+        {% if meta_price is not null %}
+            {% set price_method = pricedetail_helper.effectivePriceMethod(part) %}
             <div>
                 <dt class="d-inline-block"><i class="fas fa-money-bill-alt fa-fw"></i></dt>
                 <dd class="d-inline">
-                    <span class="text-muted" title="{% trans %}part.avg_price.label{% endtrans %}">
-                        {{ price_range[0] | format_money(app.user.currency ?? null) }}
-                        {% if not price_range[0].isEqualTo(price_range[1]) %}
-                            <span> - </span>{{ price_range[1] | format_money(app.user.currency ?? null) }}
-                        {% endif %}
+                    <span class="text-muted" title="{% trans %}part.price_method.label{% endtrans %}">
+                        {{ meta_price | format_money(app.user.currency ?? null) }}
                     </span>
+                    <small class="text-muted">
+                        ({% if part.priceMethod.value == 'system_default' %}{% trans with {'%method%': price_method | trans} %}part.price_method.summary_system_default{% endtrans %}{% else %}{{ price_method | trans }}{% endif %})
+                    </small>
                 </dd>
             </div>
         {% endif %}

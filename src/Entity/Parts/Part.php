@@ -39,6 +39,7 @@ use ApiPlatform\Metadata\Post;
 use ApiPlatform\Serializer\Filter\PropertyFilter;
 use App\ApiPlatform\Filter\EntityFilter;
 use App\ApiPlatform\Filter\LikeFilter;
+use App\ApiPlatform\DocumentedAPIProperties\DocumentedAPIProperty;
 use App\ApiPlatform\Filter\PartKindFilter;
 use App\ApiPlatform\Filter\PartStoragelocationFilter;
 use App\ApiPlatform\Filter\TagFilter;
@@ -58,6 +59,7 @@ use App\Entity\Parts\PartTraits\EDATrait;
 use App\Entity\Parts\PartTraits\InstockTrait;
 use App\Entity\Parts\PartTraits\ManufacturerTrait;
 use App\Entity\Parts\PartTraits\OrderTrait;
+use App\Entity\Parts\PartTraits\PriceMethodTrait;
 use App\Entity\Parts\PartTraits\ProjectTrait;
 use App\EntityListeners\TreeCacheInvalidationListener;
 use App\Mcp\DTO\AddPartStockInput;
@@ -106,6 +108,11 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 #[ORM\Entity(repositoryClass: PartRepository::class)]
 #[ORM\EntityListeners([TreeCacheInvalidationListener::class])]
 #[ValidPartKind]
+#[DocumentedAPIProperty(
+    schemaName: 'Part-Read', property: 'price', type: 'string', nullable: true,
+    description: 'The unit price of a meta part for one unit, worked out by its price method, in the base currency. Null when it has none. Only in the response for a single meta part, and never written.',
+    example: '0.10000'
+)]
 #[ORM\Table('`parts`')]
 #[ORM\Index(name: 'parts_idx_datet_name_last_id_needs', columns: ['datetime_added', 'name', 'last_modified', 'id', 'needs_review'])]
 #[ORM\Index(name: 'parts_idx_name', columns: ['name'])]
@@ -155,7 +162,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'get_part_details' => new McpTool(
             title: 'Get part details by ID',
-            description: 'Get detailed information about a specific part by its database ID. "kind" says what the part is. A "manufacturing" part is a concrete product. A "meta" part is a specification: it holds no manufacturer or supplier data, which are found on the manufacturing parts listed in part_connections, in the order they are used. For a meta part, total_instock is its own lots plus the lots of its usable connections (status "approved" or "use_up"), while own_instock and partLots are its own lots only.',
+            description: 'Get detailed information about a specific part by its database ID. "kind" says what the part is. A "manufacturing" part is a concrete product. A "meta" part is a specification: it holds no manufacturer or supplier data, which are found on the manufacturing parts listed in part_connections, in the order they are used. For a meta part, total_instock is its own lots plus the lots of its usable connections (status "approved" or "use_up"), while own_instock and partLots are its own lots only. For a meta part, price_method says how its price is worked out: "primary_source", "cheapest", "average" or "weighted_by_stock" over its usable connections, "user_value" for the fixed unit price user_price (in user_price_currency, null for the base currency), or "system_default", which follows a setting of Part-DB. price is its unit price for one unit by that method in the base currency, or null; it is worked out, not set.',
             annotations: ['readOnlyHint' => true, 'destructiveHint' => false, 'idempotentHint' => true, 'openWorldHint' => false],
             normalizationContext: [
                 'groups' => ['part:read', 'provider_reference:read', 'api:basic:read', 'part_lot:read', 'orderdetail:read', 'pricedetail:read', 'parameter:read', 'attachment:read', 'eda_info:read'],
@@ -181,7 +188,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'create_part' => new McpTool(
             title: 'Create a new part',
-            description: 'Create a new part in the inventory. Only "name" is required; every other field is optional and, if omitted, the part is created with its normal default value for that field. "kind" is "manufacturing" (the default, a concrete product) or "meta" (a specification with no manufacturer or supplier data, standing above manufacturing parts), and is fixed once the part exists. Supports nested stock lots, parameters, orderdetails (with price breaks), associated parts, connected parts (connectedParts, for a meta part), EDA info, and linking the part to the external info provider (providerKey/providerId/providerUrl) it was sourced from in a single call. Attachment file uploads are not supported here (MCP has no good way to transport binary file data) - use the web UI or REST API to upload attachments to a part after creating it.',
+            description: 'Create a new part in the inventory. Only "name" is required; every other field is optional and, if omitted, the part is created with its normal default value for that field. "kind" is "manufacturing" (the default, a concrete product) or "meta" (a specification with no manufacturer or supplier data, standing above manufacturing parts), and is fixed once the part exists. Supports nested stock lots, parameters, orderdetails (with price breaks), associated parts, connected parts (connectedParts, for a meta part), EDA info, and linking the part to the external info provider (providerKey/providerId/providerUrl) it was sourced from in a single call. A meta part takes priceMethod ("system_default", the default, which follows a setting of Part-DB, "primary_source", "cheapest", "average", "weighted_by_stock" or "user_value"), userPrice (a fixed unit price as a decimal string, used by "user_value") and userPriceCurrencyId; its price is worked out, not set. Attachment file uploads are not supported here (MCP has no good way to transport binary file data) - use the web UI or REST API to upload attachments to a part after creating it.',
             annotations: ['readOnlyHint' => false, 'destructiveHint' => false, 'idempotentHint' => false, 'openWorldHint' => false],
             normalizationContext: [
                 'groups' => ['part:read', 'provider_reference:read', 'api:basic:read', 'part_lot:read', 'orderdetail:read', 'pricedetail:read', 'parameter:read', 'attachment:read', 'eda_info:read'],
@@ -195,7 +202,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'update_part' => new McpTool(
             title: 'Update an existing part',
-            description: 'Update an existing part by its database ID. Only the fields you actually provide are changed; any field you omit is left completely untouched, including nested collections (partLots, parameters, orderdetails, associatedPartsAsOwner, connectedParts) - provide an item\'s "id" to update it, omit "id" to create a new one, and omit a previously-existing item entirely to remove it. To change a lot\'s stock amount use the withdraw_part_stock/add_part_stock/stocktake_part_lot tools instead - "amount" may only be set here when creating a brand-new lot. providerKey/providerId can be used to link or unlink the part to an external info provider (set both to link, both to null to unlink - they must be changed together). "kind" can not be changed: sending another kind is an error. connectedParts only applies to a meta part; each item has connectedPartId (needed for a new item, and fixed afterwards), position, status and note. status is "approved" (the default), "under_evaluation", "use_up" or "do_not_use"; only approved and use_up connections count in total_instock and may be used by a build, which takes use_up parts first.',
+            description: 'Update an existing part by its database ID. Only the fields you actually provide are changed; any field you omit is left completely untouched, including nested collections (partLots, parameters, orderdetails, associatedPartsAsOwner, connectedParts) - provide an item\'s "id" to update it, omit "id" to create a new one, and omit a previously-existing item entirely to remove it. To change a lot\'s stock amount use the withdraw_part_stock/add_part_stock/stocktake_part_lot tools instead - "amount" may only be set here when creating a brand-new lot. providerKey/providerId can be used to link or unlink the part to an external info provider (set both to link, both to null to unlink - they must be changed together). "kind" can not be changed: sending another kind is an error. connectedParts only applies to a meta part; each item has connectedPartId (needed for a new item, and fixed afterwards), position, status and note. status is "approved" (the default), "under_evaluation", "use_up" or "do_not_use"; only approved and use_up connections count in total_instock and may be used by a build, which takes use_up parts first. priceMethod, userPrice and userPriceCurrencyId only apply to a meta part: priceMethod is "system_default" (follows a setting of Part-DB), "primary_source", "cheapest", "average", "weighted_by_stock" or "user_value", and null resets it to "system_default" and clears userPrice; userPrice is a fixed unit price as a decimal string, kept whatever the method. The price in the result is worked out and can not be set.',
             annotations: ['readOnlyHint' => false, 'destructiveHint' => false, 'idempotentHint' => false, 'openWorldHint' => false],
             normalizationContext: [
                 'groups' => ['part:read', 'provider_reference:read', 'api:basic:read', 'part_lot:read', 'orderdetail:read', 'pricedetail:read', 'parameter:read', 'attachment:read', 'eda_info:read'],
@@ -280,6 +287,7 @@ class Part extends AttachmentContainingDBElement
     use ProjectTrait;
     use AssociationTrait;
     use ConnectionTrait;
+    use PriceMethodTrait;
     use EDATrait;
 
     /**
@@ -457,6 +465,23 @@ class Part extends AttachmentContainingDBElement
                     ->atPath($field)
                     ->addViolation();
             }
+        }
+
+        if (!$this->kind->allowsPriceMethod()) {
+            $refused = [
+                'priceMethod' => $this->priceMethodGiven || $this->priceMethod !== PartPriceMethod::SYSTEM_DEFAULT,
+                'priceUserValue' => $this->priceUserValue !== null,
+                'priceUserCurrency' => $this->priceUserCurrency !== null,
+            ];
+            foreach (array_keys(array_filter($refused)) as $field) {
+                $context->buildViolation('validator.part.kind_does_not_allow_price_method')
+                    ->atPath($field)
+                    ->addViolation();
+            }
+        } elseif ($this->priceMethod === PartPriceMethod::USER_VALUE && $this->priceUserValue === null) {
+            $context->buildViolation('validator.part.price_method_user_value_needs_value')
+                ->atPath('priceUserValue')
+                ->addViolation();
         }
 
         if ($this->built_project instanceof Project && !$this->kind->canBeBuildPart()) {

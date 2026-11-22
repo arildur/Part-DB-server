@@ -27,6 +27,7 @@ use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\PriceInformations\Currency;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\PriceInformations\Pricedetail;
@@ -34,6 +35,7 @@ use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Helpers\Projects\ProjectBuildRequest;
 use App\Services\ProjectSystem\ProjectBuildHelper;
+use App\Settings\MiscSettings\MetaPartSettings;
 use Brick\Math\BigDecimal;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
@@ -69,9 +71,9 @@ final class ProjectBuildMetaPartTest extends KernelTestCase
         return $lot;
     }
 
-    private function meta(): Part
+    private function meta(PartPriceMethod $method = PartPriceMethod::SYSTEM_DEFAULT): Part
     {
-        return (new Part())->setKind(PartKind::META);
+        return (new Part())->setKind(PartKind::META)->setPriceMethod($method);
     }
 
     private function connect(Part $meta, Part $part, int $position, PartConnectionStatus $status = PartConnectionStatus::APPROVED): void
@@ -79,10 +81,16 @@ final class ProjectBuildMetaPartTest extends KernelTestCase
         $meta->addPartConnection((new PartConnection())->setConnectedPart($part)->setPosition($position)->setStatus($status));
     }
 
-    private function price(Part $part, string $price, ?Currency $currency = null): Part
+    /**
+     * @param  array<string, string>  $tiers  More prices by the quantity from which they apply
+     */
+    private function price(Part $part, string $price, ?Currency $currency = null, array $tiers = [], float $from = 1.0): Part
     {
         $orderdetail = new Orderdetail();
-        $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity(1.0)->setPrice(BigDecimal::of($price))->setCurrency($currency));
+        $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity($from)->setPrice(BigDecimal::of($price))->setCurrency($currency));
+        foreach ($tiers as $quantity => $tierPrice) {
+            $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity((float) $quantity)->setPrice(BigDecimal::of($tierPrice))->setCurrency($currency));
+        }
         $part->addOrderdetail($orderdetail);
 
         return $part;
@@ -223,6 +231,7 @@ final class ProjectBuildMetaPartTest extends KernelTestCase
             $lots[$status->value] = $this->lot($part, 10, $i + 1);
             $this->connect($meta, $part, $i + 1, $status);
         }
+        $meta->setPriceMethod(PartPriceMethod::CHEAPEST);
         $project = $this->project([[$meta, 1.0]]);
         $entry = $project->getBomEntries()->first();
 
@@ -230,21 +239,17 @@ final class ProjectBuildMetaPartTest extends KernelTestCase
         $this->assertSame([$lots['use_up'], $lots['approved']], $reached);
         $this->assertSame(20, $this->helper->getMaximumBuildableCount($project));
 
-        //The connections that are not usable are cheaper, but give no price: the first usable one in the order does
-        $cost = $this->helper->calculateCost($project);
+        //The connections that are not usable are cheaper, but give no price
         $prices = [];
         foreach (PartConnectionStatus::cases() as $i => $status) {
             $prices[$status->value] = 10 - $i;
         }
-        $first = null;
-        foreach ($meta->getOrderedConnections() as $connection) {
-            if ($connection->isUsable()) {
-                $first = $connection->getStatus()->value;
-                break;
-            }
-        }
-        $this->assertContains($first, ['approved', 'use_up']);
-        $this->assertTrue(BigDecimal::of($prices[$first])->isEqualTo($cost->total), 'Got '.$cost->total);
+        $cost = $this->helper->calculateCost($project);
+        $this->assertTrue(BigDecimal::of(min($prices['approved'], $prices['use_up']))->isEqualTo($cost->total), 'Got '.$cost->total);
+
+        $meta->setPriceMethod(PartPriceMethod::AVERAGE);
+        $cost = $this->helper->calculateCost($project);
+        $this->assertTrue(BigDecimal::of(($prices['approved'] + $prices['use_up']) / 2)->isEqualTo($cost->total), 'Got '.$cost->total);
     }
 
     public function testAnExpiredLotOfAMetaPartEntryIsProposedButNotCounted(): void
@@ -316,61 +321,176 @@ final class ProjectBuildMetaPartTest extends KernelTestCase
     }
 
     /**
-     * Prices 2, 1, unpriced and a do-not-use at 0.5.
+     * Prices 2 with a stock of 1, 1 with a stock of 3, unpriced with a stock of 10, and a do-not-use at 0.5.
      */
     private function pricedMetaPart(bool $firstHasPrice = true): Part
     {
         $meta = $this->meta();
         $first = $firstHasPrice ? $this->price(new Part(), '2') : new Part();
+        $this->lot($first, 1);
         $second = $this->price(new Part(), '1');
+        $this->lot($second, 3);
         $this->connect($meta, $first, 1);
         $this->connect($meta, $second, 2);
-        $this->connect($meta, new Part(), 3);
+        $unpriced = new Part();
+        $this->lot($unpriced, 10);
+        $this->connect($meta, $unpriced, 3);
         $this->connect($meta, $this->price(new Part(), '0.5'), 4, PartConnectionStatus::DO_NOT_USE);
 
         return $meta;
     }
 
-    public function testAMetaPartCostsItsFirstUsablePartWithAPrice(): void
+    /**
+     * @return array<string, array{PartPriceMethod, string}> The cost of one unit of the priced meta part by each method
+     */
+    public static function methodProvider(): array
     {
-        $cost = $this->helper->calculateCost($this->project([[$this->pricedMetaPart(), 1.0]]));
-        $this->assertTrue(BigDecimal::of('2')->isEqualTo($cost->total), 'The first, got '.$cost->total);
-
-        $cost = $this->helper->calculateCost($this->project([[$this->pricedMetaPart(false), 1.0]]));
-        $this->assertTrue(BigDecimal::of('1')->isEqualTo($cost->total), 'The next with a price, got '.$cost->total);
+        //Prices 2 (stock 1), 1 (stock 3), unpriced, and a do-not-use at 0.5
+        return [
+            'primary source' => [PartPriceMethod::PRIMARY_SOURCE, '2'],
+            'cheapest' => [PartPriceMethod::CHEAPEST, '1'],
+            'average' => [PartPriceMethod::AVERAGE, '1.5'],
+            'weighted by stock' => [PartPriceMethod::WEIGHTED_BY_STOCK, '1.25'],
+            'user value' => [PartPriceMethod::USER_VALUE, '0.3'],
+            'system default, primary source by default' => [PartPriceMethod::SYSTEM_DEFAULT, '2'],
+        ];
     }
 
-    public function testAnEntryWithNoPriceIsCounted(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('methodProvider')]
+    public function testAMetaPartEntryCostsItsPriceByItsMethodTimesTheQuantity(PartPriceMethod $method, string $unit): void
     {
-        $cost = $this->helper->calculateCost($this->project([[$this->pricedMetaPart(), 1.0], [new Part(), 1.0]]));
+        $meta = $this->pricedMetaPart();
+        $meta->setPriceMethod($method)->setPriceUserValue(BigDecimal::of('0.3'));
 
-        $this->assertSame(1, $cost->unpricedEntries);
-        $this->assertTrue($cost->hasMetaPartEntry);
+        $cost = $this->helper->calculateCost($this->project([[$meta, 2.0]]), 3);
+
+        $this->assertTrue(BigDecimal::of($unit)->multipliedBy(6)->isEqualTo($cost->total), 'Got '.$cost->total);
+        $this->assertTrue(BigDecimal::of($unit)->isEqualTo($this->helper->getEntryUnitCost($this->project([[$meta, 2.0]])->getBomEntries()->first())));
     }
 
-    public function testTheBuildPartOfASubProjectCostsWhatItsBomCosts(): void
+    public function testThePrimarySourceIsTheFirstUsableConnectionWithAPrice(): void
     {
-        $sub = $this->project([[$this->pricedMetaPart(), 1.0]]);
+        $meta = $this->pricedMetaPart(false)->setPriceMethod(PartPriceMethod::PRIMARY_SOURCE);
+
+        $this->assertTrue(BigDecimal::of('1')->isEqualTo($this->helper->calculateCost($this->project([[$meta, 1.0]]))->total));
+    }
+
+    public function testWeightedByStockIsTheAverageWithNoStock(): void
+    {
+        $meta = $this->meta(PartPriceMethod::WEIGHTED_BY_STOCK);
+        $this->connect($meta, $this->price(new Part(), '2'), 1);
+        $this->connect($meta, $this->price(new Part(), '1'), 2);
+
+        $this->assertTrue(BigDecimal::of('1.5')->isEqualTo($this->helper->calculateCost($this->project([[$meta, 1.0]]))->total));
+    }
+
+    public function testTheSystemDefaultFollowsTheSetting(): void
+    {
+        $settings = self::getContainer()->get(MetaPartSettings::class);
+        $before = $settings->defaultPriceMethod;
+        $project = $this->project([[$this->pricedMetaPart(), 1.0]]);
+        try {
+            $settings->defaultPriceMethod = PartPriceMethod::CHEAPEST;
+            $this->assertTrue(BigDecimal::of('1')->isEqualTo($this->helper->calculateCost($project)->total));
+            $settings->defaultPriceMethod = PartPriceMethod::AVERAGE;
+            $this->assertTrue(BigDecimal::of('1.5')->isEqualTo($this->helper->calculateCost($project)->total));
+        } finally {
+            $settings->defaultPriceMethod = $before;
+        }
+    }
+
+    public function testThePriceIsTakenAtTheQuantityOfAllBuilds(): void
+    {
+        $meta = $this->meta(PartPriceMethod::PRIMARY_SOURCE);
+        $this->connect($meta, $this->price(new Part(), '2', null, ['10' => '1']), 1);
+        $project = $this->project([[$meta, 5.0]]);
+
+        $this->assertTrue(BigDecimal::of('10')->isEqualTo($this->helper->calculateCost($project)->total), 'Five at the price of one');
+        $this->assertTrue(BigDecimal::of('10')->isEqualTo($this->helper->calculateCost($project, 2)->total), 'Ten at the bulk price');
+    }
+
+    public function testTheMinimumOrderIsAppliedOnceToEachConnectedPart(): void
+    {
+        $meta = $this->meta(PartPriceMethod::CHEAPEST);
+        //Only sold from 100 pieces at 0.5, and from 1 piece at 1
+        $this->connect($meta, $this->price(new Part(), '0.5', null, [], 100.0), 1);
+        $this->connect($meta, $this->price(new Part(), '1'), 2);
+
+        $cost = $this->helper->calculateCost($this->project([[$meta, 10.0]]));
+
+        $this->assertTrue(BigDecimal::of('5')->isEqualTo($cost->total), 'The price of 100 pieces applies to 10, got '.$cost->total);
+    }
+
+    public function testAUserValueIsTheSameAtAnyQuantity(): void
+    {
+        $meta = $this->pricedMetaPart();
+        $meta->setPriceMethod(PartPriceMethod::USER_VALUE)->setPriceUserValue(BigDecimal::of('0.25'));
+
+        foreach ([1, 1000] as $builds) {
+            $cost = $this->helper->calculateCost($this->project([[$meta, 4.0]]), $builds);
+            $this->assertTrue(BigDecimal::of('0.25')->multipliedBy(4 * $builds)->isEqualTo($cost->total), 'Got '.$cost->total);
+        }
+    }
+
+    public function testAMetaPartWithNoPriceIsCountedAsUnpriced(): void
+    {
+        $userValueWithoutValue = $this->meta(PartPriceMethod::USER_VALUE);
+        $this->connect($userValueWithoutValue, $this->price(new Part(), '1'), 1);
+        $onlyUnusable = $this->meta();
+        $this->connect($onlyUnusable, $this->price(new Part(), '1'), 1, PartConnectionStatus::UNDER_EVALUATION);
+        $project = $this->project([[$this->pricedMetaPart(), 1.0], [new Part(), 1.0], [$userValueWithoutValue, 1.0], [$onlyUnusable, 1.0]]);
+
+        $cost = $this->helper->calculateCost($project);
+
+        $this->assertSame(3, $cost->unpricedEntries, 'A plain part and two meta parts without a price');
+        $this->assertTrue(BigDecimal::of('2')->isEqualTo($cost->total), 'The others are summed, got '.$cost->total);
+        $this->assertNull($this->helper->getEntryUnitCost($project->getBomEntries()->get(2)));
+    }
+
+    public function testASubProjectIsPricedByThePriceMethodsOfItsOwnEntries(): void
+    {
+        $sub = $this->project([[$this->pricedMetaPart()->setPriceMethod(PartPriceMethod::CHEAPEST), 1.0]]);
         $buildPart = new Part();
         $sub->setBuildPart($buildPart);
 
         $cost = $this->helper->calculateCost($this->project([[$buildPart, 2.0]]));
 
-        $this->assertTrue(BigDecimal::of('4')->isEqualTo($cost->total), 'Got '.$cost->total);
+        $this->assertTrue(BigDecimal::of('2')->isEqualTo($cost->total), 'Got '.$cost->total);
     }
 
-    public function testThePriceOfAMetaPartIsInTheRequestedCurrency(): void
+    public function testAMetaPartAsBuildPartOfASubProjectCostsTheSubProject(): void
+    {
+        //Stored data can hold this, though validation refuses it
+        $sub = $this->project([[$this->price(new Part(), '7'), 1.0]]);
+        $metaBuildPart = $this->pricedMetaPart();
+        $sub->setBuildPart($metaBuildPart);
+
+        $cost = $this->helper->calculateCost($this->project([[$metaBuildPart, 2.0]]));
+
+        $this->assertTrue(BigDecimal::of('14')->isEqualTo($cost->total), 'Got '.$cost->total);
+    }
+
+    public function testPricesAreComparedInTheRequestedCurrency(): void
     {
         $eur = (new Currency())->setExchangeRate(BigDecimal::of('2.00000'));
         $usd = (new Currency())->setExchangeRate(BigDecimal::of('1.00000'));
-        $meta = $this->meta();
-        //3 EUR is 6 in the base currency, which is 6 USD
+        $meta = $this->meta(PartPriceMethod::CHEAPEST);
+        //3 EUR is 6 in the base currency, and 5 USD is 5: the higher number is the cheaper part
         $this->connect($meta, $this->price(new Part(), '3', $eur), 1);
         $this->connect($meta, $this->price(new Part(), '5', $usd), 2);
 
         $cost = $this->helper->calculateCost($this->project([[$meta, 1.0]]), 1, $usd);
 
-        $this->assertTrue(BigDecimal::of('6')->isEqualTo($cost->total), 'Got '.$cost->total);
+        $this->assertTrue(BigDecimal::of('5')->isEqualTo($cost->total), 'Got '.$cost->total);
+    }
+
+    public function testAUserValueIsConvertedToTheRequestedCurrency(): void
+    {
+        $eur = (new Currency())->setExchangeRate(BigDecimal::of('2.00000'));
+        $meta = $this->meta(PartPriceMethod::USER_VALUE)->setPriceUserValue(BigDecimal::of('3'))->setPriceUserCurrency($eur);
+
+        $this->assertTrue(BigDecimal::of('6')->isEqualTo($this->helper->calculateCost($this->project([[$meta, 1.0]]))->total));
+        $this->assertTrue(BigDecimal::of('3')->isEqualTo($this->helper->calculateCost($this->project([[$meta, 1.0]]), 1, $eur)->total));
     }
 
     public function testACycleInStoredDataStillEnds(): void

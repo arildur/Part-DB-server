@@ -55,6 +55,12 @@ enum PartKind: string
         return $this === self::META;
     }
 
+    /** Whether the part has a price method and may hold a user value for its price. */
+    public function allowsPriceMethod(): bool
+    {
+        return $this === self::META;
+    }
+
     /** Whether this part can be connected to a part that allows connections. */
     public function canBeConnected(): bool
     {

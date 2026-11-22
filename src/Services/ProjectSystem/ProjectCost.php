@@ -35,7 +35,6 @@ final readonly class ProjectCost
         public ?BigDecimal $total,
         /** The number of part entries with no price, so that the total can be read as incomplete */
         public int $unpricedEntries,
-        public bool $hasMetaPartEntry,
     ) {
     }
 
@@ -49,7 +48,6 @@ final readonly class ProjectCost
         return new self(
             $this->total?->dividedBy($number_of_builds, 10, RoundingMode::HalfUp),
             $this->unpricedEntries,
-            $this->hasMetaPartEntry,
         );
     }
 }

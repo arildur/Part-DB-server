@@ -63,6 +63,9 @@ abstract readonly class AbstractPartWriteInput
      * @param int|null    $partCustomStateId           Pass null to remove the custom state.
      * @param string|null $gtin                        Pass null to clear the GTIN.
      * @param int|null    $masterPictureAttachmentId   Pass null to remove the master picture.
+     * @param string|null $priceMethod                 Only for a meta part: how its price is worked out, "system_default" (follows a setting of Part-DB), "primary_source", "cheapest", "average", "weighted_by_stock" or "user_value". Pass null to reset to "system_default" and clear userPrice.
+     * @param string|null $userPrice                   Only for a meta part: a fixed unit price as a decimal string (e.g. "0.25"), used by the method "user_value" whatever the quantity, and kept whatever the method. Pass null to clear.
+     * @param int|null    $userPriceCurrencyId         Only for a meta part: the database ID of the currency of userPrice. Pass null for the base currency.
      * @param array<int, array<string, mixed>> $partLots               Raw nested items, converted via PartLotInput::fromArray(). Omitting this key leaves the whole collection untouched; an explicit empty array removes every existing lot.
      * @param array<int, array<string, mixed>> $parameters             Raw nested items, converted via ParameterInput::fromArray(). Omitting this key leaves the whole collection untouched; an explicit empty array removes every existing parameter.
      * @param array<int, array<string, mixed>> $orderdetails           Raw nested items, converted via OrderdetailInput::fromArray(). Omitting this key leaves the whole collection untouched; an explicit empty array removes every existing orderdetail.
@@ -95,6 +98,9 @@ abstract readonly class AbstractPartWriteInput
         public ?int $partCustomStateId,
         public ?string $gtin,
         public ?int $masterPictureAttachmentId,
+        public ?string $priceMethod,
+        public ?string $userPrice,
+        public ?int $userPriceCurrencyId,
         public array $partLots,
         public array $parameters,
         public array $orderdetails,
@@ -141,6 +147,9 @@ abstract readonly class AbstractPartWriteInput
      *     partCustomStateId: int|null,
      *     gtin: string|null,
      *     masterPictureAttachmentId: int|null,
+     *     priceMethod: string|null,
+     *     userPrice: string|null,
+     *     userPriceCurrencyId: int|null,
      *     partLots: array<int, array<string, mixed>>,
      *     parameters: array<int, array<string, mixed>>,
      *     orderdetails: array<int, array<string, mixed>>,
@@ -175,6 +184,9 @@ abstract readonly class AbstractPartWriteInput
             'partCustomStateId' => PartInputHelpers::int($data, 'partCustomStateId'),
             'gtin' => PartInputHelpers::str($data, 'gtin'),
             'masterPictureAttachmentId' => PartInputHelpers::int($data, 'masterPictureAttachmentId'),
+            'priceMethod' => PartInputHelpers::str($data, 'priceMethod'),
+            'userPrice' => PartInputHelpers::str($data, 'userPrice'),
+            'userPriceCurrencyId' => PartInputHelpers::int($data, 'userPriceCurrencyId'),
             'partLots' => PartInputHelpers::arr($data, 'partLots'),
             'parameters' => PartInputHelpers::arr($data, 'parameters'),
             'orderdetails' => PartInputHelpers::arr($data, 'orderdetails'),

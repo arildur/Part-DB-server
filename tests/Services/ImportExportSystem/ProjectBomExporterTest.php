@@ -12,6 +12,7 @@ use App\Entity\Parts\Supplier;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\Category;
@@ -419,7 +420,7 @@ final class ProjectBomExporterTest extends WebTestCase
     /**
      * @return array<string, string|int|float|null>
      */
-    private function metaRow(?string $firstPrice, ?string $secondPrice): array
+    private function metaRow(PartPriceMethod $method, ?string $firstPrice, ?string $secondPrice): array
     {
         $first = new StorageLocation();
         $first->setName('Shelf one');
@@ -434,6 +435,7 @@ final class ProjectBomExporterTest extends WebTestCase
         $meta = new Part();
         $meta->setName('Meta in BOM');
         $meta->setKind(PartKind::META);
+        $meta->setPriceMethod($method);
         $meta->setCategory($this->getDefaultCategory());
         $this->entityManager->persist($meta);
 
@@ -472,23 +474,39 @@ final class ProjectBomExporterTest extends WebTestCase
 
     public function testAMetaPartEntryShowsItsTotalAndTheLocationsOfItsActiveConnections(): void
     {
-        $row = $this->metaRow('1.00', '2.00');
+        $row = $this->metaRow(PartPriceMethod::SYSTEM_DEFAULT, '1.00', '2.00');
 
         $this->assertSame('7', $row['instockAmount']);
         $this->assertSame('Shelf one, Shelf two', $row['storelocation']);
     }
 
-    public function testAMetaPartEntryCostsItsFirstPrice(): void
+    public function testAMetaPartEntryByTheSystemDefaultCostsItsPrimarySource(): void
     {
-        $row = $this->metaRow('2.00', '1.00');
+        $row = $this->metaRow(PartPriceMethod::SYSTEM_DEFAULT, '1.00', '2.00');
 
-        $this->assertSame($this->money(2), $row['price']);
-        $this->assertSame($this->money(4), $row['ext_price']);
+        $this->assertSame($this->money(1), $row['price']);
+        $this->assertSame($this->money(2), $row['ext_price']);
+    }
+
+    public function testAMetaPartEntryCostsItsLowestPriceByTheMethodCheapest(): void
+    {
+        $row = $this->metaRow(PartPriceMethod::CHEAPEST, '2.00', '1.00');
+
+        $this->assertSame($this->money(1), $row['price']);
+        $this->assertSame($this->money(2), $row['ext_price']);
+    }
+
+    public function testAMetaPartEntryCostsOneValueByTheMethodAverage(): void
+    {
+        $row = $this->metaRow(PartPriceMethod::AVERAGE, '1.00', '2.00');
+
+        $this->assertSame($this->money(1.5), $row['price']);
+        $this->assertSame($this->money(3), $row['ext_price']);
     }
 
     public function testAMetaPartEntryWithNoPriceIsEmpty(): void
     {
-        $row = $this->metaRow(null, null);
+        $row = $this->metaRow(PartPriceMethod::CHEAPEST, null, null);
 
         $this->assertSame('', $row['price']);
         $this->assertSame('', $row['ext_price']);

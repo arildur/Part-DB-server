@@ -724,7 +724,8 @@ final class PartController extends AbstractController
                 'merge_old_name' => $merge_infos['tname_before'] ?? null,
                 'merge_other' => $merge_infos['other_part'] ?? null,
                 'bulk_job' => $merge_infos['bulk_job'] ?? null,
-                'jobId' => $request->query->get('jobId')
+                'jobId' => $request->query->get('jobId'),
+                'pricedetail_helper' => $this->pricedetailHelper,
             ]
         );
     }

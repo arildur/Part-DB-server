@@ -32,12 +32,16 @@ use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartAssociation;
 use App\Entity\Parts\PartCustomState;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\Supplier;
+use App\Entity\PriceInformations\Currency;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Services\EntityMergers\Mergers\PartMerger;
+use Brick\Math\BigDecimal;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
@@ -496,5 +500,35 @@ final class PartMergerTest extends KernelTestCase
         //A stock is only meaningful together with its age, so the time has to travel with the value
         $this->assertSame(500.0, $merged->getOrderdetails()->first()->getAvailableAmount());
         $this->assertEquals($retrieved_at, $merged->getOrderdetails()->first()->getAvailableAmountUpdatedAt());
+    }
+
+    private function meta(PartPriceMethod $method, ?string $userValue = null, ?Currency $currency = null): Part
+    {
+        return (new Part())->setKind(PartKind::META)->setPriceMethod($method)
+            ->setPriceUserValue($userValue === null ? null : BigDecimal::of($userValue))->setPriceUserCurrency($currency);
+    }
+
+    public function testMergeKeepsThePriceMethodOfTheTargetUnlessItIsSystemDefault(): void
+    {
+        $merged = $this->merger->merge($this->meta(PartPriceMethod::SYSTEM_DEFAULT), $this->meta(PartPriceMethod::AVERAGE));
+        $this->assertSame(PartPriceMethod::AVERAGE, $merged->getPriceMethod());
+
+        $merged = $this->merger->merge($this->meta(PartPriceMethod::CHEAPEST), $this->meta(PartPriceMethod::AVERAGE));
+        $this->assertSame(PartPriceMethod::CHEAPEST, $merged->getPriceMethod());
+
+        $merged = $this->merger->merge($this->meta(PartPriceMethod::CHEAPEST), $this->meta(PartPriceMethod::SYSTEM_DEFAULT));
+        $this->assertSame(PartPriceMethod::CHEAPEST, $merged->getPriceMethod());
+    }
+
+    public function testMergeTakesTheUserValueOfTheOtherOnlyWhenTheTargetHasNone(): void
+    {
+        $currency = new Currency();
+        $merged = $this->merger->merge($this->meta(PartPriceMethod::CHEAPEST), $this->meta(PartPriceMethod::USER_VALUE, '0.3', $currency));
+        $this->assertSame('0.30000', (string) $merged->getPriceUserValue());
+        $this->assertSame($currency, $merged->getPriceUserCurrency(), 'The currency comes with the value');
+
+        $merged = $this->merger->merge($this->meta(PartPriceMethod::USER_VALUE, '0.1'), $this->meta(PartPriceMethod::USER_VALUE, '0.3', $currency));
+        $this->assertSame('0.10000', (string) $merged->getPriceUserValue());
+        $this->assertNull($merged->getPriceUserCurrency(), 'The base currency of the target stays with its value');
     }
 }

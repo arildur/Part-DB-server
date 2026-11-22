@@ -29,6 +29,7 @@ use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
 use App\Entity\UserSystem\User;
@@ -263,6 +264,38 @@ class CreatePartProcessorTest extends WebTestCase
         self::assertSame($connected, $connection->getConnectedPart());
         self::assertSame(1, $connection->getPosition());
         self::assertSame('First choice', $connection->getNote());
+    }
+
+    public function testAMetaPartIsCreatedWithItsPriceMethodAndUserPrice(): void
+    {
+        $result = $this->processor->process($this->buildInput([
+            'name' => 'Priced meta in one call',
+            'categoryId' => $this->category()->getID(),
+            'kind' => 'meta',
+            'priceMethod' => 'average',
+            'userPrice' => '0.30',
+        ]), $this->getOperation());
+
+        self::assertInstanceOf(Part::class, $result);
+        $this->em->clear();
+        $stored = $this->em->find(Part::class, $result->getID());
+        self::assertSame(PartPriceMethod::AVERAGE, $stored->getPriceMethod());
+        self::assertTrue($stored->getPriceUserValue()?->isEqualTo('0.3'));
+
+        $result = $this->processor->process($this->buildInput(['name' => 'Meta with no method', 'categoryId' => $this->category()->getID(), 'kind' => 'meta']), $this->getOperation());
+        self::assertSame(PartPriceMethod::SYSTEM_DEFAULT, $result->getPriceMethod(), 'A new meta part follows the system default');
+    }
+
+    public function testRefusedPriceInputsOnCreateAreToolErrorsAndSaveNothing(): void
+    {
+        foreach ([[['kind' => 'meta', 'priceMethod' => 'range'], 'range'], [['kind' => 'meta', 'userPrice' => 'abc'], 'abc'],
+            [['priceMethod' => 'cheapest'], 'priceMethod'], [['userPrice' => '0.10'], 'priceUserValue']] as $i => [$input, $message]) {
+            $name = 'Refused price '.$i;
+            $result = $this->processor->process($this->buildInput(['name' => $name, 'categoryId' => $this->category()->getID()] + $input), $this->getOperation());
+
+            $this->assertErrorResult($result, $message);
+            self::assertNull($this->em->getRepository(Part::class)->findOneBy(['name' => $name]));
+        }
     }
 
     public function testRejectsExistingLotIdOnCreate(): void

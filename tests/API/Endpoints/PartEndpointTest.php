@@ -291,4 +291,159 @@ final class PartEndpointTest extends CrudEndpointTestCase
         self::assertResponseIsSuccessful();
         self::assertJsonContains(['master_picture_attachment' => ['@id' => $attachmentIri]]);
     }
+
+    private function patch(string $iri, array $data): \Symfony\Contracts\HttpClient\ResponseInterface
+    {
+        return self::createAuthenticatedClient()->request('PATCH', $iri, [
+            'json' => $data,
+            'headers' => ['Content-Type' => 'application/merge-patch+json'],
+        ]);
+    }
+
+    /**
+     * @return array{0: string, 1: string} The IRI of a meta part with two usable connected parts priced 0.10 and 0.20,
+     *                                      and the IRI of the price detail of the first
+     */
+    private function pricedMetaPart(): array
+    {
+        $meta = $this->_testPostItem(['name' => 'Priced meta', 'kind' => 'meta', 'category' => '/api/categories/1'])->toArray()['@id'];
+        $firstPrice = null;
+        foreach (['0.20', '0.10'] as $position => $price) {
+            $part = $this->_testPostItem(['name' => 'Priced '.$price, 'category' => '/api/categories/1'])->toArray()['@id'];
+            $orderdetail = self::createAuthenticatedClient()->request('POST', '/api/orderdetails', ['json' => ['supplier' => '/api/suppliers/1', 'part' => $part]])->toArray()['@id'];
+            $pricedetail = self::createAuthenticatedClient()->request('POST', '/api/pricedetails', ['json' => ['price' => $price, 'orderdetail' => $orderdetail, 'min_discount_quantity' => 1]])->toArray()['@id'];
+            $firstPrice ??= $pricedetail;
+            self::createAuthenticatedClient()->request('POST', '/api/part_connections', ['json' => ['meta_part' => $meta, 'connected_part' => $part, 'position' => $position + 1]]);
+            self::assertResponseStatusCodeSame(201);
+        }
+
+        return [$meta, $firstPrice];
+    }
+
+    public function testAMetaPartStartsWithTheSystemDefaultAndTakesEachMethod(): void
+    {
+        $meta = $this->_testPostItem(['name' => 'Method meta', 'kind' => 'meta', 'category' => '/api/categories/1'])->toArray();
+        $this->assertSame('system_default', $meta['price_method']);
+        $this->assertNull($meta['user_price']);
+        $this->assertNull($meta['user_price_currency']);
+
+        $this->patch($meta['@id'], ['user_price' => '1']);
+        foreach (['primary_source', 'cheapest', 'average', 'weighted_by_stock', 'user_value', 'system_default'] as $method) {
+            $this->patch($meta['@id'], ['price_method' => $method]);
+            self::assertResponseIsSuccessful();
+            $this->assertSame($method, self::createAuthenticatedClient()->request('GET', $meta['@id'])->toArray()['price_method']);
+        }
+    }
+
+    public function testAnUnknownPriceMethodIsRefusedAndChangesNothing(): void
+    {
+        $meta = $this->_testPostItem(['name' => 'Method meta', 'kind' => 'meta', 'category' => '/api/categories/1', 'price_method' => 'cheapest'])->toArray()['@id'];
+
+        $this->patch($meta, ['price_method' => 'range']);
+        self::assertResponseStatusCodeSame(400);
+        $this->assertSame('cheapest', self::createAuthenticatedClient()->request('GET', $meta)->toArray()['price_method']);
+    }
+
+    public function testTheUserPriceIsKeptAsWrittenWhateverTheMethodAndTheConnectedPrices(): void
+    {
+        [$meta, $firstPrice] = $this->pricedMetaPart();
+        $currency = '/api/currencies/1';
+
+        $this->patch($meta, ['price_method' => 'cheapest', 'user_price' => '0.25', 'user_price_currency' => $currency]);
+        self::assertResponseIsSuccessful();
+        $this->patch($firstPrice, ['price' => '0.05']);
+        self::assertResponseIsSuccessful();
+
+        $data = self::createAuthenticatedClient()->request('GET', $meta)->toArray();
+        $this->assertSame('0.25', $this->trimmed($data['user_price']));
+        $this->assertSame($currency, $data['user_price_currency']['@id']);
+        $this->assertSame('0.05', $this->trimmed($data['price']), 'The calculated price follows the connected part');
+
+        $this->patch($meta, ['user_price' => null, 'user_price_currency' => null]);
+        $data = self::createAuthenticatedClient()->request('GET', $meta)->toArray();
+        $this->assertNull($data['user_price']);
+        $this->assertNull($data['user_price_currency']);
+    }
+
+    private function trimmed(?string $decimal): ?string
+    {
+        return $decimal === null ? null : rtrim(rtrim($decimal, '0'), '.');
+    }
+
+    public function testTheSinglePartResponseHoldsTheReadOnlyPrice(): void
+    {
+        [$meta] = $this->pricedMetaPart();
+
+        $this->patch($meta, ['price_method' => 'cheapest']);
+        $this->assertSame('0.1', $this->trimmed(self::createAuthenticatedClient()->request('GET', $meta)->toArray()['price']));
+        $this->patch($meta, ['price_method' => 'primary_source']);
+        $this->assertSame('0.2', $this->trimmed(self::createAuthenticatedClient()->request('GET', $meta)->toArray()['price']));
+
+        $this->patch($meta, ['price_method' => 'user_value', 'user_price' => '0.30']);
+        $this->assertSame('0.3', $this->trimmed(self::createAuthenticatedClient()->request('GET', $meta)->toArray()['price']));
+
+        //A price sent by the client is ignored
+        $this->patch($meta, ['price' => '1.00']);
+        self::assertResponseIsSuccessful();
+        $this->assertSame('0.3', $this->trimmed(self::createAuthenticatedClient()->request('GET', $meta)->toArray()['price']));
+
+        //A list works out no price for each row
+        $list = self::createAuthenticatedClient()->request('GET', '/api/parts?kind=meta')->toArray()['hydra:member'];
+        $this->assertNotSame([], $list);
+        foreach ($list as $row) {
+            $this->assertArrayNotHasKey('price', $row);
+        }
+    }
+
+    public function testUserValueWithNoUserPriceGivesNoPrice(): void
+    {
+        [$meta] = $this->pricedMetaPart();
+        //The entity refuses the method with no value, so the value goes in SQL
+        $this->patch($meta, ['price_method' => 'user_value', 'user_price' => '0.30']);
+        $id = (int) basename($meta);
+        $em = self::getContainer()->get(\Doctrine\ORM\EntityManagerInterface::class);
+        $em->getConnection()->executeStatement('UPDATE '.$em->getConnection()->getDatabasePlatform()->quoteSingleIdentifier('parts').' SET price_user_value = NULL WHERE id = ?', [$id]);
+
+        $this->assertNull(self::createAuthenticatedClient()->request('GET', $meta)->toArray()['price']);
+    }
+
+    public function testAUserValueMethodWithNoUserPriceIsRefused(): void
+    {
+        $meta = $this->_testPostItem(['name' => 'Method meta', 'kind' => 'meta', 'category' => '/api/categories/1'])->toArray()['@id'];
+
+        $response = $this->patch($meta, ['price_method' => 'user_value']);
+        self::assertResponseStatusCodeSame(422);
+        $this->assertSame(['user_price'], array_column($response->toArray(false)['violations'], 'propertyPath'));
+    }
+
+    public function testAManufacturingPartRefusesThePriceFields(): void
+    {
+        $part = $this->_testPostItem(['name' => 'No price method', 'category' => '/api/categories/1'])->toArray();
+        $this->assertNull($part['price_method'], 'A manufacturing part has no price method');
+
+        foreach ([['user_price', '0.10'], ['price_method', 'cheapest'], ['price_method', 'system_default']] as [$field, $value]) {
+            $response = $this->patch($part['@id'], [$field => $value]);
+            self::assertResponseStatusCodeSame(422);
+            $this->assertContains($field, array_column($response->toArray(false)['violations'], 'propertyPath'));
+        }
+
+        $data = self::createAuthenticatedClient()->request('GET', $part['@id'])->toArray();
+        $this->assertNull($data['price_method']);
+        $this->assertNull($data['user_price']);
+        $this->assertArrayNotHasKey('price', $data);
+
+        self::createAuthenticatedClient()->request('POST', $this->getBasePath(), ['json' => ['name' => 'No price method', 'category' => '/api/categories/1', 'price_method' => 'average']]);
+        self::assertResponseStatusCodeSame(422);
+    }
+
+    public function testTheApiDocumentationNamesThePriceFields(): void
+    {
+        $documentation = self::createAuthenticatedClient()->request('GET', '/api/docs.jsonopenapi', ['headers' => ['Accept' => 'application/vnd.openapi+json']])->toArray();
+
+        $read = array_filter($documentation['components']['schemas'], static fn (array $schema): bool => isset($schema['properties']['price_method']));
+        $this->assertNotSame([], $read);
+        $withPrice = array_filter($documentation['components']['schemas'], static fn (array $schema): bool => isset($schema['properties']['price'], $schema['properties']['price_method']));
+        $this->assertNotSame([], $withPrice, 'The read-only price is documented');
+        $this->assertTrue(reset($withPrice)['properties']['price']['readOnly'] ?? false);
+    }
 }

@@ -144,6 +144,13 @@ class PartNormalizer implements NormalizerInterface, DenormalizerInterface, Norm
             $data['ipn'] = null;
         }
 
+        //A blank cell of a price field means none, as a CSV file has no null
+        foreach (['price_method', 'user_price', 'user_price_currency'] as $field) {
+            if (isset($data[$field]) && $data[$field] === '') {
+                $data[$field] = null;
+            }
+        }
+
         $this->normalizeKind($data);
 
         //Fill empty needs_review and needs_review_comment fields with false

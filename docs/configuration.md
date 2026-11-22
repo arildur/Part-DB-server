@@ -147,6 +147,8 @@ bundled with Part-DB. Set `DATABASE_MYSQL_SSL_VERIFY_CERT` if you want to accept
   unique increments for parts within a category hierarchy, ensuring consistency and uniqueness in IPN generation.
 * `IPN_USE_DUPLICATE_DESCRIPTION`: When enabled, the part’s description is used to find existing parts with the same 
   description and to determine the next available IPN by incrementing their numeric suffix for the suggestion list.
+* `META_PART_DEFAULT_PRICE_METHOD`: The price method of every meta part whose own method is system default:
+  `primary_source` (the default), `cheapest`, `average`, `weighted_by_stock` or `user_value`.
 * `KEYBINDINGS_SPECIAL_CHARS_ENABLED`: Set this to 0 to disable the special character keybindings (Alt + key) for inserting special characters. This can be useful if
   they conflict with your keyboard layout or system shortcuts.
 

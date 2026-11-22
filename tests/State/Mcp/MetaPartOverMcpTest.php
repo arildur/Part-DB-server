@@ -28,6 +28,11 @@ use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
+use App\Entity\Parts\PartPriceMethod;
+use App\Entity\Parts\Supplier;
+use App\Entity\PriceInformations\Orderdetail;
+use App\Entity\PriceInformations\Pricedetail;
+use Brick\Math\BigDecimal;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Settings\AISettings\McpSettings;
@@ -183,12 +188,51 @@ final class MetaPartOverMcpTest extends WebTestCase
             self::assertSame('Preferred', $part['part_connections'][0]['note'], $tool);
             self::assertSame(['id', 'name', 'kind', 'total_instock'], array_keys($part['part_connections'][0]['connected_part']), $tool);
             $this->assertMatchesSchema($part, $tools[$tool]['outputSchema'], $tool);
+            //Null values are left out of a tool result, so a meta part with no price shows only its method
+            self::assertSame('system_default', $part['price_method'], $tool);
+            self::assertArrayNotHasKey('user_price', $part, $tool);
         }
 
         $created = $this->call('create_part', ['name' => 'Created meta', 'kind' => 'meta', 'categoryId' => $meta->getCategory()->getID()]);
         self::assertFalse($created['isError'] ?? false, json_encode($created));
         self::assertSame('meta', $created['structuredContent']['kind']);
         self::assertSame([], $created['structuredContent']['part_connections']);
+    }
+
+    public function testSinglePartToolsShowThePriceFieldsAndTheSearchNoPrice(): void
+    {
+        $meta = $this->makeMetaPart();
+        $meta->setPriceMethod(PartPriceMethod::CHEAPEST)->setPriceUserValue(BigDecimal::of('0.5'));
+        $orderdetail = new Orderdetail();
+        $orderdetail->setSupplier($this->em->getRepository(Supplier::class)->findOneBy([]));
+        $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity(1.0)->setPrice(BigDecimal::of('0.12')));
+        $meta->getPartConnections()->first()->getConnectedPart()->addOrderdetail($orderdetail);
+        $this->em->flush();
+
+        $this->connect();
+        $tools = array_column($this->send(['id' => $this->nextId++, 'method' => 'tools/list'])['result']['tools'], null, 'name');
+        foreach (['get_part_details', 'create_part', 'update_part'] as $tool) {
+            foreach (['priceMethod', 'userPrice', 'userPriceCurrencyId'] as $input) {
+                if ($tool !== 'get_part_details') {
+                    self::assertArrayHasKey($input, $tools[$tool]['inputSchema']['properties'], $tool);
+                }
+            }
+            self::assertStringContainsString('price', $tools[$tool]['description'], $tool);
+        }
+
+        $part = $this->call('get_part_details', ['id' => $meta->getID()])['structuredContent'];
+        self::assertSame('cheapest', $part['price_method']);
+        self::assertTrue(BigDecimal::of($part['user_price'])->isEqualTo('0.5'));
+        self::assertTrue(BigDecimal::of($part['price'])->isEqualTo('0.12'), 'The price is worked out by the method, got '.$part['price']);
+        $this->assertMatchesSchema($part, $tools['get_part_details']['outputSchema'], 'get_part_details');
+
+        $updated = $this->call('update_part', ['id' => $meta->getID(), 'priceMethod' => 'user_value'])['structuredContent'];
+        self::assertSame('user_value', $updated['price_method']);
+        self::assertTrue(BigDecimal::of($updated['price'])->isEqualTo('0.5'));
+
+        $search = $this->call('search_parts', ['keyword' => 'Meta over MCP']);
+        self::assertFalse($search['isError'] ?? false, json_encode($search));
+        self::assertStringNotContainsString('"price":', str_replace(' ', '', json_encode($search, JSON_THROW_ON_ERROR)));
     }
 
     public function testSearchToolsShowTheKind(): void

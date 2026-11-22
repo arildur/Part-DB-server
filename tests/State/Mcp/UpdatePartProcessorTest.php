@@ -31,8 +31,10 @@ use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\UserSystem\User;
+use App\Entity\PriceInformations\Currency;
 use App\Mcp\DTO\UpdatePartInput;
 use App\Settings\AISettings\McpSettings;
 use App\State\Mcp\UpdatePartProcessor;
@@ -443,6 +445,92 @@ class UpdatePartProcessorTest extends WebTestCase
 
         $this->em->clear();
         self::assertCount(0, $this->em->find(Part::class, $meta->getID())->getPartConnections());
+    }
+
+    public function testThePriceMethodAndUserPriceOfAMetaPartAreStoredAndNullResetsThem(): void
+    {
+        $meta = $this->makePart('Priced meta', PartKind::META);
+        $currency = $this->em->getRepository(Currency::class)->findOneBy([]) ?? new Currency();
+        if ($currency->getID() === null) {
+            $currency->setName('MCP currency');
+            $currency->setIsoCode('NOK');
+            $this->em->persist($currency);
+            $this->em->flush();
+        }
+
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'priceMethod' => 'average', 'userPrice' => '0.30',
+            'userPriceCurrencyId' => $currency->getID()]), $this->getOperation());
+        self::assertInstanceOf(Part::class, $result);
+        $this->em->clear();
+        $stored = $this->em->find(Part::class, $meta->getID());
+        self::assertSame(PartPriceMethod::AVERAGE, $stored->getPriceMethod());
+        self::assertTrue($stored->getPriceUserValue()?->isEqualTo('0.3'));
+        self::assertSame($currency->getID(), $stored->getPriceUserCurrency()?->getID());
+
+        //Leaving the keys out changes nothing
+        $this->processor->process($this->buildInput(['id' => $meta->getID(), 'name' => 'Renamed meta']), $this->getOperation());
+        $this->em->clear();
+        self::assertSame(PartPriceMethod::AVERAGE, $this->em->find(Part::class, $meta->getID())->getPriceMethod());
+
+        $this->processor->process($this->buildInput(['id' => $meta->getID(), 'priceMethod' => null, 'userPriceCurrencyId' => null]), $this->getOperation());
+        $this->em->clear();
+        $stored = $this->em->find(Part::class, $meta->getID());
+        self::assertSame(PartPriceMethod::SYSTEM_DEFAULT, $stored->getPriceMethod());
+        self::assertNull($stored->getPriceUserValue(), 'Null resets the method and clears the user price');
+        self::assertNull($stored->getPriceUserCurrency());
+    }
+
+    public static function refusedPriceInputs(): iterable
+    {
+        yield 'an unknown method' => [['priceMethod' => 'range'], '"range" is not a valid price method'];
+        yield 'a user price that is not a decimal' => [['userPrice' => 'abc'], '"abc" is not a valid price'];
+    }
+
+    #[DataProvider('refusedPriceInputs')]
+    public function testRefusedPriceInputsAreToolErrorsAndSaveNothing(array $input, string $message): void
+    {
+        $meta = $this->makePart('Refusing meta', PartKind::META);
+        $meta->setPriceMethod(PartPriceMethod::CHEAPEST);
+        $this->em->flush();
+
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'name' => 'Not saved'] + $input), $this->getOperation());
+
+        $this->assertErrorResult($result, $message);
+        $this->em->clear();
+        $stored = $this->em->find(Part::class, $meta->getID());
+        self::assertSame(PartPriceMethod::CHEAPEST, $stored->getPriceMethod());
+        self::assertSame('Refusing meta', $stored->getName());
+    }
+
+    public function testTheUnknownMethodErrorNamesTheValidOnes(): void
+    {
+        $meta = $this->makePart('Refusing meta', PartKind::META);
+
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'priceMethod' => 'range']), $this->getOperation());
+
+        foreach (PartPriceMethod::cases() as $method) {
+            $this->assertErrorResult($result, '"'.$method->value.'"');
+        }
+    }
+
+    public static function priceFieldsOfAManufacturingPart(): iterable
+    {
+        yield 'a price method' => [['priceMethod' => 'cheapest'], 'priceMethod'];
+        yield 'the system default price method' => [['priceMethod' => 'system_default'], 'priceMethod'];
+        yield 'a user price' => [['userPrice' => '0.10'], 'priceUserValue'];
+    }
+
+    #[DataProvider('priceFieldsOfAManufacturingPart')]
+    public function testAManufacturingPartRefusesThePriceFields(array $input, string $field): void
+    {
+        $result = $this->processor->process($this->buildInput(['id' => $this->part->getID()] + $input), $this->getOperation());
+
+        $this->assertErrorResult($result, $field);
+        $this->em->clear();
+        $stored = $this->em->find(Part::class, $this->part->getID());
+        self::assertNull($stored->getPriceUserValue());
+        $table = $this->em->getConnection()->getDatabasePlatform()->quoteSingleIdentifier('parts');
+        self::assertSame('system_default', $this->em->getConnection()->fetchOne("SELECT price_method FROM $table WHERE id = ?", [$this->part->getID()]));
     }
 
     public function testDeniesAccessForUserWithoutEditPermission(): void

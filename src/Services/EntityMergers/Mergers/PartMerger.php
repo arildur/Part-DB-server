@@ -25,6 +25,7 @@ namespace App\Services\EntityMergers\Mergers;
 
 use App\Entity\Parts\InfoProviderReference;
 use App\Entity\Parts\ManufacturingStatus;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartAssociation;
 use App\Entity\Parts\PartConnection;
@@ -101,6 +102,15 @@ class PartMerger implements EntityMergerInterface
 
             return $t;
         }, $target, $other, 'manufacturing_status');
+
+        //The price method of the target stays, unless it only follows the system default
+        $this->useCallback(static fn (?PartPriceMethod $t, ?PartPriceMethod $o): ?PartPriceMethod
+            => $t === PartPriceMethod::SYSTEM_DEFAULT ? $o : $t, $target, $other, 'priceMethod');
+        //A user value and its currency belong together, so the other's are only taken when the target has no value
+        if ($target->getPriceUserValue() === null && $other->getPriceUserValue() !== null) {
+            $target->setPriceUserValue($other->getPriceUserValue());
+            $target->setPriceUserCurrency($other->getPriceUserCurrency());
+        }
 
         //Merge provider reference
         $this->useCallback(function (InfoProviderReference $t, InfoProviderReference $o): InfoProviderReference {

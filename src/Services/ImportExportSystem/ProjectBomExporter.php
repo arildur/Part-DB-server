@@ -333,7 +333,7 @@ final readonly class ProjectBomExporter
     }
 
     /**
-     * What a meta part costs comes from its connected parts: the first one with a price. It may have none.
+     * What a meta part costs is the price of the meta part by its price method. It may have none, which leaves the cell empty.
      */
     private function formatMetaPartCost(
         ProjectBOMEntry $entry,

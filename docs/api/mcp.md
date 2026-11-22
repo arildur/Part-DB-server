@@ -273,7 +273,8 @@ API token/OAuth2 grant (see [Permissions](#permissions) above) and the correspon
 * **get_part_details** – Get full details about a specific part by its database ID, including stock, prices,
   order details, attachments, parameters and EDA info. For a meta part, `total_instock` includes its usable (approved or use up) connected
   parts while `own_instock` counts its own lots only, and `part_connections` lists the connected parts, which hold the
-  supplier data.
+  supplier data. A meta part also shows `price_method`, `user_price` and `price`, its unit price for one unit by that
+  method in the base currency, which is worked out and can not be set.
 * **get_part_preview_image** – Get the preview/thumbnail picture for a part by its database ID. Uses the same
   fallback logic as the part list in the web UI: the part's own master picture if set, otherwise the picture of its
   footprint, and otherwise the picture of the project it is built from. Returns a short text message instead of an
@@ -283,20 +284,25 @@ API token/OAuth2 grant (see [Permissions](#permissions) above) and the correspon
   info provider it was sourced from, ...) is optional. Attachment file uploads are not supported here - use the
   web UI or REST API to attach files to a part after creating it. `kind` is `manufacturing` (the default) or `meta`,
   and is fixed once the part exists. A meta part can not hold manufacturer data or orderdetails, and can take its
-  connected parts directly in `connectedParts`.
+  connected parts directly in `connectedParts`, and its price method in `priceMethod` (`system_default`, the default,
+  which follows a server setting, `primary_source`, `cheapest`, `average`, `weighted_by_stock` or `user_value`), with
+  a fixed unit price in `userPrice` (a decimal string) and `userPriceCurrencyId`.
 * **update_part** *(write)* – Update an existing part by its database ID. Only the fields you actually provide are
   changed; anything you omit - including nested collections like stock lots or parameters - is left untouched.
   Stock amounts can only be set here when adding a brand-new lot; to change an *existing* lot's amount, use one of
   the stock-adjustment tools below instead. `providerKey`/`providerId` link or unlink the part to an external info
   provider (e.g. Digikey) - set both to link it, both to null to unlink; they must be changed together. On a meta
-  part, `connectedParts` adds, changes or removes connections; trying to change `kind` is an error.
+  part, `connectedParts` adds, changes or removes connections, and `priceMethod`, `userPrice` and
+  `userPriceCurrencyId` change its price method; `priceMethod: null` resets it to `system_default` and clears the
+  user price. An unknown method, a user price that is not a decimal, or a price field on a manufacturing part (any
+  `priceMethod` other than null, `system_default` too) is an error. Trying to change `kind` is an error.
 * **delete_part** *(write)* – Permanently delete a part by its database ID, including its stock lots, parameters,
   orderdetails, associations and connections. The parts connected to a deleted meta part stay. This cannot be undone
   and there is no confirmation step.
 * **withdraw_part_stock** / **add_part_stock** / **stocktake_part_lot** *(write)* – Adjust the stock of a part lot
   by its database ID: remove or add a given amount, or set a lot's stock to a known actual amount (a
   stocktake/inventory count). These mirror the same withdraw/add/stocktake actions available in the web UI,
-  including their logging and lot-ownership checks.
+  including their logging and lot-ownership checks. Like `get_part_details`, they return the part, with the price fields of a meta part.
 
 ### Master data
 

@@ -28,11 +28,13 @@ use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\Supplier;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\PriceInformations\Pricedetail;
 use App\Entity\UserSystem\User;
 use App\Form\Part\PartBaseType;
+use App\Settings\MiscSettings\MetaPartSettings;
 use Brick\Math\BigDecimal;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -146,11 +148,18 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('800', $body);
     }
 
-    public function testThePriceRangeLeavesOutADoNotUseConnection(): void
+    public function testTheSummaryShowsThePriceByTheMethodAndNamesIt(): void
     {
-        $body = $this->info($this->exampleMetaPart())->filter('body')->text();
+        $meta = $this->exampleMetaPart();
+        $line = $this->info($meta)->filter('.fa-money-bill-alt')->ancestors()->first()->ancestors()->first()->text();
+        $this->assertMatchesRegularExpression('/2\.00.*\(System default: Primary source\)/s', $line, 'The first usable connection by priority');
+        $this->assertStringNotContainsString('0.50', $line, 'Not the do-not-use connection');
 
-        $this->assertMatchesRegularExpression('/1\.00.*-.*2\.00/s', $body);
+        $meta->setPriceMethod(PartPriceMethod::CHEAPEST);
+        $this->em->flush();
+        $line = $this->info($meta)->filter('.fa-money-bill-alt')->ancestors()->first()->ancestors()->first()->text();
+        $this->assertMatchesRegularExpression('/1\.00.*\(Cheapest\)/s', $line);
+        $this->assertStringNotContainsString('2.00', $line, 'One value, not a range');
     }
 
     public function testAMetaPartWithNoPricedPartShowsNoPriceLine(): void
@@ -471,6 +480,125 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertSame(0, $crawler->filter('a[href="#part_connections"]')->count());
         $this->assertSame(1, $crawler->filter('a[href="#manufacturer"]')->count());
         $this->assertSame(1, $crawler->filter('[name="part_base[gtin]"]')->count());
+    }
+
+    public function testTheFormsOfAMetaPartOfferTheSixPriceMethodsWithSystemDefaultChosen(): void
+    {
+        foreach (['/en/part/new?kind=meta', '/en/part/'.$this->exampleMetaPart()->getID().'/edit'] as $url) {
+            $crawler = $this->client->request('GET', $url);
+            $this->assertResponseIsSuccessful();
+            $options = $crawler->filter('select[name="part_base[priceMethod]"] option');
+
+            $this->assertSame(['system_default', 'primary_source', 'cheapest', 'average', 'weighted_by_stock', 'user_value'], $options->each(static fn (Crawler $o) => $o->attr('value')), $url);
+            $this->assertSame('system_default', $crawler->filter('select[name="part_base[priceMethod]"] option[selected]')->attr('value'), $url);
+            $this->assertSame('System default (currently: Primary source)', trim($options->first()->text()), $url);
+            $this->assertSame(1, $crawler->filter('[name="part_base[priceUserValue]"]')->count(), $url);
+            $this->assertSame(1, $crawler->filter('[name="part_base[priceUserCurrency]"]')->count(), $url);
+        }
+
+        //The label follows the setting
+        $this->client->disableReboot();
+        $settings = self::getContainer()->get(MetaPartSettings::class);
+        $settings->defaultPriceMethod = PartPriceMethod::AVERAGE;
+        try {
+            $crawler = $this->client->request('GET', '/en/part/new?kind=meta');
+            $this->assertSame('System default (currently: Average)', trim($crawler->filter('select[name="part_base[priceMethod]"] option')->first()->text()));
+        } finally {
+            $settings->defaultPriceMethod = PartPriceMethod::PRIMARY_SOURCE;
+        }
+    }
+
+    public function testAManufacturingPartFormHasNoPriceFields(): void
+    {
+        $crawler = $this->client->request('GET', '/en/part/1/edit');
+
+        foreach (['priceMethod', 'priceUserValue', 'priceUserCurrency'] as $field) {
+            $this->assertSame(0, $crawler->filter('[name="part_base['.$field.']"]')->count(), $field);
+        }
+        $this->assertSame(0, $crawler->filter('#meta_part_price')->count());
+    }
+
+    public function testTheUserValueIsShownOnlyForTheMethodUserValueAndTheCalculatedPriceIsText(): void
+    {
+        $meta = $this->exampleMetaPart();
+        $url = '/en/part/'.$meta->getID().'/edit';
+
+        //A user value with the method user value
+        $values = $this->editValues($meta);
+        $values['part_base']['priceMethod'] = 'user_value';
+        $values['part_base']['priceUserValue'] = '0.75';
+        $this->client->request('POST', $url, $values);
+        $this->assertResponseRedirects();
+        $crawler = $this->client->request('GET', $url);
+        $this->assertStringNotContainsString('d-none', (string) $crawler->filter('[data-pages--meta-part-price-target="userValue"]')->attr('class'));
+        $this->assertStringContainsString('d-none', (string) $crawler->filter('[data-pages--meta-part-price-target="calculated"]')->attr('class'));
+
+        //Saved with a calculated method, the user value is kept but hidden, and the price is text
+        $values = $this->editValues($this->em->find(Part::class, $meta->getID()));
+        $this->assertSame('0.75000', $values['part_base']['priceUserValue'], 'The hidden field still holds the value');
+        $values['part_base']['priceMethod'] = 'cheapest';
+        $this->client->request('POST', $url, $values);
+        $this->assertResponseRedirects();
+
+        $this->em->clear();
+        $stored = $this->em->find(Part::class, $meta->getID());
+        $this->assertSame(PartPriceMethod::CHEAPEST, $stored->getPriceMethod());
+        $this->assertTrue($stored->getPriceUserValue()?->isEqualTo('0.75'), 'The user value is kept');
+
+        $crawler = $this->client->request('GET', $url);
+        $this->assertStringContainsString('d-none', (string) $crawler->filter('[data-pages--meta-part-price-target="userValue"]')->attr('class'));
+        $calculated = $crawler->filter('#meta_part_calculated_price');
+        $this->assertStringContainsString('1.00', $calculated->text());
+        $this->assertSame(0, $calculated->filter('input, select, textarea')->count(), 'Never an input');
+    }
+
+    public function testANewMetaPartSaysThePriceIsWorkedOutAfterSaving(): void
+    {
+        $crawler = $this->client->request('GET', '/en/part/new?kind=meta');
+
+        $this->assertStringContainsString('Worked out after saving', $crawler->filter('#meta_part_calculated_price')->text());
+    }
+
+    public function testAMetaPartWithNoUsablePriceSaysSoOnItsEditPage(): void
+    {
+        $meta = $this->part('Meta without a price', PartKind::META);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/en/part/'.$meta->getID().'/edit');
+
+        $this->assertStringContainsString('No price', $crawler->filter('#meta_part_calculated_price')->text());
+    }
+
+    public function testTheMethodUserValueWithNoValueShowsAViolation(): void
+    {
+        $meta = $this->part('Meta needing a value', PartKind::META);
+        $this->em->flush();
+        $values = $this->editValues($meta);
+        $values['part_base']['priceMethod'] = 'user_value';
+        $values['part_base']['priceUserValue'] = '';
+
+        $crawler = $this->client->request('POST', '/en/part/'.$meta->getID().'/edit', $values);
+
+        $this->assertResponseStatusCodeSame(422);
+        $this->assertStringContainsString('needs a user value', $crawler->filter('#meta_part_price')->text());
+    }
+
+    public function testPriceDataIsDiscardedWhenTheSubmittedKindIsManufacturing(): void
+    {
+        $crawler = $this->client->request('GET', '/en/part/new');
+        $values = $crawler->filter('form[name="part_base"]')->form()->getPhpValues();
+        $values['part_base']['name'] = 'Submitted manufacturing with a price';
+        $values['part_base']['kind'] = 'manufacturing';
+        $values['part_base']['category'] = '1';
+        $values['part_base']['priceMethod'] = 'cheapest';
+        $values['part_base']['priceUserValue'] = '0.5';
+        $values['part_base']['save'] = '';
+        $this->client->request('POST', '/en/part/new', $values);
+        $this->assertResponseRedirects();
+
+        $part = $this->em->getRepository(Part::class)->findOneBy(['name' => 'Submitted manufacturing with a price']);
+        $this->assertNull($part->getPriceMethod());
+        $this->assertNull($part->getPriceUserValue());
     }
 
     private function editValues(Part $meta): array

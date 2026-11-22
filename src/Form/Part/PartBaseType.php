@@ -34,6 +34,7 @@ use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Form\FormEvent;
 use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartPriceMethod;
 use App\Entity\Parts\InfoProviderReference;
 use App\Entity\Parts\PartCustomState;
 use App\Entity\PriceInformations\Orderdetail;
@@ -41,6 +42,8 @@ use App\Form\AttachmentFormType;
 use App\Form\InfoProviderSystem\InfoProviderReferenceType;
 use App\Form\ParameterType;
 use App\Form\Part\EDA\EDAPartInfoType;
+use App\Form\Type\BigDecimalNumberType;
+use App\Form\Type\CurrencyEntityType;
 use App\Form\Type\MasterPictureAttachmentType;
 use App\Form\Type\RichTextEditorType;
 use App\Form\Type\SIUnitType;
@@ -49,6 +52,7 @@ use App\Services\InfoProviderSystem\DTOs\PartDetailDTO;
 use App\Services\LogSystem\EventCommentNeededHelper;
 use App\Services\LogSystem\EventCommentType;
 use App\Settings\MiscSettings\IpnSuggestSettings;
+use App\Settings\MiscSettings\MetaPartSettings;
 use App\Settings\SystemSettings\LocalizationSettings;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Form\AbstractType;
@@ -62,6 +66,7 @@ use Symfony\Component\Form\Extension\Core\Type\UrlType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Component\Translation\TranslatableMessage;
 
 class PartBaseType extends AbstractType
 {
@@ -74,6 +79,7 @@ class PartBaseType extends AbstractType
         protected EventCommentNeededHelper $event_comment_needed_helper,
         protected IpnSuggestSettings $ipnSuggestSettings,
         private readonly LocalizationSettings $localizationSettings,
+        private readonly MetaPartSettings $metaPartSettings,
     ) {
     }
 
@@ -362,6 +368,36 @@ class PartBaseType extends AbstractType
             ]);
         }
 
+        //The price of a meta part: its method, and the user value with its currency, which are kept whatever the method
+        if ($chooseKind || $kind->allowsPriceMethod()) {
+            $defaultMethod = $this->metaPartSettings->getDefaultPriceMethod();
+            $builder->add('priceMethod', EnumType::class, [
+                'class' => PartPriceMethod::class,
+                'label' => 'part.price_method.label',
+                'empty_data' => PartPriceMethod::SYSTEM_DEFAULT->value,
+                'choice_label' => static fn (PartPriceMethod $method): TranslatableMessage => $method === PartPriceMethod::SYSTEM_DEFAULT
+                    ? new TranslatableMessage('part.price_method.system_default_currently', ['%method%' => $defaultMethod])
+                    : new TranslatableMessage($method->getTranslationKey()),
+                'attr' => ['data-pages--meta-part-price-target' => 'method'],
+            ]);
+            $builder->add('priceUserValue', BigDecimalNumberType::class, [
+                'label' => 'part.price_method.user_value',
+                'required' => false,
+                'scale' => 5,
+                'html5' => true,
+                'attr' => [
+                    'min' => 0,
+                    'step' => 'any',
+                ],
+            ]);
+            $builder->add('priceUserCurrency', CurrencyEntityType::class, [
+                'label' => 'part.price_method.user_currency',
+                'required' => false,
+                'short' => true,
+                'allow_add' => $this->security->isGranted('@currencies.create'),
+            ]);
+        }
+
         //EDA info
         $builder->add('eda_info', EDAPartInfoType::class, [
             'label' => false,
@@ -425,6 +461,9 @@ class PartBaseType extends AbstractType
         if (!$kind->allowsSuppliers()) {
             $fields[] = 'orderdetails';
         }
+        if (!$kind->allowsPriceMethod()) {
+            array_push($fields, 'priceMethod', 'priceUserValue', 'priceUserCurrency');
+        }
 
         return $fields;
     }
@@ -457,6 +496,11 @@ class PartBaseType extends AbstractType
             foreach ($part->getOrderdetails() as $orderdetail) {
                 $part->removeOrderdetail($orderdetail);
             }
+        }
+        if (!$kind->allowsPriceMethod()) {
+            $part->setPriceMethod(null);
+            $part->setPriceUserValue(null);
+            $part->setPriceUserCurrency(null);
         }
 
         return $removed;

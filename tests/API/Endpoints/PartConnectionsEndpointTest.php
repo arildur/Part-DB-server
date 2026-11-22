@@ -65,6 +65,41 @@ final class PartConnectionsEndpointTest extends CrudEndpointTestCase
         $this->_testDeleteItem($id);
     }
 
+    public function testEachStatusIsTakenAndTheOldValueIsRefused(): void
+    {
+        $meta = $this->createPart('meta', 'Meta');
+        $response = $this->_testPostItem(['meta_part' => $meta, 'connected_part' => $this->createPart('manufacturing', 'Part')]);
+        $id = $this->getIdOfCreatedElement($response);
+
+        foreach (['use_up', 'under_evaluation', 'do_not_use', 'approved'] as $status) {
+            $this->_testPatchItem($id, ['status' => $status]);
+            $this->assertSame($status, $this->_testGetItem($id)->toArray()['status']);
+        }
+
+        self::createAuthenticatedClient()->request('PATCH', $this->getItemPath($id), [
+            'json' => ['status' => 'unknown'],
+            'headers' => ['Content-Type' => 'application/merge-patch+json'],
+        ]);
+        self::assertResponseStatusCodeSame(400);
+        $this->assertSame('approved', $this->_testGetItem($id)->toArray()['status'], 'The refused write changed nothing');
+    }
+
+    public function testTheStatusFilterComparesTheStoredValue(): void
+    {
+        $meta = $this->createPart('meta', 'Meta');
+        $this->_testPostItem(['meta_part' => $meta, 'connected_part' => $this->createPart('manufacturing', 'A'), 'status' => 'use_up']);
+        $this->_testPostItem(['meta_part' => $meta, 'connected_part' => $this->createPart('manufacturing', 'B'), 'status' => 'use_up']);
+        $this->_testPostItem(['meta_part' => $meta, 'connected_part' => $this->createPart('manufacturing', 'C')]);
+
+        $members = fn (string $query): array => self::createAuthenticatedClient()
+            ->request('GET', $this->getBasePath().'?'.$query)->toArray()['hydra:member'];
+
+        $useUp = $members('status=use_up');
+        $this->assertCount(2, $useUp);
+        $this->assertSame(['use_up', 'use_up'], array_column($useUp, 'status'));
+        $this->assertSame([], $members('status=unknown'), 'An unknown value is no error, it matches nothing');
+    }
+
     public function testASecondConnectionWithNoPositionComesLast(): void
     {
         $meta = $this->createPart('meta', 'Meta');

@@ -16154,10 +16154,28 @@ Buerklin-API Authentication server:
         <target>Approved</target>
       </segment>
     </unit>
+    <unit id="EuNQkk2" name="part_connection.status.under_evaluation">
+      <segment state="translated">
+        <source>part_connection.status.under_evaluation</source>
+        <target>Under evaluation</target>
+      </segment>
+    </unit>
+    <unit id="1t7qzwU" name="part_connection.status.use_up">
+      <segment state="translated">
+        <source>part_connection.status.use_up</source>
+        <target>Use up</target>
+      </segment>
+    </unit>
     <unit id="AaoaDRk" name="part_connection.status.do_not_use">
       <segment state="translated">
         <source>part_connection.status.do_not_use</source>
         <target>Do not use</target>
+      </segment>
+    </unit>
+    <unit id="3UH7muC" name="part_connection.not_usable">
+      <segment state="translated">
+        <source>part_connection.not_usable</source>
+        <target>Not usable</target>
       </segment>
     </unit>
     <unit id="0GLwWiI" name="part_connection.edit.connected_part">

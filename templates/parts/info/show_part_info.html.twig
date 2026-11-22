@@ -141,11 +141,16 @@
             <div {{ _self.pane_attributes('suppliers', tabs, combined) }}>
                 {{ _self.pane_heading('suppliers', tabs, combined) }}
                 {% if part.kind.allowsConnections %}
+                    {% set heading_shown = false %}
                     {% for connection in connections %}
                         {% if connection.connectedPart.orderdetails is not empty %}
-                            <h6 class="mt-3">
+                            {% if not connection.usable and not heading_shown %}
+                                <h5 class="mt-4">{% trans %}part_connection.not_usable{% endtrans %}</h5>
+                                {% set heading_shown = true %}
+                            {% endif %}
+                            <h6 class="mt-3{% if not connection.usable %} text-muted{% endif %}">
                                 {{ helper.part_icon_link(connection.connectedPart) }}
-                                {% if not connection.usable %}<span class="badge text-bg-danger">{{ connection.status.translationKey|trans }}</span>{% endif %}
+                                {{ helper.connection_status_badge(connection) }}
                             </h6>
                             {% include "parts/info/_order_infos.html.twig" with {part: connection.connectedPart} %}
                         {% endif %}

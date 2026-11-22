@@ -296,7 +296,7 @@ final class ProjectBuildRequestTest extends TestCase
         $request->setWithdrawAmount($first, $out_of_reach, 1);
     }
 
-    public function testMetaPartEntryListsAnExpiredLotButProposesTheGoodOne(): void
+    public function testMetaPartEntryProposesAnExpiredLotAsADirectEntryDoes(): void
     {
         $meta = (new Part())->setKind(PartKind::META);
         $expired = $this->lotWithId(1, 50, '2000-01-01');
@@ -315,8 +315,8 @@ final class ProjectBuildRequestTest extends TestCase
         $request = new ProjectBuildRequest($project, 1);
 
         $this->assertSame([$expired, $good], $request->getPartLotsForBOMEntry($entry));
-        $this->assertSame(0.0, $request->getWithdrawAmount($entry, $expired));
-        $this->assertSame(10.0, $request->getWithdrawAmount($entry, $good));
+        $this->assertSame(10.0, $request->getWithdrawAmount($entry, $expired));
+        $this->assertSame(0.0, $request->getWithdrawAmount($entry, $good));
     }
 
     public function testNothingIsProposedFromALotTheUserMayNotWithdrawFrom(): void

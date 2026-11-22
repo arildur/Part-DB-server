@@ -226,12 +226,12 @@ class PartMerger implements EntityMergerInterface
     }
 
     /**
-     * A pair can only be connected once. The safer status wins, as someone marked it do not use for a reason, and the
+     * A pair can only be connected once. The stricter status wins, as someone restricted it for a reason, and the
      * higher priority stays, so that a primary source does not drop with no notice.
      */
     private function combineConnections(PartConnection $target, PartConnection $other): void
     {
-        if (!$other->isUsable()) {
+        if ($other->getStatus()->restrictionRank() > $target->getStatus()->restrictionRank()) {
             $target->setStatus($other->getStatus());
         }
         $target->setPosition(min($target->getPosition() ?? PHP_INT_MAX, $other->getPosition() ?? PHP_INT_MAX));

@@ -180,9 +180,12 @@ class PartConnection extends AbstractDBElement implements TimeStampableInterface
         return $this;
     }
 
+    /**
+     * Whether the connected part's stock counts for the meta part and may be taken by a build.
+     */
     public function isUsable(): bool
     {
-        return $this->status === PartConnectionStatus::APPROVED;
+        return $this->status->isUsable();
     }
 
     public function getNote(): string

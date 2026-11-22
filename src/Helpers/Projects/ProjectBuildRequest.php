@@ -106,7 +106,7 @@ final class ProjectBuildRequest
                 $id = $lot->getID() ?? throw new \RuntimeException("Part lot needs to have an ID!");
                 $this->withdraw_amounts[$entry_id][$id] = 0.0;
                 $this->lots_by_id[$id] = $lot;
-                if ($this->canBeProposed($bom_entry, $lot)) {
+                if ($this->canBeProposed($lot)) {
                     $proposable[] = $id;
                     $stock[$id] = max(0.0, $lot->getAmount());
                 }
@@ -122,16 +122,11 @@ final class ProjectBuildRequest
     }
 
     /**
-     * A direct entry is still proposed its expired lots, as it always was. For a meta part the proposal keeps to what the
-     * stock total counts, while the form lists the expired lots for the user to choose.
+     * Every lot in reach is proposed, expired ones too, as upstream always did, except those the user may not withdraw from.
      */
-    private function canBeProposed(ProjectBOMEntry $entry, PartLot $lot): bool
+    private function canBeProposed(PartLot $lot): bool
     {
-        if ($this->may_withdraw instanceof \Closure && !($this->may_withdraw)($lot)) {
-            return false;
-        }
-
-        return !$entry->getPart()?->getKind()->allowsConnections() || $lot->isExpired() !== true;
+        return !$this->may_withdraw instanceof \Closure || ($this->may_withdraw)($lot);
     }
 
     /**

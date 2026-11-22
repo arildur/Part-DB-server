@@ -161,7 +161,7 @@ The connections themselves are a resource of their own at `/api/part_connections
 |---|---|
 | `meta_part`, `connected_part` | The meta part and the manufacturing part it is connected to, as IRIs. Set when the connection is created and fixed afterwards. |
 | `position` | The order of priority, lowest first. When it is omitted, the connection is put last. |
-| `status` | `approved` (the default) or `do_not_use`. The stock of a part connected as `do_not_use` is not counted for the meta part. |
+| `status` | `approved` (the default), `under_evaluation`, `use_up` or `do_not_use`. Only the stock of a part connected as `approved` or `use_up` is counted for the meta part. Any other value is answered with 400. |
 | `note` | A free text. |
 
 Connections can be filtered by `meta_part`, `connected_part` and `status`, and ordered by `position`. Creating, changing

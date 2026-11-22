@@ -315,8 +315,9 @@ class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInte
 
     /**
      * Returns the lots this entry may draw on, in the order they are taken from: the part's own, then for a meta part those
-     * of its usable connected parts by position. Within a part lots go by amount, so that leftovers are used up first.
-     * Lots of unknown amount can not be planned with, so they are left out.
+     * of its usable connected parts, the ones whose stock is used first (use up) before the others, each by priority.
+     * Within a part lots go by amount, so that leftovers are used up first. Lots of unknown amount can not be planned
+     * with, so they are left out.
      * @return list<PartLot>
      */
     public function getLotsInReach(): array
@@ -332,8 +333,23 @@ class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInte
             }
         }
 
+        $usedFirst = [];
+        if ($this->part->getKind()->allowsConnections()) {
+            foreach ($this->part->getOrderedConnections() as $connection) {
+                if ($connection->isUsable() && $connection->getStatus()->isUsedFirst() && $connection->getConnectedPart() instanceof Part) {
+                    $usedFirst[spl_object_id($connection->getConnectedPart())] = true;
+                }
+            }
+        }
+        $own = spl_object_id($this->part);
+        $rank = static fn (int $part): int => $part === $own ? 0 : (isset($usedFirst[$part]) ? 1 : 2);
+        //The sort is stable, so each group keeps the order of priority
+        $parts = array_keys($byPart);
+        usort($parts, static fn (int $a, int $b): int => $rank($a) <=> $rank($b));
+
         $lots = [];
-        foreach ($byPart as $partLots) {
+        foreach ($parts as $part) {
+            $partLots = $byPart[$part];
             usort($partLots, static fn (PartLot $a, PartLot $b): int =>
                 [$a->getAmount(), $a->getID() ?? PHP_INT_MAX] <=> [$b->getAmount(), $b->getID() ?? PHP_INT_MAX]);
             $lots = array_merge($lots, $partLots);

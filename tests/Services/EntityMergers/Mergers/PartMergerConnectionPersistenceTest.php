@@ -27,6 +27,7 @@ use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartKind;
 use App\Services\EntityMergers\Mergers\PartMerger;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
@@ -144,5 +145,42 @@ final class PartMergerConnectionPersistenceTest extends KernelTestCase
         $this->assertSame(PartConnectionStatus::DO_NOT_USE, $byName['Shared']->getStatus());
         $this->assertSame(1, $byName['Shared']->getPosition());
         $this->assertSame(2, $byName['Only other']->getPosition());
+    }
+
+    /** @return iterable<string, array{PartConnectionStatus, PartConnectionStatus, PartConnectionStatus}> */
+    public static function statusPairs(): iterable
+    {
+        yield 'use up over approved' => [PartConnectionStatus::APPROVED, PartConnectionStatus::USE_UP, PartConnectionStatus::USE_UP];
+        yield 'use up kept against approved' => [PartConnectionStatus::USE_UP, PartConnectionStatus::APPROVED, PartConnectionStatus::USE_UP];
+        yield 'under evaluation over use up' => [PartConnectionStatus::USE_UP, PartConnectionStatus::UNDER_EVALUATION, PartConnectionStatus::UNDER_EVALUATION];
+        yield 'under evaluation kept against use up' => [PartConnectionStatus::UNDER_EVALUATION, PartConnectionStatus::USE_UP, PartConnectionStatus::UNDER_EVALUATION];
+        yield 'do not use over under evaluation' => [PartConnectionStatus::UNDER_EVALUATION, PartConnectionStatus::DO_NOT_USE, PartConnectionStatus::DO_NOT_USE];
+        yield 'do not use kept against under evaluation' => [PartConnectionStatus::DO_NOT_USE, PartConnectionStatus::UNDER_EVALUATION, PartConnectionStatus::DO_NOT_USE];
+    }
+
+    #[DataProvider('statusPairs')]
+    public function testTheStricterStatusIsKept(PartConnectionStatus $targetStatus, PartConnectionStatus $otherStatus, PartConnectionStatus $expected): void
+    {
+        //Two manufacturing parts under the same meta part
+        $meta = $this->part(PartKind::META, 'Meta');
+        $a = $this->part(PartKind::MANUFACTURING, 'A');
+        $b = $this->part(PartKind::MANUFACTURING, 'B');
+        $this->connect($meta, $a, 1, $targetStatus);
+        $this->connect($meta, $b, 2, $otherStatus);
+        //Two meta parts over the same manufacturing part
+        $target = $this->part(PartKind::META, 'Target');
+        $other = $this->part(PartKind::META, 'Other');
+        $shared = $this->part(PartKind::MANUFACTURING, 'Shared');
+        $this->connect($target, $shared, 1, $targetStatus);
+        $this->connect($other, $shared, 1, $otherStatus);
+        $this->em->flush();
+        $ids = array_map(static fn (Part $part): ?int => $part->getID(), [$a, $b, $target, $other]);
+        $this->em->clear();
+
+        $merged = $this->mergeAndReload($this->em->find(Part::class, $ids[0]), $this->em->find(Part::class, $ids[1]));
+        $this->assertSame($expected, $merged->getConnectionsAsPart()->first()->getStatus(), 'Manufacturing parts');
+
+        $merged = $this->mergeAndReload($this->em->find(Part::class, $ids[2]), $this->em->find(Part::class, $ids[3]));
+        $this->assertSame($expected, $merged->getPartConnections()->first()->getStatus(), 'Meta parts');
     }
 }

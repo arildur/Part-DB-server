@@ -124,7 +124,7 @@ class PricedetailHelper
 
     /**
      * Returns the lowest and highest average price over the usable connected parts of a meta part, or null if none has a
-     * price. Do-not-use connections never count.
+     * price. Connections that are not usable never count.
      * @return array{BigDecimal, BigDecimal}|null
      */
     public function getMetaPartPriceRange(Part $part, ?Currency $currency = null): ?array

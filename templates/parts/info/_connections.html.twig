@@ -1,13 +1,5 @@
 {% import "helper.twig" as helper %}
 
-{% macro status_badge(connection) %}
-    {% if connection.usable %}
-        <span class="badge text-bg-success">{{ connection.status.translationKey|trans }}</span>
-    {% else %}
-        <span class="badge text-bg-danger"><i class="fas fa-ban fa-fw"></i> {{ connection.status.translationKey|trans }}</span>
-    {% endif %}
-{% endmacro %}
-
 {% if part.kind.allowsConnections %}
     {% if connections is empty %}
         <div class="alert alert-info mt-2">{% trans %}part_connection.none_yet{% endtrans %}</div>
@@ -26,9 +18,15 @@
             </tr>
             </thead>
             <tbody>
+            {# Usable connections come first, so the heading goes before the first that is not #}
+            {% set heading_shown = false %}
             {% for connection in connections %}
                 {% set connected = connection.connectedPart %}
-                <tr {% if not connection.usable %}class="table-danger"{% endif %}>
+                {% if not connection.usable and not heading_shown %}
+                    <tr class="table-light"><th colspan="7">{% trans %}part_connection.not_usable{% endtrans %}</th></tr>
+                    {% set heading_shown = true %}
+                {% endif %}
+                <tr class="{{ helper.connection_status_row_class(connection) }}">
                     <td>{{ connection.position }}</td>
                     <td>{{ connected.manufacturer ? connected.manufacturer.name : '' }}</td>
                     <td>
@@ -38,7 +36,7 @@
                             <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs'|trans({'%part%': connection.name}) }}</span>
                         {% endif %}
                     </td>
-                    <td>{{ _self.status_badge(connection) }}</td>
+                    <td>{{ helper.connection_status_badge(connection) }}</td>
                     <td>{{ connected.amountSum | format_amount(connected.partUnit) }}</td>
                     <td>{{ connected.orderdetails | length }}</td>
                     <td>{{ connection.note }}</td>
@@ -63,10 +61,10 @@
             </thead>
             <tbody>
             {% for connection in part.connectionsAsPart %}
-                <tr {% if not connection.usable %}class="table-danger"{% endif %}>
+                <tr class="{{ helper.connection_status_row_class(connection) }}">
                     <td>{{ helper.part_icon_link(connection.metaPart) }}</td>
                     <td>{{ connection.position }}</td>
-                    <td>{{ _self.status_badge(connection) }}</td>
+                    <td>{{ helper.connection_status_badge(connection) }}</td>
                     <td>{{ connection.note }}</td>
                     <td>
                         {% for entry in connection.metaPart.projectBomEntries %}

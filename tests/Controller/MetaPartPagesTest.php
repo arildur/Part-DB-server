@@ -166,7 +166,7 @@ final class MetaPartPagesTest extends WebTestCase
         $crawler = $this->info($this->exampleMetaPart());
 
         $this->assertContains('#connections', $this->tabIds($crawler));
-        $rows = $crawler->filter('#connections tbody tr')->each(static fn (Crawler $r) => $r->text());
+        $rows = $crawler->filter('#connections tbody tr:not(.table-light)')->each(static fn (Crawler $r) => $r->text());
         $this->assertCount(3, $rows);
         $this->assertStringContainsString('First source', $rows[0]);
         $this->assertStringContainsString('Preferred', $rows[0]);
@@ -174,6 +174,73 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('Retired source', $rows[2]);
         $this->assertStringContainsString('Do not use', $rows[2]);
         $this->assertStringContainsString('Bad batch', $rows[2]);
+    }
+
+    /** A meta part with one connection of each status, listed by position in the reverse order of usability. */
+    private function metaPartWithEachStatus(): Part
+    {
+        $meta = $this->part('Status meta', PartKind::META);
+        $statuses = [PartConnectionStatus::DO_NOT_USE, PartConnectionStatus::UNDER_EVALUATION, PartConnectionStatus::USE_UP, PartConnectionStatus::APPROVED];
+        foreach ($statuses as $i => $status) {
+            $part = $this->part('Part '.$status->value);
+            $this->lot($part, 10);
+            $this->price($part, '1');
+            $this->connect($meta, $part, $i + 1, $status);
+        }
+        $this->em->flush();
+        $id = $meta->getID();
+        $this->em->clear();
+        $this->client->loginUser($this->em->getRepository(User::class)->findOneBy(['name' => 'admin']));
+
+        return $this->em->find(Part::class, $id);
+    }
+
+    public function testTheConnectionsTabShowsEachStatusWithItsBadgeAndTheUnusableUnderAHeading(): void
+    {
+        $crawler = $this->info($this->metaPartWithEachStatus());
+
+        $rows = $crawler->filter('#connections tbody tr');
+        $this->assertCount(5, $rows);
+        $this->assertStringContainsString('Part use_up', $rows->eq(0)->text());
+        $this->assertStringContainsString('Part approved', $rows->eq(1)->text());
+        $this->assertStringContainsString('table-light', (string) $rows->eq(2)->attr('class'));
+        $this->assertStringContainsString('Not usable', $rows->eq(2)->text());
+        $this->assertStringContainsString('Part do_not_use', $rows->eq(3)->text());
+        $this->assertStringContainsString('table-danger', (string) $rows->eq(3)->attr('class'));
+        $this->assertStringContainsString('Part under_evaluation', $rows->eq(4)->text());
+        $this->assertStringContainsString('text-muted', (string) $rows->eq(4)->attr('class'));
+
+        $expected = [
+            'use_up' => ['text-bg-warning', 'fa-hourglass-end', 'Use up'],
+            'approved' => ['text-bg-success', 'fa-check', 'Approved'],
+            'do_not_use' => ['text-bg-danger', 'fa-ban', 'Do not use'],
+            'under_evaluation' => ['text-bg-info', 'fa-flask', 'Under evaluation'],
+        ];
+        foreach ($expected as $value => [$class, $icon, $label]) {
+            $badge = $crawler->filter('#connections [data-connection-status="'.$value.'"]');
+            $this->assertCount(1, $badge, $value);
+            $this->assertStringContainsString($class, (string) $badge->attr('class'));
+            $this->assertCount(1, $badge->filter('i.'.$icon));
+            $this->assertSame($label, trim($badge->text()));
+        }
+    }
+
+    public function testTheStockAndShoppingTabsListTheUnusableLastUnderAHeading(): void
+    {
+        $crawler = $this->info($this->metaPartWithEachStatus());
+
+        $order = ['Part use_up', 'Part approved', 'Not usable', 'Part do_not_use', 'Part under_evaluation'];
+        foreach (['#part_lots', '#suppliers'] as $pane) {
+            $text = $crawler->filter($pane)->text();
+            $positions = array_map(static fn (string $needle): int|false => strpos($text, $needle), $order);
+            $this->assertNotContains(false, $positions, $pane);
+            $sorted = $positions;
+            sort($sorted);
+            $this->assertSame($sorted, $positions, $pane.' lists the blocks in the order of usability and priority');
+            $this->assertCount(4, $crawler->filter($pane.' [data-connection-status]'), $pane.' marks every block with its status');
+        }
+        //Only usable connections count: 10 each for approved and use up
+        $this->assertStringContainsString('20', $crawler->filter('#part_lots tfoot')->text());
     }
 
     public function testTheStockTabListsEverythingWithATotalAndNoForeignButtons(): void

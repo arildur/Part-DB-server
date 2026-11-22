@@ -77,7 +77,7 @@ trait ConnectionTrait
     }
 
     /**
-     * Returns the connections of this meta part in their order: usable before do not use, then by position, then by
+     * Returns the connections of this meta part in their order: usable before not usable, then by position, then by
      * ID, so that the order is the same on every request.
      * @return list<PartConnection>
      */
@@ -108,7 +108,7 @@ trait ConnectionTrait
                 'properties' => [
                     'id' => ['type' => 'integer'],
                     'position' => ['type' => 'integer'],
-                    'status' => ['type' => 'string', 'enum' => ['approved', 'do_not_use']],
+                    'status' => ['type' => 'string', 'enum' => ['approved', 'under_evaluation', 'use_up', 'do_not_use']],
                     'note' => ['type' => 'string'],
                     'connected_part' => [
                         'type' => 'object',

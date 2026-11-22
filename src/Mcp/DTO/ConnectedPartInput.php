@@ -25,7 +25,8 @@ namespace App\Mcp\DTO;
 /**
  * A single connection from a meta part to a manufacturing part, nested inside create_part/update_part as
  * `connectedParts`. A present `id` targets an existing connection of the same part, whose connected part can not
- * change; an absent `id` creates a new one, which needs `connectedPartId`. `status` is "approved" or "do_not_use".
+ * change; an absent `id` creates a new one, which needs `connectedPartId`. `status` is
+ * "approved" (the default), "under_evaluation", "use_up" or "do_not_use".
  */
 readonly class ConnectedPartInput
 {

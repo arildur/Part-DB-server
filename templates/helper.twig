@@ -76,6 +76,27 @@
     {% endif %}
 {% endmacro %}
 
+{# The badge of a connection status. A status missing from the map still shows its label, on a neutral badge. #}
+{% macro connection_status_badge(connection) %}
+    {% set styles = {
+        approved: {class: 'text-bg-success', icon: 'fa-check'},
+        use_up: {class: 'text-bg-warning', icon: 'fa-hourglass-end'},
+        under_evaluation: {class: 'text-bg-info', icon: 'fa-flask'},
+        do_not_use: {class: 'text-bg-danger', icon: 'fa-ban'},
+    } %}
+    {% set style = styles[connection.status.value] ?? {class: 'text-bg-secondary', icon: null} %}
+    <span class="badge {{ style.class }}" data-connection-status="{{ connection.status.value }}">{% if style.icon %}<i class="fas {{ style.icon }} fa-fw"></i> {% endif %}{{ connection.status.translationKey|trans }}</span>
+{% endmacro %}
+
+{# The class of a table row listing a connection: muted or marked when the connection is not usable #}
+{% macro connection_status_row_class(connection) %}
+    {%- if connection.status.value == 'do_not_use' -%}
+        table-danger
+    {%- elseif not connection.usable -%}
+        text-muted
+    {%- endif -%}
+{% endmacro %}
+
 {% macro structural_entity_link(entity, link_type = "list_parts") %}
     {# @var entity \App\Entity\Base\StructuralDBElement #}
     {% if entity %}

@@ -318,6 +318,50 @@ class UpdatePartProcessorTest extends WebTestCase
         self::assertCount(0, $this->em->find(Part::class, $meta->getID())->getPartConnections());
     }
 
+    public function testANewItemIsApprovedAndEachStatusIsStored(): void
+    {
+        $meta = $this->makePart('Meta', PartKind::META);
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [
+            ['connectedPartId' => $this->makePart('Connected')->getID()],
+        ]]), $this->getOperation());
+        self::assertInstanceOf(Part::class, $result);
+        $connection = $result->getPartConnections()->first();
+        self::assertSame(PartConnectionStatus::APPROVED, $connection->getStatus());
+        $id = $connection->getID();
+
+        foreach (PartConnectionStatus::cases() as $status) {
+            $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [
+                ['id' => $id, 'status' => $status->value],
+            ]]), $this->getOperation());
+            $this->em->clear();
+            self::assertSame($status, $this->em->find(Part::class, $meta->getID())->getPartConnections()->first()->getStatus());
+        }
+    }
+
+    public function testAnUnknownStatusIsAToolErrorNamingTheValidOnesAndChangesNothing(): void
+    {
+        $meta = $this->makePart('Meta', PartKind::META);
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [
+            ['connectedPartId' => $this->makePart('Connected')->getID(), 'status' => 'use_up', 'position' => 2],
+        ]]), $this->getOperation());
+        $id = $result->getPartConnections()->first()->getID();
+
+        $result = $this->processor->process($this->buildInput(['id' => $meta->getID(), 'connectedParts' => [
+            ['id' => $id, 'status' => 'unknown', 'position' => 7],
+        ]]), $this->getOperation());
+
+        self::assertInstanceOf(CallToolResult::class, $result);
+        self::assertTrue($result->isError);
+        self::assertInstanceOf(TextContent::class, $result->content[0]);
+        foreach (['"unknown"', '"approved"', '"under_evaluation"', '"use_up"', '"do_not_use"'] as $value) {
+            self::assertStringContainsString($value, $result->content[0]->text);
+        }
+        $this->em->clear();
+        $connection = $this->em->find(Part::class, $meta->getID())->getPartConnections()->first();
+        self::assertSame(PartConnectionStatus::USE_UP, $connection->getStatus());
+        self::assertSame(2, $connection->getPosition());
+    }
+
     /**
      * @return iterable<string, array{callable(int, int): list<array<string, mixed>>, string}>
      */

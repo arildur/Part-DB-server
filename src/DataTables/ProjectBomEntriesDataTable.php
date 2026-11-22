@@ -243,7 +243,7 @@ final readonly class ProjectBomEntriesDataTable implements DataTableTypeInterfac
                 'visible' => false,
                 'data' => function (ProjectBOMEntry $context) {
                     if ($context->getPart() !== null) {
-                        return $this->partDataTableHelper->renderStorageLocations($context->getPart());
+                        return $this->partDataTableHelper->renderStorageLocations($context->getPart(), usableOnly: true);
                     }
 
                     return '';

@@ -91,24 +91,43 @@ final class PartKindInListsTest extends KernelTestCase
         $this->assertStringContainsString('5', $helper->renderAmount($meta));
     }
 
-    public function testTheLocationColumnShowsOwnAndActiveConnectedLocations(): void
+    public function testTheLocationColumnShowsEveryConnectedLocationWithTheUnusableLastAndMarked(): void
     {
         $helper = self::getContainer()->get(PartDataTableHelper::class);
         $meta = $this->part('Meta', PartKind::META);
         $this->lotIn($meta, 'Common bin');
-        $active = $this->part('Active');
-        $this->lotIn($active, 'Active box');
         $retired = $this->part('Retired');
         $this->lotIn($retired, 'Retired box');
-        $meta->addPartConnection((new PartConnection())->setConnectedPart($active));
-        $meta->addPartConnection((new PartConnection())->setConnectedPart($retired)->setStatus(PartConnectionStatus::DO_NOT_USE));
+        $evaluated = $this->part('Evaluated');
+        $this->lotIn($evaluated, 'Lab box');
+        $active = $this->part('Active');
+        $this->lotIn($active, 'Active box');
+        $sharedLot = new PartLot();
+        $sharedLot->setAmount(1);
+        $sharedLot->setStorageLocation($meta->getPartLots()->first()->getStorageLocation());
+        $active->addPartLot($sharedLot);
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($retired)->setPosition(1)->setStatus(PartConnectionStatus::DO_NOT_USE));
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($evaluated)->setPosition(2)->setStatus(PartConnectionStatus::UNDER_EVALUATION));
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($active)->setPosition(3)->setStatus(PartConnectionStatus::USE_UP));
         $this->em->flush();
 
         $html = $helper->renderStorageLocations($meta);
+        $entries = explode('<br>', $html);
 
-        $this->assertStringContainsString('Common bin', $html);
-        $this->assertStringContainsString('Active box', $html);
-        $this->assertStringNotContainsString('Retired box', $html);
+        $this->assertCount(4, $entries, 'A location already listed is not repeated: '.$html);
+        $this->assertStringContainsString('Common bin', $entries[0]);
+        $this->assertStringContainsString('Active box', $entries[1]);
+        $this->assertStringNotContainsString('text-muted', $entries[1]);
+        $this->assertStringContainsString('Retired box', $entries[2]);
+        $this->assertStringContainsString('class="text-muted"', $entries[2]);
+        $this->assertStringContainsString('Do not use', $entries[2]);
+        $this->assertStringContainsString('Lab box', $entries[3]);
+        $this->assertStringContainsString('Under evaluation', $entries[3]);
+
+        $usableOnly = $helper->renderStorageLocations($meta, usableOnly: true);
+        $this->assertStringContainsString('Active box', $usableOnly);
+        $this->assertStringNotContainsString('Retired box', $usableOnly);
+        $this->assertStringNotContainsString('Lab box', $usableOnly);
     }
 
     /** @return list<string> */

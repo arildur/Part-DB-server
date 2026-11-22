@@ -271,7 +271,7 @@ API token/OAuth2 grant (see [Permissions](#permissions) above) and the correspon
   are capped at `limit` (default 50, max 200). `kind` restricts the results to `manufacturing` or `meta` parts (see
   [Meta parts](../usage/meta_parts.md)), and the stock amount filters use the same total as `total_instock`.
 * **get_part_details** – Get full details about a specific part by its database ID, including stock, prices,
-  order details, attachments, parameters and EDA info. For a meta part, `total_instock` includes its usable connected
+  order details, attachments, parameters and EDA info. For a meta part, `total_instock` includes its usable (approved or use up) connected
   parts while `own_instock` counts its own lots only, and `part_connections` lists the connected parts, which hold the
   supplier data.
 * **get_part_preview_image** – Get the preview/thumbnail picture for a part by its database ID. Uses the same

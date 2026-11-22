@@ -33,14 +33,17 @@ Parts of different kinds can not be merged, and a meta part can not be updated f
 Connections are edited on the edit page of the meta part, which needs the permission to edit it. Each connection has:
 
 * **Priority**: The lowest comes first. Leave it empty to add the part at the end.
-* **Status**: "Approved", or "Do not use" for a part that should stay listed but not be used.
+* **Status**: "Approved" (the default) for a part that may be used, "Use up" for a part that may be used and whose stock
+  should be used first, "Under evaluation" for a part not yet approved, or "Do not use" for a part that should stay listed
+  but not be used. Only approved and use up parts are usable: their stock counts, builds can take from them and prices
+  use them. The others are listed last on the pages of the meta part, marked with their status.
 * **Note**: Anything worth knowing about this part in this role.
 
 Only manufacturing parts can be connected, and each only once to the same meta part. A connected part must have the same
 measurement unit as the meta part. Part-DB warns you when its footprint differs, but allows it. One part can be connected
 to several meta parts, with its own priority and status under each, and its page lists them.
 
-Merging two meta parts moves the connections to the target, and cloning a meta part copies them. Deleting a meta part leaves
+Merging two meta parts moves the connections to the target, a pair connected on both keeping the stricter status, and cloning a meta part copies them. Deleting a meta part leaves
 its connected parts, and deleting a connected part removes it from its meta parts.
 
 Changes to connections are logged on both parts. Time travel and undo do not follow connections, as that would rewrite the
@@ -54,13 +57,15 @@ unknown amount and expired lots do not count. The own lots of a meta part never 
 * The **Stock** tab lists its own lots and those of its connected parts with a total, and marks what is not counted. You
   can only change its own lots there: to withdraw from another part, use the page of that part.
 * The **Shopping** tab lists the suppliers of each connected part, and the summary shows the price range.
-* In part tables, the amount, its sorting and its filter use the total. The storage location column includes the usable
-  connected parts, while the filters on lots, including the storage location filter, only look at a part's own lots.
+* In part tables, the amount, its sorting and its filter use the total. The storage location column includes the locations
+  of every connected part, those of parts that are not usable last and greyed, while the filters on lots, including the storage location filter, only look at a part's own lots.
 
 ## Projects
 
 A BOM entry can point at a meta part. When building, the form names the parts below the meta part, and you choose how much
-to take from each lot. Parts marked "Do not use" have no field. Several entries can reach the same lot, so the proposal and
+to take from each lot. Parts that are not usable are shown with their status and have
+no field. The proposal takes the meta part's own lots first, then those of use up parts, then those of approved parts, each
+in the order of priority. Several entries can reach the same lot, so the proposal and
 the buildable count look at the whole BOM, and a lot can not be used for more than it holds.
 
 A project has a setting for what a meta part costs in its BOM:

@@ -703,17 +703,22 @@ abstract class AbstractPartMutationProcessor implements ProcessorInterface
 
     protected function applyConnectionFields(PartConnection $connection, ConnectedPartInput $input): void
     {
+        //Checked first, so that a wrong value leaves the connection as it was
+        $status = null;
+        if ($input->status !== null) {
+            $status = PartConnectionStatus::tryFrom($input->status);
+            if (!$status instanceof PartConnectionStatus) {
+                throw new BadRequestHttpException(sprintf('"%s" is not a valid status of a connection. Valid values are: %s.',
+                    $input->status, implode(', ', array_map(static fn (PartConnectionStatus $case): string => '"'.$case->value.'"', PartConnectionStatus::cases()))));
+            }
+        }
         if ($input->connectedPartId !== null) {
             $connection->setConnectedPart($this->resolveOtherPart($input->connectedPartId));
         }
         if ($input->position !== null) {
             $connection->setPosition($input->position);
         }
-        if ($input->status !== null) {
-            $status = PartConnectionStatus::tryFrom($input->status);
-            if (!$status instanceof PartConnectionStatus) {
-                throw new BadRequestHttpException(sprintf('"%s" is not a valid status of a connection.', $input->status));
-            }
+        if ($status instanceof PartConnectionStatus) {
             $connection->setStatus($status);
         }
         if ($input->note !== null) {

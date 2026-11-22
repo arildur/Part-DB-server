@@ -106,24 +106,62 @@ readonly class PartDataTableHelper
         );
     }
 
-    public function renderStorageLocations(Part $context): string
+    /**
+     * Renders the storage locations of a part's own lots and, for a meta part, those of each connected part in order.
+     * Locations reached only through a connection that is not usable come last, greyed and titled with its status.
+     * With $usableOnly the locations of such connections are left out, so that the column matches the counted stock.
+     */
+    public function renderStorageLocations(Part $context, bool $usableOnly = false): string
     {
         $tmp = [];
-        //For a meta part this includes the locations of its usable connected parts, which make up its stock
-        foreach ($context->getLotsCountedInStock() as $lot) {
-            //Ignore lots without storelocation
-            if (!$lot->getStorageLocation() instanceof StorageLocation) {
+        foreach ($context->getPartLots() as $lot) {
+            if ($lot->getStorageLocation() instanceof StorageLocation) {
+                $tmp[] = $this->renderStorageLocationLink($lot->getStorageLocation());
+            }
+        }
+        //A manufacturing part stops here, so that it costs no query for connections
+        if (!$context->getKind()->allowsConnections()) {
+            return implode('<br>', $tmp);
+        }
+
+        $listed = [];
+        foreach ($context->getPartLots() as $lot) {
+            if ($lot->getStorageLocation() instanceof StorageLocation) {
+                $listed[spl_object_id($lot->getStorageLocation())] = true;
+            }
+        }
+        foreach ($context->getOrderedConnections() as $connection) {
+            if (!$connection->getConnectedPart() instanceof Part || ($usableOnly && !$connection->isUsable())) {
                 continue;
             }
-            $tmp[] = sprintf(
-                '<a href="%s" title="%s">%s</a>',
-                $this->entityURLGenerator->listPartsURL($lot->getStorageLocation()),
-                htmlspecialchars($this->pathCache->getFullPath($lot->getStorageLocation())),
-                htmlspecialchars($lot->getStorageLocation()->getName())
-            );
+            //Expired lots and those of unknown amount are shown too: the column tells where a part lies
+            foreach ($connection->getConnectedPart()->getPartLots() as $lot) {
+                $location = $lot->getStorageLocation();
+                if (!$location instanceof StorageLocation || isset($listed[spl_object_id($location)])) {
+                    continue;
+                }
+                $listed[spl_object_id($location)] = true;
+                if ($connection->isUsable()) {
+                    $tmp[] = $this->renderStorageLocationLink($location);
+                } else {
+                    $tmp[] = sprintf('<span class="text-muted" title="%s">%s</span>',
+                        htmlspecialchars($this->pathCache->getFullPath($location).' ('.$this->translator->trans($connection->getStatus()->getTranslationKey()).')'),
+                        $this->renderStorageLocationLink($location, false));
+                }
+            }
         }
 
         return implode('<br>', $tmp);
+    }
+
+    private function renderStorageLocationLink(StorageLocation $location, bool $withTitle = true): string
+    {
+        return sprintf(
+            '<a href="%s"%s>%s</a>',
+            $this->entityURLGenerator->listPartsURL($location),
+            $withTitle ? sprintf(' title="%s"', htmlspecialchars($this->pathCache->getFullPath($location))) : '',
+            htmlspecialchars($location->getName())
+        );
     }
 
     /**

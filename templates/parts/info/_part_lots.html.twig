@@ -135,14 +135,17 @@
             </tr>
         {% endfor %}
         {# Lots of connected parts belong to those parts, so they have no stock buttons here and link there instead #}
+        {% set heading_shown = false %}
         {% for connection in part.kind.allowsConnections ? part.orderedConnections : [] %}
             {% set connected = connection.connectedPart %}
+            {% if not connection.usable and not heading_shown %}
+                <tr class="table-light"><th colspan="7">{% trans %}part_connection.not_usable{% endtrans %}</th></tr>
+                {% set heading_shown = true %}
+            {% endif %}
             <tr class="table-secondary">
                 <th colspan="7">
                     {{ helper.part_icon_link(connected) }}
-                    {% if not connection.usable %}
-                        <span class="badge text-bg-danger"><i class="fas fa-ban fa-fw"></i> {{ connection.status.translationKey|trans }}</span>
-                    {% endif %}
+                    {{ helper.connection_status_badge(connection) }}
                 </th>
             </tr>
             {% for lot in connected.partLots %}

@@ -94,7 +94,7 @@
                             {% if not connection.usable %}
                                 <div class="mb-2 text-muted">
                                     <s><a target="_blank" href="{{ entity_url(connection.connectedPart) }}">{{ connection.connectedPart.name }}</a></s>
-                                    <span class="badge bg-danger">{% trans %}part_connection.status.do_not_use{% endtrans %}</span>
+                                    {{ helper.connection_status_badge(connection) }}
                                     {% if connection.note is not empty %}<small>{{ connection.note }}</small>{% endif %}
                                 </div>
                             {% endif %}

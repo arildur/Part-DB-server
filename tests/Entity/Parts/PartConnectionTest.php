@@ -64,11 +64,11 @@ final class PartConnectionTest extends TestCase
         $this->assertFalse($connection->isUsable());
     }
 
-    public function testStatusValuesAreStable(): void
+    public function testUsableFollowsTheStatus(): void
     {
-        $this->assertSame('approved', PartConnectionStatus::APPROVED->value);
-        $this->assertSame('do_not_use', PartConnectionStatus::DO_NOT_USE->value);
-        $this->assertCount(2, PartConnectionStatus::cases());
+        foreach (PartConnectionStatus::cases() as $status) {
+            $this->assertSame($status->isUsable(), (new PartConnection())->setStatus($status)->isUsable(), $status->value);
+        }
     }
 
     public function testAPartCanHaveItsOwnPositionAndStatusUnderEachMetaPart(): void
@@ -89,7 +89,9 @@ final class PartConnectionTest extends TestCase
         $meta = (new Part())->setKind(PartKind::META);
         $connections = [
             'retired' => $this->connection(1, 1, PartConnectionStatus::DO_NOT_USE),
+            'evaluated' => $this->connection(3, 2, PartConnectionStatus::UNDER_EVALUATION),
             'later' => $this->connection(2, 3),
+            'usedUp' => $this->connection(5, 4, PartConnectionStatus::USE_UP),
             'tieHighId' => $this->connection(9, 2),
             'tieLowId' => $this->connection(4, 2),
         ];
@@ -97,7 +99,8 @@ final class PartConnectionTest extends TestCase
             $meta->addPartConnection($connection);
         }
 
-        $expected = [$connections['tieLowId'], $connections['tieHighId'], $connections['later'], $connections['retired']];
+        $expected = [$connections['tieLowId'], $connections['tieHighId'], $connections['later'], $connections['usedUp'],
+            $connections['retired'], $connections['evaluated']];
         $this->assertSame($expected, $meta->getOrderedConnections());
         $this->assertSame($expected, $meta->getOrderedConnections());
     }

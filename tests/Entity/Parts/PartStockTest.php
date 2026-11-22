@@ -96,6 +96,32 @@ final class PartStockTest extends TestCase
         $this->assertFalse($meta->isAmountUnknown());
     }
 
+    public function testOnlyApprovedAndUseUpConnectionsCount(): void
+    {
+        $meta = $this->part([$this->lot(1)], PartKind::META);
+        $amounts = [];
+        foreach (PartConnectionStatus::cases() as $i => $status) {
+            $amounts[$status->value] = 10 ** ($i + 1);
+            $meta->addPartConnection((new PartConnection())->setConnectedPart($this->part([$this->lot($amounts[$status->value])]))
+                ->setPosition($i + 1)->setStatus($status));
+        }
+
+        $this->assertSame(1.0 + $amounts['approved'] + $amounts['use_up'], $meta->getAmountSum());
+        $this->assertCount(3, $meta->getLotsCountedInStock());
+    }
+
+    public function testAnUnknownAmountOfAConnectionNotUsableIsNotReported(): void
+    {
+        $meta = $this->part([], PartKind::META);
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($this->part([$this->lot(5, unknown: true)]))
+            ->setStatus(PartConnectionStatus::UNDER_EVALUATION));
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($this->part([$this->lot(5, expires: '-1 day')]))
+            ->setStatus(PartConnectionStatus::UNDER_EVALUATION));
+
+        $this->assertFalse($meta->isAmountUnknown());
+        $this->assertSame(0.0, $meta->getExpiredAmountSum());
+    }
+
     public function testAnUnknownAmountInAConnectedPartIsReported(): void
     {
         $meta = $this->part([], PartKind::META);

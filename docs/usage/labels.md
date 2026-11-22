@@ -179,8 +179,8 @@ Please not that the field names might change in the future.
 | `metaPart`      | The meta part                                               |
 | `connectedPart` | The connected manufacturing part                            |
 | `position`      | The priority of the connection, the lowest comes first      |
-| `status`        | The status. Use `status.value` to print `approved` or `do_not_use` |
-| `usable`        | Bool: True if the connected part may be used                |
+| `status`        | The status. Use `status.value` to print `approved`, `under_evaluation`, `use_up` or `do_not_use` |
+| `usable`        | Bool: True if the connected part may be used (approved or use up) |
 | `note`          | The note of the connection                                  |
 
 #### Part lot

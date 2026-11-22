@@ -180,7 +180,7 @@ trait InstockTrait
 
     /**
      * Returns the lots that make up the stock of this part: its own lots and, for a kind that allows connections, the own
-     * lots of each connected part not marked do not use. Lots of a part are read here and not its total, so that the
+     * lots of each connected part whose connection is usable. Lots of a part are read here and not its total, so that the
      * own lots of a meta part never count for a connected part or for another meta part.
      * @return list<PartLot>
      */

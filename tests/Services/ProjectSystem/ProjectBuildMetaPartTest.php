@@ -185,6 +185,81 @@ final class ProjectBuildMetaPartTest extends KernelTestCase
         $this->assertSame(0.0, $request->getWithdrawAmount($entry, $lotLow));
     }
 
+    public function testUseUpPartsAreProposedBeforeApprovedOnesEachByPriority(): void
+    {
+        $meta = $this->meta();
+        $own = $this->lot($meta, 5, 1);
+        $approvedFirst = new Part();
+        $lotApprovedFirst = $this->lot($approvedFirst, 100, 2);
+        $useUpLater = new Part();
+        $lotUseUpLater = $this->lot($useUpLater, 10, 3);
+        $useUpFirst = new Part();
+        $lotUseUpFirst = $this->lot($useUpFirst, 10, 4);
+        $approvedLater = new Part();
+        $lotApprovedLater = $this->lot($approvedLater, 100, 5);
+        $this->connect($meta, $approvedFirst, 1);
+        $this->connect($meta, $useUpLater, 3, PartConnectionStatus::USE_UP);
+        $this->connect($meta, $useUpFirst, 2, PartConnectionStatus::USE_UP);
+        $this->connect($meta, $approvedLater, 4);
+        $project = $this->project([[$meta, 30.0]]);
+        $entry = $project->getBomEntries()->first();
+
+        $request = new ProjectBuildRequest($project, 1);
+
+        $this->assertSame([$own, $lotUseUpFirst, $lotUseUpLater, $lotApprovedFirst, $lotApprovedLater], $request->getPartLotsForBOMEntry($entry));
+        $this->assertSame(5.0, $request->getWithdrawAmount($entry, $own));
+        $this->assertSame(10.0, $request->getWithdrawAmount($entry, $lotUseUpFirst));
+        $this->assertSame(10.0, $request->getWithdrawAmount($entry, $lotUseUpLater));
+        $this->assertSame(5.0, $request->getWithdrawAmount($entry, $lotApprovedFirst));
+        $this->assertSame(0.0, $request->getWithdrawAmount($entry, $lotApprovedLater));
+    }
+
+    public function testOnlyUsableConnectionsAreReachedCountedAndPriced(): void
+    {
+        $meta = $this->meta();
+        $lots = [];
+        foreach (PartConnectionStatus::cases() as $i => $status) {
+            $part = $this->price(new Part(), (string) (10 - $i));
+            $lots[$status->value] = $this->lot($part, 10, $i + 1);
+            $this->connect($meta, $part, $i + 1, $status);
+        }
+        $project = $this->project([[$meta, 1.0]]);
+        $entry = $project->getBomEntries()->first();
+
+        $reached = (new ProjectBuildRequest($project, 1))->getPartLotsForBOMEntry($entry);
+        $this->assertSame([$lots['use_up'], $lots['approved']], $reached);
+        $this->assertSame(20, $this->helper->getMaximumBuildableCount($project));
+
+        //The connections that are not usable are cheaper, but give no price: the first usable one in the order does
+        $cost = $this->helper->calculateCost($project);
+        $prices = [];
+        foreach (PartConnectionStatus::cases() as $i => $status) {
+            $prices[$status->value] = 10 - $i;
+        }
+        $first = null;
+        foreach ($meta->getOrderedConnections() as $connection) {
+            if ($connection->isUsable()) {
+                $first = $connection->getStatus()->value;
+                break;
+            }
+        }
+        $this->assertContains($first, ['approved', 'use_up']);
+        $this->assertTrue(BigDecimal::of($prices[$first])->isEqualTo($cost->total), 'Got '.$cost->total);
+    }
+
+    public function testAnExpiredLotOfAMetaPartEntryIsProposedButNotCounted(): void
+    {
+        $meta = $this->meta();
+        $connected = new Part();
+        $expired = $this->lot($connected, 100, 1, '2000-01-01');
+        $this->connect($meta, $connected, 1);
+        $project = $this->project([[$meta, 10.0]]);
+        $entry = $project->getBomEntries()->first();
+
+        $this->assertSame(10.0, (new ProjectBuildRequest($project, 1))->getWithdrawAmount($entry, $expired));
+        $this->assertSame(0, $this->helper->getMaximumBuildableCount($project));
+    }
+
     public function testTheProposalIsTheSameWhateverOrderTheEntriesComeIn(): void
     {
         $shelf = new Part();

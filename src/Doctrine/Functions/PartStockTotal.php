@@ -20,6 +20,7 @@
 
 declare(strict_types=1);namespace App\Doctrine\Functions;
 
+use App\Entity\Parts\PartConnectionStatus;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\ORM\Query\AST\Functions\FunctionNode;
 use Doctrine\ORM\Query\AST\Node;
@@ -68,14 +69,18 @@ class PartStockTotal extends FunctionNode
         //With two subqueries on part_lots, MySQL can scan the table for every part, though either one alone uses the index
         $lots = 'part_lots pst'.($platform instanceof AbstractMySQLPlatform ? ' FORCE INDEX ('.self::PART_LOTS_PART_INDEX.')' : '');
 
+        //The values are the enum's own, so that SQL and PHP agree on what is usable
+        $usable = implode(', ', array_map(static fn (string $value): string => "'".$value."'", PartConnectionStatus::usableValues()));
+
         //The sum over a subquery leaves the database no other starting point than the connections
         return sprintf(
             "((SELECT COALESCE(SUM(pst.amount), 0.0) FROM %3\$s WHERE pst.id_part = %1\$s AND %2\$s)"
             ." + (SELECT COALESCE(SUM((SELECT COALESCE(SUM(pst.amount), 0.0) FROM %3\$s WHERE pst.id_part = psc.id_connected_part AND %2\$s)), 0.0)"
-            ." FROM part_connections psc WHERE psc.id_meta_part = %1\$s AND psc.status = 'approved'))",
+            ." FROM part_connections psc WHERE psc.id_meta_part = %1\$s AND psc.status IN (%4\$s)))",
             $part,
             $counted,
-            $lots
+            $lots,
+            $usable
         );
     }
 }

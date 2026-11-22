@@ -32,6 +32,7 @@ use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\DataMapperInterface;
 use Symfony\Component\Form\Event\PreSetDataEvent;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -99,11 +100,24 @@ class ProjectBuildType extends AbstractType implements DataMapperInterface
                 'disabled' => !$build_request->getProject()->getBuildPart() instanceof Part,
             ]);
 
-            if ($build_request->getProject()->getBuildPart() instanceof Part) {
+            $build_part = $build_request->getProject()->getBuildPart();
+            if ($build_part instanceof Part && $build_part->getKind()->allowsConnections()) {
+                //A meta part offers its own lots and those of its connected parts, grouped by part
+                $form->add('buildsPartLot', ChoiceType::class, [
+                    'label' => 'project.build.builds_part_lot',
+                    'required' => false,
+                    'choices' => $build_request->getBuildsPartLotChoices(),
+                    'choice_value' => static fn (?PartLot $lot): ?int => $lot?->getID(),
+                    'choice_label' => static fn (PartLot $lot): string => PartLotSelectType::lotLabel($lot),
+                    'group_by' => static fn (PartLot $lot): string => $lot->getPart() === $build_part
+                        ? 'project.build.meta_part_own_lots' : $lot->getPart()->getName(),
+                    'placeholder' => 'project.build.buildsPartLot.new_lot'
+                ]);
+            } elseif ($build_part instanceof Part) {
                 $form->add('buildsPartLot', PartLotSelectType::class, [
                     'label' => 'project.build.builds_part_lot',
                     'required' => false,
-                    'part' => $build_request->getProject()->getBuildPart(),
+                    'part' => $build_part,
                     'placeholder' => 'project.build.buildsPartLot.new_lot'
                 ]);
             }

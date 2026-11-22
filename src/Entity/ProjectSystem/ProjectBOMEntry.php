@@ -41,6 +41,7 @@ use Doctrine\DBAL\Types\Types;
 use App\Entity\Base\AbstractDBElement;
 use App\Entity\Base\TimestampTrait;
 use App\Entity\Parts\Part;
+use App\Services\ProjectSystem\BuildPartReach;
 use App\Entity\Parts\PartLot;
 use App\Entity\PriceInformations\Currency;
 use App\Validator\Constraints\BigDecimal\BigDecimalPositive;
@@ -295,20 +296,15 @@ class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInte
                 ->addViolation();
         }
 
-        //Check that the part is not the build representation part of this device or one of its parents, directly or through a meta part
-        $reached = $this->part instanceof Part ? [$this->part] : [];
-        if ($this->part?->getKind()->allowsConnections()) {
-            foreach ($this->part->getPartConnections() as $connection) {
-                $reached[] = $connection->getConnectedPart();
-            }
-        }
-        foreach ($reached as $part) {
-            if ($part?->getBuiltProject() instanceof Project && $this->project?->isOrHasAncestor($part->getBuiltProject())) {
-                $context->buildViolation('project.bom_entry.can_not_add_own_builds_part')
-                    ->atPath('part')
-                    ->addViolation();
-                break;
-            }
+        //Check that the part does not reach the build part of this project or one of its parents, directly or through a connection
+        if ($this->part instanceof Part && $this->project instanceof Project
+            && BuildPartReach::reachesOwnBuildPart($this->project, $this->part)) {
+            //The entry is the build part itself, or reaches it through a connection
+            $builtProject = $this->part->getBuiltProject();
+            $isBuildPart = $builtProject instanceof Project && $this->project->isOrHasAncestor($builtProject);
+            $context->buildViolation($isBuildPart ? 'project.bom_entry.can_not_add_own_builds_part' : 'validator.build_part.reached_by_own_bom')
+                ->atPath('part')
+                ->addViolation();
         }
     }
 

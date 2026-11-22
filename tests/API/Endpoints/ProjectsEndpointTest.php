@@ -74,14 +74,49 @@ final class ProjectsEndpointTest extends CrudEndpointTestCase
         $this->_testDeleteItem(7);
     }
 
-    public function testAMetaPartCanNotBeABuildPart(): void
+    public function testAMetaPartCanBeABuildPart(): void
     {
         $client = static::createAuthenticatedClient();
         $client->request('POST', '/api/parts', ['json' => ['name' => 'API meta', 'kind' => 'meta', 'category' => '/api/categories/1']]);
         self::assertResponseStatusCodeSame(201);
         $meta = $client->getResponse()->toArray()['@id'];
+        $client->request('POST', '/api/projects', ['json' => ['name' => 'Built from a meta part']]);
+        self::assertResponseStatusCodeSame(201);
+        $project = $client->getResponse()->toArray()['@id'];
 
-        $client->request('PATCH', '/api/projects/1', ['json' => ['build_part' => $meta], 'headers' => ['Content-Type' => 'application/merge-patch+json']]);
-        $this->assertSame(422, $client->getResponse()->getStatusCode());
+        $client->request('PATCH', $project, ['json' => ['build_part' => $meta], 'headers' => ['Content-Type' => 'application/merge-patch+json']]);
+        self::assertResponseIsSuccessful();
+        $buildPart = $client->request('GET', $project)->toArray()['build_part'];
+        $this->assertSame($meta, is_array($buildPart) ? $buildPart['@id'] : $buildPart);
+    }
+
+    public function testABuildPartReachedByTheProjectsBomIsRefused(): void
+    {
+        $client = static::createAuthenticatedClient();
+        $post = static function (string $path, array $json) use ($client): string {
+            $client->request('POST', $path, ['json' => $json]);
+            self::assertResponseStatusCodeSame(201);
+
+            return $client->getResponse()->toArray()['@id'];
+        };
+        $meta = $post('/api/parts', ['name' => 'API meta with a loop', 'kind' => 'meta', 'category' => '/api/categories/1']);
+        $connected = $post('/api/parts', ['name' => 'API connected in the BOM', 'category' => '/api/categories/1']);
+        $post('/api/part_connections', ['meta_part' => $meta, 'connected_part' => $connected]);
+        $project = $post('/api/projects', ['name' => 'Using the connected part']);
+        $post('/api/project_bom_entries', ['project' => $project, 'part' => $connected, 'quantity' => 1]);
+
+        $client->request('PATCH', $project, ['json' => ['build_part' => $meta], 'headers' => ['Content-Type' => 'application/merge-patch+json']]);
+        self::assertResponseStatusCodeSame(422);
+        $this->assertStringContainsString('build_part', $client->getResponse()->getContent(false));
+
+        //The other order: a connection from a meta build part to a part in its project's BOM
+        $metaBuild = $post('/api/parts', ['name' => 'API meta build part', 'kind' => 'meta', 'category' => '/api/categories/1']);
+        $inBom = $post('/api/parts', ['name' => 'API part in the BOM', 'category' => '/api/categories/1']);
+        $built = $post('/api/projects', ['name' => 'Built from the meta part']);
+        $post('/api/project_bom_entries', ['project' => $built, 'part' => $inBom, 'quantity' => 1]);
+        $client->request('PATCH', $built, ['json' => ['build_part' => $metaBuild], 'headers' => ['Content-Type' => 'application/merge-patch+json']]);
+        self::assertResponseIsSuccessful();
+        $client->request('POST', '/api/part_connections', ['json' => ['meta_part' => $metaBuild, 'connected_part' => $inBom]]);
+        self::assertResponseStatusCodeSame(422);
     }
 }

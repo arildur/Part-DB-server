@@ -162,12 +162,12 @@ final class PartKindValidationTest extends KernelTestCase
         $this->assertSame([], $this->violatedPaths($meta));
     }
 
-    public function testAMetaPartRefusesABuildProject(): void
+    public function testAMetaPartAcceptsABuildProject(): void
     {
         $meta = (new Part())->setKind(PartKind::META);
         $meta->setBuiltProject(new Project());
 
-        $this->assertContains('built_project', $this->violatedPaths($meta));
+        $this->assertNotContains('built_project', $this->violatedPaths($meta));
     }
 
     public function testAnOrderDetailRefusesAMetaPart(): void

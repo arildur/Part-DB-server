@@ -385,7 +385,10 @@ final class PartController extends AbstractController
                 return $this->redirectToRoute('part_edit', ['id' => $project->getBuildPart()->getID()]);
             }
             $new_part = $projectBuildPartHelper->getPartInitialization($project);
-        } else { //Create an empty part from scratch. Only here can the kind be chosen.
+            //A build part may be of either kind, so the kind can be chosen here too
+            $new_part->setKind(PartKind::tryFrom($request->query->getString('kind')) ?? PartKind::MANUFACTURING);
+            $form_options['kind_mode'] = PartBaseType::KIND_CHOOSE;
+        } else { //Create an empty part from scratch. The kind can be chosen here and for a new build part.
             $new_part = new Part();
             $new_part->setKind(PartKind::tryFrom($request->query->getString('kind')) ?? PartKind::MANUFACTURING);
             $form_options['kind_mode'] = PartBaseType::KIND_CHOOSE;

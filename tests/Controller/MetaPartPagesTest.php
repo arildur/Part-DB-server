@@ -382,21 +382,22 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertTrue($form->get('kind')->isDisabled(), 'As for a part from an info provider or a scan');
     }
 
-    public function testABuildPartFormIgnoresARequestedKind(): void
+    public function testABuildPartFormLetsTheKindBeChosen(): void
     {
-        $project = $this->em->find(\App\Entity\ProjectSystem\Project::class, 1);
-        if ($project === null || $project->getBuildPart() !== null) {
-            $project = (new \App\Entity\ProjectSystem\Project());
-            $project->setName('Project');
-            $this->em->persist($project);
-            $this->em->flush();
-        }
+        $project = (new \App\Entity\ProjectSystem\Project());
+        $project->setName('Project with a meta build part');
+        $this->em->persist($project);
+        $this->em->flush();
+        $url = '/en/part/new_build_part/'.$project->getID();
 
-        $crawler = $this->client->request('GET', '/en/part/new_build_part/'.$project->getID().'?kind=meta');
-
+        $crawler = $this->client->request('GET', $url.'?kind=meta');
         $this->assertResponseIsSuccessful();
-        $this->assertNotNull($this->kindField($crawler)->attr('disabled'));
-        $this->assertSame('manufacturing', $this->kindField($crawler)->filter('option[selected]')->attr('value'));
+        $this->assertNull($this->kindField($crawler)->attr('disabled'));
+        $this->assertSame('meta', $this->kindField($crawler)->filter('option[selected]')->attr('value'));
+
+        $part = $this->submitNew($url, 'meta', 'Meta build part');
+        $this->assertSame(PartKind::META, $part->getKind());
+        $this->assertSame($project->getID(), $part->getBuiltProject()?->getID());
     }
 
     private function submitNew(string $url, string $kind, string $name): Part

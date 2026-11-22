@@ -188,9 +188,19 @@ final class MetaPartOverMcpTest extends WebTestCase
             self::assertSame('Preferred', $part['part_connections'][0]['note'], $tool);
             self::assertSame(['id', 'name', 'kind', 'total_instock'], array_keys($part['part_connections'][0]['connected_part']), $tool);
             $this->assertMatchesSchema($part, $tools[$tool]['outputSchema'], $tool);
-            //Null values are left out of a tool result, so a meta part with no price shows only its method
+            //A meta part with no price still names the price keys, with null
             self::assertSame('system_default', $part['price_method'], $tool);
-            self::assertArrayNotHasKey('user_price', $part, $tool);
+            foreach (['user_price', 'user_price_currency', 'price'] as $key) {
+                self::assertArrayHasKey($key, $part, $tool.': '.$key);
+                self::assertNull($part[$key], $tool.': '.$key);
+            }
+        }
+
+        //A manufacturing part has no price fields, so its result stays as it was
+        $connected = $meta->getPartConnections()->first()->getConnectedPart();
+        $manufacturing = $this->call('get_part_details', ['id' => $connected->getID()])['structuredContent'];
+        foreach (['user_price', 'user_price_currency', 'price'] as $key) {
+            self::assertArrayNotHasKey($key, $manufacturing, $key);
         }
 
         $created = $this->call('create_part', ['name' => 'Created meta', 'kind' => 'meta', 'categoryId' => $meta->getCategory()->getID()]);

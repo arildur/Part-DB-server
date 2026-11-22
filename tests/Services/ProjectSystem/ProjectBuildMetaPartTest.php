@@ -563,20 +563,116 @@ final class ProjectBuildMetaPartTest extends KernelTestCase
         foreach ($validator->validate($connection) as $violation) {
             $paths[] = $violation->getMessageTemplate();
         }
-        $this->assertContains('validator.part_connection.would_reach_own_build_part', $paths);
+        $this->assertContains('validator.part_connection.would_let_project_reach_own_build_part', $paths);
     }
 
-    public function testAMetaPartCanNotBeABuildPart(): void
+    /**
+     * @return list<string> The violations as path: message
+     */
+    private function violations(object $object): array
     {
-        $validator = self::getContainer()->get(ValidatorInterface::class);
+        $found = [];
+        foreach (self::getContainer()->get(ValidatorInterface::class)->validate($object) as $violation) {
+            $found[] = $violation->getPropertyPath().': '.$violation->getMessageTemplate();
+        }
+
+        return $found;
+    }
+
+    /**
+     * Connects both ends in memory, as Doctrine does when it loads them.
+     */
+    private function connectBothEnds(Part $meta, Part $part, PartConnectionStatus $status = PartConnectionStatus::APPROVED): void
+    {
+        $connection = (new PartConnection())->setConnectedPart($part)->setStatus($status);
+        $meta->addPartConnection($connection);
+        $part->getConnectionsAsPart()->add($connection);
+    }
+
+    private function entryIn(Project $project, Part $part): ProjectBOMEntry
+    {
+        $entry = new ProjectBOMEntry();
+        $entry->setPart($part);
+        $entry->setQuantity(1);
+        $project->addBomEntry($entry);
+        $part->getProjectBomEntries()->add($entry);
+
+        return $entry;
+    }
+
+    public function testAMetaPartCanBeABuildPart(): void
+    {
         $project = new Project();
         $project->setName('Project');
         $project->setBuildPart($this->meta());
 
-        $messages = [];
-        foreach ($validator->validate($project) as $violation) {
-            $messages[] = $violation->getMessageTemplate();
-        }
-        $this->assertContains('validator.project.build_part_kind_not_allowed', $messages);
+        $this->assertSame([], array_values(array_filter($this->violations($project), static fn (string $v): bool => str_starts_with($v, 'build_part'))));
+    }
+
+    public function testABomEntryCanNotReachAMetaBuildPartThroughItsConnectedParts(): void
+    {
+        $metaBuild = $this->meta();
+        $connected = new Part();
+        $otherMeta = $this->meta();
+        $this->connectBothEnds($metaBuild, $connected, PartConnectionStatus::DO_NOT_USE);
+        $this->connectBothEnds($otherMeta, $connected);
+        $x = new Project();
+        $x->setBuildPart($metaBuild);
+        $sub = new Project();
+        $sub->setParent($x);
+
+        $own = 'part: project.bom_entry.can_not_add_own_builds_part';
+        $refused = 'part: validator.build_part.reached_by_own_bom';
+        $this->assertSame([$own], $this->violations($this->entryIn($x, $metaBuild)), 'The build part itself');
+        $this->assertSame([$own], $this->violations($this->entryIn($sub, $metaBuild)), 'The build part of the parent project');
+        $this->assertSame([$refused], $this->violations($this->entryIn($x, $connected)), 'Its connected part, whatever the status');
+        $this->assertSame([$refused], $this->violations($this->entryIn($sub, $connected)), 'In a sub-project');
+        $this->assertSame([$refused], $this->violations($this->entryIn($x, $otherMeta)), 'A meta part sharing the connected part');
+        $this->assertNotContains($refused, $this->violations($this->entryIn(new Project(), $connected)), 'Another project');
+        $this->assertNotContains($refused, $this->violations($this->entryIn($x, new Part())), 'An unrelated part');
+    }
+
+    public function testAProjectCanNotGetABuildPartItsBomReaches(): void
+    {
+        $metaBuild = $this->meta();
+        $connected = new Part();
+        $this->connectBothEnds($metaBuild, $connected);
+        $x = new Project();
+        $x->setName('X');
+        $sub = new Project();
+        $sub->setName('Sub');
+        $sub->setParent($x);
+        $this->entryIn($sub, $connected);
+
+        $x->setBuildPart($metaBuild);
+        $this->assertContains('build_part: validator.build_part.reached_by_own_bom', $this->violations($x));
+
+        $y = new Project();
+        $y->setName('Y');
+        $this->entryIn($y, new Part());
+        $y->setBuildPart($this->meta());
+        $this->assertNotContains('build_part: validator.build_part.reached_by_own_bom', $this->violations($y));
+    }
+
+    public function testAMetaBuildPartOfASubProjectCostsOneBuildOfIt(): void
+    {
+        $sub = $this->project([[$this->price(new Part(), '2'), 3.0]]);
+        $metaBuild = $this->meta();
+        $this->connect($metaBuild, $this->price(new Part(), '100'), 1);
+        $sub->setBuildPart($metaBuild);
+        $parent = $this->project([[$metaBuild, 2.0]]);
+
+        $cost = $this->helper->calculateCost($parent);
+        $this->assertTrue(BigDecimal::of('12')->isEqualTo($cost->total), 'Two builds of the sub-project at 6, got '.$cost->total);
+    }
+
+    public function testACostEndsOnAMetaBuildPartStoredInItsOwnBom(): void
+    {
+        $metaBuild = $this->meta();
+        $project = $this->project([[$metaBuild, 1.0], [$this->price(new Part(), '4'), 1.0]]);
+        $project->setBuildPart($metaBuild);
+
+        $cost = $this->helper->calculateCost($project);
+        $this->assertTrue(BigDecimal::of('4')->isEqualTo($cost->total), 'The loop is left out, got '.$cost->total);
     }
 }

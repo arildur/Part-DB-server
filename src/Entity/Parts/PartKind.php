@@ -67,9 +67,11 @@ enum PartKind: string
         return $this === self::MANUFACTURING;
     }
 
-    /** Whether this part can be the part a project builds. */
+    /** Whether this part can be the part a project builds. Both kinds can; a later kind may not. */
     public function canBeBuildPart(): bool
     {
-        return $this === self::MANUFACTURING;
+        return match ($this) {
+            self::MANUFACTURING, self::META => true,
+        };
     }
 }

@@ -24,7 +24,6 @@ A meta part can have a category, footprint, IPN, parameters, attachments and sto
 
 * a manufacturer, manufacturer part number, product URL, manufacturing status, GTIN or info provider reference
 * suppliers, which belong to its connected parts
-* a project that builds it
 
 Parts of different kinds can not be merged, and a meta part can not be updated from an info provider.
 
@@ -89,6 +88,14 @@ no field. The proposal takes the meta part's own lots first, then those of use u
 in the order of priority. Several entries can reach the same lot, so the proposal and
 the buildable count look at the whole BOM, and a lot can not be used for more than it holds.
 
+A meta part can also be the part a project builds: on the edit page of the project, add a build part and choose the
+kind. When the built units are added to stock, the build form offers the meta part's own lots and the lots of each of its
+connected parts, whatever their status, or a new own lot of the meta part. Chosen at first is an own lot, or else a lot
+of an approved or use-up connected part, never one of the other statuses. A project can not reach its own build part, or
+that of a parent project: its BOM can hold neither the build part, nor a meta part connected to it, nor a connected
+part of a meta part that is the build part, nor a meta part sharing a connected part with it. This is checked on the BOM
+entry, on the connection and on the build part.
+
 The cost of a BOM entry pointing at a meta part is the price of the meta part at the quantity of the entry times the
 number of builds. A meta part with no price leaves its entry blank, and the project page counts the entries with no price
 next to the total cost.
@@ -107,5 +114,5 @@ next to the total cost.
 * **REST API**: `GET /api/parts?kind=meta` or `kind=manufacturing` filters by kind, and any other value is answered with a
   400. A part shows `kind`, `total_instock`, `own_instock` and `part_connections`, and connections are written through
   `/api/part_connections`. A meta part also has `price_method`, `user_price` and `user_price_currency`, and the
-  response for a single meta part holds its read-only `price`.
+  response for a single meta part holds its read-only `price`. A project's `build_part` can be a meta part.
 * **[MCP](../api/mcp.md)**: The part tools take and show the kind, the connections and the price method.

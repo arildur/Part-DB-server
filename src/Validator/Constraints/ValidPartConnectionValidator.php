@@ -23,6 +23,7 @@ declare(strict_types=1);namespace App\Validator\Constraints;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Entity\ProjectSystem\Project;
+use App\Services\ProjectSystem\BuildPartReach;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Validator\Constraint;
 use Symfony\Component\Validator\ConstraintValidator;
@@ -64,17 +65,11 @@ class ValidPartConnectionValidator extends ConstraintValidator
                 ->addViolation();
         }
 
-        //A meta part in the BOM of a project must not bring that project's own build part back in
-        $built_project = $value->getConnectedPart()?->getBuiltProject();
-        if ($built_project instanceof Project && $value->getMetaPart() instanceof Part) {
-            foreach ($value->getMetaPart()->getProjectBomEntries() as $bom_entry) {
-                if ($bom_entry->getProject()?->isOrHasAncestor($built_project)) {
-                    $this->context->buildViolation('validator.part_connection.would_reach_own_build_part')
-                        ->atPath('connected_part')
-                        ->addViolation();
-                    break;
-                }
-            }
+        //The connection must not let a project reach its own build part: check the BOM entries whose reach it widens
+        if ($value->getMetaPart() instanceof Part && $value->getConnectedPart() instanceof Part && $this->wouldReachOwnBuildPart($value, $value->getConnectedPart())) {
+            $this->context->buildViolation('validator.part_connection.would_let_project_reach_own_build_part')
+                ->atPath('connected_part')
+                ->addViolation();
         }
 
         //A change of part is a removal and a new connection, which keeps the log readable
@@ -86,5 +81,25 @@ class ValidPartConnectionValidator extends ConstraintValidator
                     ->addViolation();
             }
         }
+    }
+
+    /**
+     * Whether a BOM entry on the meta part, on the connected part or on another meta part of the connected part reaches
+     * the build part of its own project or of an ancestor, counting the given connection. These are the entries whose
+     * reach the connection can widen: one on the meta part now reaches the connected part and the meta parts above
+     * it, and one on the connected part or on such a meta part now reaches the meta part.
+     */
+    private function wouldReachOwnBuildPart(PartConnection $connection, Part $connected): bool
+    {
+        foreach (BuildPartReach::buildPartCandidates($connected, $connection) as $part) {
+            foreach ($part->getProjectBomEntries() as $bom_entry) {
+                if ($bom_entry->getProject() instanceof Project
+                    && BuildPartReach::reachesOwnBuildPart($bom_entry->getProject(), $part, $connection)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }

@@ -89,6 +89,7 @@ use App\Validator\Constraints\ValidPartKind;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use App\Entity\ProjectSystem\Project;
+use App\Services\ProjectSystem\BuildPartReach;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use SortDirection;
@@ -490,6 +491,13 @@ class Part extends AttachmentContainingDBElement
                 ->addViolation();
         }
 
+        //A part becoming the build part of a project must not be reached by a BOM entry of that project or a sub-project
+        if ($this->built_project instanceof Project && $this->isReachedByBomOf($this->built_project)) {
+            $context->buildViolation('validator.build_part.reached_by_own_bom')
+                ->atPath('built_project')
+                ->addViolation();
+        }
+
         //The connections this part owns are validated themselves. Those of the other side are not, so they are checked here.
         foreach ($this->connections_as_part as $connection) {
             if ($connection->getMetaPart()?->getPartUnit() !== $this->partUnit) {
@@ -499,6 +507,22 @@ class Part extends AttachmentContainingDBElement
                 break;
             }
         }
+    }
+
+    /**
+     * Whether a BOM entry of the given project or of one of its sub-projects reaches this part as its build part.
+     */
+    private function isReachedByBomOf(Project $project): bool
+    {
+        foreach (BuildPartReach::partsReaching($this) as $part) {
+            foreach ($part->getProjectBomEntries() as $bom_entry) {
+                if ($bom_entry->getProject()?->isOrHasAncestor($project)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

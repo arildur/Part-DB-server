@@ -175,16 +175,16 @@
         <target>You can not withdraw a negative amount.</target>
       </segment>
     </unit>
-    <unit id="DY7O5hl" name="validator.project.build_part_kind_not_allowed">
+    <unit id="o4wvGKv" name="validator.project.build_part_of_kind_not_allowed">
       <segment state="translated">
-        <source>validator.project.build_part_kind_not_allowed</source>
-        <target>A meta part can not be the build part of a project.</target>
+        <source>validator.project.build_part_of_kind_not_allowed</source>
+        <target>A [part] of this kind can not be the build part of a [project].</target>
       </segment>
     </unit>
-    <unit id="6vMu3gH" name="validator.part_connection.would_reach_own_build_part">
+    <unit id="mAxheO2" name="validator.part_connection.would_let_project_reach_own_build_part">
       <segment state="translated">
-        <source>validator.part_connection.would_reach_own_build_part</source>
-        <target>This part is the build part of a project that uses this meta part in its BOM, so the project would contain itself.</target>
+        <source>validator.part_connection.would_let_project_reach_own_build_part</source>
+        <target>With this connection a [project] would reach its own build part, or that of a parent [project], through its BOM, so the [project] would contain itself.</target>
       </segment>
     </unit>
     <unit id="Nkj97u8" name="validator.project_build.no_lots_offered">
@@ -377,6 +377,12 @@
       <segment state="translated">
         <source>validator.part.price_method_user_value_needs_value</source>
         <target>The price method user value needs a user value.</target>
+      </segment>
+    </unit>
+    <unit id="ryv3fiY" name="validator.build_part.reached_by_own_bom">
+      <segment state="translated">
+        <source>validator.build_part.reached_by_own_bom</source>
+        <target>The BOM of this [project], or of one of its sub-[[project]], already uses this [part], a meta [part] connected to it or one of its connected [[part]], so the [project] would contain itself.</target>
       </segment>
     </unit>
   </file>

@@ -39,6 +39,15 @@ class PartLotSelectType extends AbstractType
         return EntityType::class;
     }
 
+    /**
+     * The label of a lot in a choice: its location, name and amount.
+     */
+    public static function lotLabel(PartLot $part_lot): string
+    {
+        return ($part_lot->getStorageLocation() instanceof StorageLocation ? $part_lot->getStorageLocation()->getFullPath() : '')
+            . ' (' . $part_lot->getName() . '): ' . $part_lot->getAmount();
+    }
+
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setRequired('part');
@@ -46,8 +55,7 @@ class PartLotSelectType extends AbstractType
 
         $resolver->setDefaults([
             'class' => PartLot::class,
-            'choice_label' => ChoiceList::label($this, static fn(PartLot $part_lot): string => ($part_lot->getStorageLocation() instanceof StorageLocation ? $part_lot->getStorageLocation()->getFullPath() : '')
-                . ' (' . $part_lot->getName() . '): ' . $part_lot->getAmount()),
+            'choice_label' => ChoiceList::label($this, static fn(PartLot $part_lot): string => self::lotLabel($part_lot)),
             'query_builder' => fn(Options $options) => static fn(EntityRepository $er) => $er->createQueryBuilder('l')
                 ->where('l.part = :part')
                 ->setParameter('part', $options['part'])

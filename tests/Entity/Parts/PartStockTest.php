@@ -161,4 +161,35 @@ final class PartStockTest extends TestCase
         $this->assertSame(3.0, $part->getExpiredAmountSum());
         $this->assertTrue($part->isAmountUnknown());
     }
+
+    public function testAManufacturingPartOffersItsOwnLotsForBuiltUnits(): void
+    {
+        $lots = [$this->lot(1), $this->lot(2, unknown: true)];
+
+        $this->assertSame($lots, $this->part($lots)->getLotsForBuiltUnits());
+    }
+
+    public function testAMetaPartWithoutConnectionsOffersItsOwnLotsOnly(): void
+    {
+        $own = [$this->lot(1), $this->lot(2)];
+
+        $this->assertSame($own, $this->part($own, PartKind::META)->getLotsForBuiltUnits());
+        $this->assertSame([], $this->part([], PartKind::META)->getLotsForBuiltUnits());
+    }
+
+    public function testAMetaPartOffersTheLotsOfEveryConnectedPartWhateverTheStatus(): void
+    {
+        $own = $this->lot(1);
+        $meta = $this->part([$own], PartKind::META);
+        $byStatus = [];
+        foreach (PartConnectionStatus::cases() as $i => $status) {
+            $byStatus[$status->value] = [$this->lot(10 * ($i + 1)), $this->lot(0, unknown: true)];
+            $meta->addPartConnection((new PartConnection())->setConnectedPart($this->part($byStatus[$status->value]))
+                ->setPosition($i + 1)->setStatus($status));
+        }
+
+        //In the order of the connections: usable ones first, then by position
+        $this->assertSame(array_merge([$own], $byStatus['approved'], $byStatus['use_up'], $byStatus['under_evaluation'], $byStatus['do_not_use']),
+            $meta->getLotsForBuiltUnits());
+    }
 }

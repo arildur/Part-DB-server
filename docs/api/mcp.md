@@ -273,8 +273,9 @@ API token/OAuth2 grant (see [Permissions](#permissions) above) and the correspon
 * **get_part_details** – Get full details about a specific part by its database ID, including stock, prices,
   order details, attachments, parameters and EDA info. For a meta part, `total_instock` includes its usable (approved or use up) connected
   parts while `own_instock` counts its own lots only, and `part_connections` lists the connected parts, which hold the
-  supplier data. A meta part also shows `price_method`, `user_price` and `price`, its unit price for one unit by that
-  method in the base currency, which is worked out and can not be set.
+  supplier data. A meta part also shows `price_method`, `user_price`, `user_price_currency` and `price`, its unit
+  price for one unit by that method in the base currency, which is worked out and can not be set. These keys are there
+  with `null` when a meta part has no value for them.
 * **get_part_preview_image** – Get the preview/thumbnail picture for a part by its database ID. Uses the same
   fallback logic as the part list in the web UI: the part's own master picture if set, otherwise the picture of its
   footprint, and otherwise the picture of the project it is built from. Returns a short text message instead of an

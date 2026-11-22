@@ -33,7 +33,8 @@ use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 
 /**
  * Adds the read-only price of a meta part, worked out by its price method for one unit in the base currency. Only for
- * a single part (the groups hold pricedetail:read), so that a list does not work out a price for each row.
+ * a single part (the groups hold pricedetail:read), so that a list does not work out a price for each row. The price
+ * and the user value are given with null when unset, even where the context skips null values.
  * @see \App\Tests\API\Endpoints\PartEndpointTest
  */
 #[AutoconfigureTag('serializer.normalizer', ['serializer' => ['*']])]
@@ -58,6 +59,11 @@ class MetaPartPriceNormalizer implements NormalizerInterface, NormalizerAwareInt
 
         if (is_array($data)) {
             $data['price'] = $this->pricedetailHelper->calculateMetaPartPrice($object)?->__toString();
+            //The context may skip null values, as the MCP tools' does, but a meta part always names its price fields.
+            //Only where the fields are at the top, which they are not in a JSON:API document.
+            if (array_key_exists('price_method', $data)) {
+                $data += ['user_price' => null, 'user_price_currency' => null];
+            }
         }
 
         return $data;

@@ -25,6 +25,7 @@ namespace App\Tests\Helpers\Projects;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\PartConnectionStatus;
 use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\ProjectSystem\Project;
@@ -337,4 +338,116 @@ final class ProjectBuildRequestTest extends TestCase
         $this->assertSame(0.0, $request->getWithdrawAmount($entry, $forbidden));
         $this->assertSame(10.0, $request->getWithdrawAmount($entry, $allowed));
     }
+
+    /**
+     * @return array{0: Project, 1: PartLot, 2: array<string, PartLot>} A project built from a meta part with an own
+     * lot and one connected part per status, each with one lot
+     */
+    private function projectWithMetaBuildPart(): array
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $own = $this->lotWithId(100, 1);
+        $meta->addPartLot($own);
+        $connected = [];
+        foreach (PartConnectionStatus::cases() as $i => $status) {
+            $part = new Part();
+            $connected[$status->value] = $this->lotWithId(101 + $i, 5);
+            $part->addPartLot($connected[$status->value]);
+            $meta->addPartConnection((new PartConnection())->setConnectedPart($part)->setPosition($i + 1)->setStatus($status));
+        }
+        $project = new Project();
+        $project->setBuildPart($meta);
+
+        return [$project, $own, $connected];
+    }
+
+    public function testAMetaBuildPartOffersItsOwnLotsAndThoseOfEveryConnectedPart(): void
+    {
+        [$project, $own, $connected] = $this->projectWithMetaBuildPart();
+        $request = new ProjectBuildRequest($project, 1);
+
+        $this->assertSame([$own, $connected['approved'], $connected['use_up'], $connected['under_evaluation'], $connected['do_not_use']],
+            $request->getBuildsPartLotChoices());
+        $this->assertSame($own, $request->getBuildsPartLot());
+
+        foreach ($connected as $status => $lot) {
+            $request->setBuildsPartLot($lot);
+            $this->assertSame($lot, $request->getBuildsPartLot(), $status);
+        }
+    }
+
+    public function testAMetaBuildPartWithoutConnectionsOffersItsOwnLotsOnly(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $own = $this->lotWithId(100, 1);
+        $meta->addPartLot($own);
+        $project = new Project();
+        $project->setBuildPart($meta);
+
+        $this->assertSame([$own], (new ProjectBuildRequest($project, 1))->getBuildsPartLotChoices());
+    }
+
+    public function testTheFirstLotOfKnownAmountIsChosenByDefault(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $unknown = $this->lotWithId(100, 0);
+        $unknown->setInstockUnknown(true);
+        $meta->addPartLot($unknown);
+        $part = new Part();
+        $lot = $this->lotWithId(101, 5);
+        $part->addPartLot($lot);
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($part));
+        $project = new Project();
+        $project->setBuildPart($meta);
+
+        $this->assertSame($lot, (new ProjectBuildRequest($project, 1))->getBuildsPartLot());
+    }
+
+    public function testTheLotOfAnUnusableConnectedPartIsNeverChosenByDefault(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META);
+        $notUsable = new Part();
+        $notUsableLot = $this->lotWithId(100, 5);
+        $notUsable->addPartLot($notUsableLot);
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($notUsable)->setPosition(1)->setStatus(PartConnectionStatus::DO_NOT_USE));
+        $project = new Project();
+        $project->setBuildPart($meta);
+
+        $request = new ProjectBuildRequest($project, 1);
+        $this->assertSame([$notUsableLot], $request->getBuildsPartLotChoices(), 'It can still be chosen');
+        $this->assertNull($request->getBuildsPartLot());
+
+        //A lot of a usable connected part comes before it
+        $usable = new Part();
+        $usableLot = $this->lotWithId(101, 5);
+        $usable->addPartLot($usableLot);
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($usable)->setPosition(2)->setStatus(PartConnectionStatus::USE_UP));
+        $this->assertSame($usableLot, (new ProjectBuildRequest($project, 1))->getBuildsPartLot());
+    }
+
+    public function testALotOfAnotherPartIsRefused(): void
+    {
+        [$project] = $this->projectWithMetaBuildPart();
+        $request = new ProjectBuildRequest($project, 1);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $request->setBuildsPartLot($this->lot1a);
+    }
+
+    public function testANewLotIsAcceptedOnlyOnTheBuildPartItself(): void
+    {
+        [$project, , $connected] = $this->projectWithMetaBuildPart();
+        $request = new ProjectBuildRequest($project, 1);
+
+        $newOwn = new PartLot();
+        $project->getBuildPart()->addPartLot($newOwn);
+        $request->setBuildsPartLot($newOwn);
+        $this->assertSame($newOwn, $request->getBuildsPartLot());
+
+        $newOnConnected = new PartLot();
+        $connected['approved']->getPart()->addPartLot($newOnConnected);
+        $this->expectException(\InvalidArgumentException::class);
+        $request->setBuildsPartLot($newOnConnected);
+    }
 }
+

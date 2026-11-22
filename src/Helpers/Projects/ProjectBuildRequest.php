@@ -79,10 +79,11 @@ final class ProjectBuildRequest
 
         $this->initializeArray();
 
-        //By default, use the first available lot of builds part if there is one.
+        //By default, use the first available lot the builds can be added to, if there is one: an own lot of the build
+        //part, or a lot of a usable connected part. The lots of other connected parts can only be chosen.
         if($project->getBuildPart() instanceof Part) {
             $this->add_build_to_builds_part = true;
-            foreach( $project->getBuildPart()->getPartLots() as $lot) {
+            foreach ($project->getBuildPart()->getLotsCountedInStock() as $lot) {
                 if (!$lot->isInstockUnknown()) {
                     $this->builds_lot = $lot;
                     break;
@@ -196,14 +197,29 @@ final class ProjectBuildRequest
     }
 
     /**
+     * Returns the lots the builds can be added to: the build part's own lots and, for a meta build part, the lots of
+     * each of its connected parts, whatever the status of the connection.
+     * @return list<PartLot>
+     */
+    public function getBuildsPartLotChoices(): array
+    {
+        $build_part = $this->project->getBuildPart();
+
+        return $build_part instanceof Part ? $build_part->getLotsForBuiltUnits() : [];
+    }
+
+    /**
      * Set the partlot where the builds should be added to, or null if it should not be added to any lot.
-     * The part lot must belong to the project build part, or an exception is thrown!
+     * The part lot must be a lot of the project build part, new or saved, or a saved lot among the choices, or an
+     * exception is thrown!
      * @return $this
      */
     public function setBuildsPartLot(?PartLot $new_part_lot): self
     {
-        //Ensure that this new_part_lot belongs to the project
-        if (($new_part_lot instanceof PartLot && $new_part_lot->getPart() !== $this->project->getBuildPart()) || !$this->project->getBuildPart() instanceof Part) {
+        $build_part = $this->project->getBuildPart();
+        //Ensure that this new_part_lot belongs to the build part, or is a saved lot of one of its connected parts
+        if (!$build_part instanceof Part || ($new_part_lot instanceof PartLot && $new_part_lot->getPart() !== $build_part
+                && ($new_part_lot->getID() === null || !in_array($new_part_lot, $this->getBuildsPartLotChoices(), true)))) {
             throw new \InvalidArgumentException('The given part lot does not belong to the projects build part!');
         }
 

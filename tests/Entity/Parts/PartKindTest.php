@@ -51,8 +51,15 @@ final class PartKindTest extends TestCase
         $this->assertFalse($kind->allowsSuppliers());
         $this->assertTrue($kind->allowsConnections());
         $this->assertFalse($kind->canBeConnected());
-        $this->assertFalse($kind->canBeBuildPart());
+        $this->assertTrue($kind->canBeBuildPart());
         $this->assertTrue($kind->allowsPriceMethod());
+    }
+
+    public function testEveryKindCanBeABuildPart(): void
+    {
+        foreach (PartKind::cases() as $kind) {
+            $this->assertTrue($kind->canBeBuildPart(), $kind->value);
+        }
     }
 
     public function testNewPartIsAManufacturingPart(): void

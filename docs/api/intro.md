@@ -162,6 +162,8 @@ concept.
 * Setting `price_method` (any method, `system_default` too) or `user_price` on a manufacturing part is answered with 422.
 * The response for a single meta part holds `price`: its unit price for one unit by its price method, in the base
   currency, or `null` when it has none. It is worked out on each read and can not be written; lists do not hold it.
+* The `build_part` of a project can be a meta part as well as a manufacturing part. A build part, BOM entry or connection
+  through which a project would reach its own build part, or that of a parent project, is answered with 422.
 
 The connections themselves are a resource of their own at `/api/part_connections`:
 

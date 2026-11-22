@@ -202,6 +202,28 @@ trait InstockTrait
     }
 
     /**
+     * Returns the lots a build may add its units to when this part is a project's build part: its own lots and, for a
+     * kind that allows connections, the own lots of each connected part in the order of the connections. The status
+     * is not applied, as the choice is the user's.
+     * @return list<PartLot>
+     */
+    public function getLotsForBuiltUnits(): array
+    {
+        $lots = array_values($this->getPartLots()->toArray());
+        if (!$this->kind->allowsConnections()) {
+            return $lots;
+        }
+
+        foreach ($this->getOrderedConnections() as $connection) {
+            if ($connection->getConnectedPart() instanceof Part) {
+                $lots = array_merge($lots, array_values($connection->getConnectedPart()->getPartLots()->toArray()));
+            }
+        }
+
+        return $lots;
+    }
+
+    /**
      * Returns the summed amount over this part's own lots, whatever its connections hold. Lots of unknown amount and
      * expired lots are not counted.
      */

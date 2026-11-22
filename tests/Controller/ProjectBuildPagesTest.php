@@ -319,6 +319,71 @@ final class ProjectBuildPagesTest extends WebTestCase
         self::assertResponseRedirects();
     }
 
+    /**
+     * @return array{0: Project, 1: Part, 2: PartLot, 3: PartLot, 4: PartLot} A project built from a meta part with an
+     * own lot and a connected part marked do not use, and the lot of its one BOM part
+     */
+    private function projectWithMetaBuildPart(): array
+    {
+        $meta = $this->part('Meta build part', PartKind::META);
+        $own = $this->lot($meta, 2, 'Own lot of the build part');
+        $connected = $this->part('Connected to the build part');
+        $connectedLot = $this->lot($connected, 10, 'Lot of the connected part');
+        $this->connect($meta, $connected, 1, PartConnectionStatus::DO_NOT_USE);
+        $component = $this->part('Component');
+        $componentLot = $this->lot($component, 100);
+        $project = $this->project([[$component, 1]]);
+        $project->setBuildPart($meta);
+        $this->em->flush();
+
+        return [$project, $meta, $own, $connectedLot, $componentLot];
+    }
+
+    public function testAMetaBuildPartTakesTheBuiltUnitsInTheChosenLotOfAConnectedPart(): void
+    {
+        [$project, , $own, $connectedLot, $componentLot] = $this->projectWithMetaBuildPart();
+
+        $crawler = $this->open($project, 3);
+        $select = $crawler->filter('select[name="project_build[buildsPartLot]"]');
+        $this->assertSame(['Own stock of the meta part', 'Connected to the build part'], $select->filter('optgroup')->each(static fn (Crawler $group): string => (string) $group->attr('label')));
+        $this->assertSame(['', (string) $own->getID(), (string) $connectedLot->getID()], $select->filter('option')->each(static fn (Crawler $option): string => (string) $option->attr('value')));
+
+        $this->post($project, $crawler, ['project_build[buildsPartLot]' => (string) $connectedLot->getID()], 3);
+        self::assertResponseRedirects();
+
+        $this->em->clear();
+        $this->assertSame(13.0, $this->em->find(PartLot::class, $connectedLot->getID())->getAmount());
+        $this->assertSame(2.0, $this->em->find(PartLot::class, $own->getID())->getAmount());
+        $this->assertSame(97.0, $this->em->find(PartLot::class, $componentLot->getID())->getAmount());
+    }
+
+    public function testANewLotForTheBuiltUnitsIsAnOwnLotOfTheMetaBuildPart(): void
+    {
+        [$project, $meta, , $connectedLot] = $this->projectWithMetaBuildPart();
+
+        $this->post($project, $this->open($project, 2), ['project_build[buildsPartLot]' => ''], 2);
+        self::assertResponseRedirects();
+
+        $this->em->clear();
+        $lots = $this->em->find(Part::class, $meta->getID())->getPartLots();
+        $this->assertCount(2, $lots);
+        $this->assertSame([2.0, 2.0], $lots->map(static fn (PartLot $lot): float => $lot->getAmount())->getValues());
+        $this->assertSame(10.0, $this->em->find(PartLot::class, $connectedLot->getID())->getAmount());
+    }
+
+    public function testALotOfAnotherPartIsRefusedForTheBuiltUnits(): void
+    {
+        [$project, $meta, $own, , $componentLot] = $this->projectWithMetaBuildPart();
+
+        $this->post($project, $this->open($project), ['project_build[buildsPartLot]' => (string) $componentLot->getID()]);
+
+        self::assertResponseStatusCodeSame(422);
+        $this->em->clear();
+        $this->assertCount(1, $this->em->find(Part::class, $meta->getID())->getPartLots(), 'No lot is created');
+        $this->assertSame(100.0, $this->em->find(PartLot::class, $componentLot->getID())->getAmount());
+        $this->assertSame(2.0, $this->em->find(PartLot::class, $own->getID())->getAmount());
+    }
+
     public function testEntriesLeftShortAreListedAndMarked(): void
     {
         $shelf = $this->part('Only shelf');

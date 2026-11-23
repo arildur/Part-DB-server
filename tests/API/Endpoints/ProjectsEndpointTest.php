@@ -23,7 +23,13 @@ declare(strict_types=1);
 
 namespace App\Tests\API\Endpoints;
 
+use App\Entity\Parts\Category;
+use App\Entity\Parts\Part;
+use App\Entity\ProjectSystem\Project;
+use App\Entity\ProjectSystem\ProjectBOMEntry;
+use App\Settings\BehaviorSettings\PartDeletionSettings;
 use App\Tests\API\Endpoints\CrudEndpointTestCase;
+use Doctrine\ORM\EntityManagerInterface;
 
 final class ProjectsEndpointTest extends CrudEndpointTestCase
 {
@@ -118,5 +124,51 @@ final class ProjectsEndpointTest extends CrudEndpointTestCase
         self::assertResponseIsSuccessful();
         $client->request('POST', '/api/part_connections', ['json' => ['meta_part' => $metaBuild, 'connected_part' => $inBom]]);
         self::assertResponseStatusCodeSame(422);
+    }
+
+    /**
+     * Deleting a project deletes its build part, so the setting refusing the deletion of parts used in a BOM
+     * also refuses deleting a sub-project whose build part is in its parent's BOM, with 409 as for a part.
+     */
+    public function testDeletingAProjectWhoseBuildPartIsInABomIsRefusedWith409WhileTheSettingIsOn(): void
+    {
+        $client = self::createAuthenticatedClient();
+        $client->disableReboot();
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = true;
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $parent = new Project();
+        $parent->setName('API parent project');
+        $child = new Project();
+        $child->setName('API sub-project');
+        $child->setParent($parent);
+        $buildPart = new Part();
+        $buildPart->setName('API sub-project build');
+        $buildPart->setCategory($em->find(Category::class, 1));
+        $child->setBuildPart($buildPart);
+        $entry = (new ProjectBOMEntry())->setQuantity(1.0);
+        $parent->addBomEntry($entry);
+        $buildPart->addProjectBomEntry($entry);
+        foreach ([$parent, $child, $buildPart] as $entity) {
+            $em->persist($entity);
+        }
+        $em->flush();
+        [$childId, $partId] = [$child->getID(), $buildPart->getID()];
+        $em->clear();
+
+        $response = $client->request('DELETE', '/api/projects/'.$childId);
+
+        self::assertResponseStatusCodeSame(409);
+        $this->assertStringContainsString('API parent project', $response->toArray(false)['detail']);
+        $em->clear();
+        $this->assertNotNull($em->find(Project::class, $childId));
+        $this->assertNotNull($em->find(Part::class, $partId));
+
+        //With the setting off, the project and its build part are deleted, and the BOM entry keeps the name
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = false;
+        $client->request('DELETE', '/api/projects/'.$childId);
+        self::assertResponseStatusCodeSame(204);
+        $em->clear();
+        $this->assertNull($em->find(Project::class, $childId));
+        $this->assertNull($em->find(Part::class, $partId));
     }
 }

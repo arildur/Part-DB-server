@@ -57,6 +57,7 @@ use App\Entity\Base\AbstractStructuralDBElement;
 use App\Entity\Parameters\ProjectParameter;
 use App\Entity\Parts\Part;
 use App\Services\ProjectSystem\BuildPartReach;
+use App\State\ProjectDeleteProcessor;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
@@ -81,7 +82,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         new GetCollection(security: 'is_granted("@projects.read")'),
         new Post(securityPostDenormalize: 'is_granted("create", object)'),
         new Patch(security: 'is_granted("edit", object)'),
-        new Delete(security: 'is_granted("delete", object)'),
+        new Delete(security: 'is_granted("delete", object)', processor: ProjectDeleteProcessor::class),
         new GetCollection(
             uriTemplate: '/projects/{id}/children.{_format}',
             uriVariables: ['id' => new Link(fromProperty: 'children', fromClass: Project::class)],

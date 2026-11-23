@@ -192,6 +192,9 @@ is answered with `409 Conflict` and deletes nothing; the `detail` of the error n
 number to a user without the permission to read projects. A user without the right to
 delete the part still gets `403` first. While it is off (the default), the part is deleted and its BOM entries keep only its name.
 
+The same holds for `DELETE /api/projects/{id}` of a project whose build part another project's BOM uses, as deleting a
+project deletes its build part.
+
 ## Ordering results
 
 When retrieving a list of entities, you can order the results by various fields using the `order` query parameter.

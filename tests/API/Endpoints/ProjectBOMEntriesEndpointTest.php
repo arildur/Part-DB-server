@@ -138,14 +138,9 @@ final class ProjectBOMEntriesEndpointTest extends CrudEndpointTestCase
         $this->assertSame(200, $this->patch($entry['@id'], ['quantity' => 6])[0]);
     }
 
-    public function testEntriesWithoutAPartAreComparedByTheirName(): void
+    public function testEntriesWithoutAPartAreNotComparedByTheirName(): void
     {
         $this->assertSame(201, $this->post(['project' => '/api/projects/1', 'name' => 'Screw M3', 'quantity' => 4])[0]);
-        $this->assertSame(201, $this->post(['project' => '/api/projects/1', 'name' => 'Screw M4', 'quantity' => 4])[0]);
-
-        [$status, $body] = $this->post(['project' => '/api/projects/1', 'name' => 'Screw M3', 'quantity' => 1]);
-        $this->assertSame(422, $status);
-        $this->assertSame('name', $body['violations'][0]['propertyPath']);
-        $this->assertSame('There is already a BOM entry with this name!', $body['violations'][0]['message']);
+        $this->assertSame(201, $this->post(['project' => '/api/projects/1', 'name' => 'Screw M3', 'quantity' => 1])[0]);
     }
 }

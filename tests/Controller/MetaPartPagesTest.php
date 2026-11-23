@@ -312,6 +312,26 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertNotContains('#suppliers', $this->tabIds($this->info($meta)));
     }
 
+    public function testTheConnectionsTabComesRightAfterTheAssociatedPartsOnBothKinds(): void
+    {
+        $meta = $this->exampleMetaPart();
+        $part = $meta->getOrderedConnections()[0]->getConnectedPart();
+
+        foreach ([$meta, $part] as $shown) {
+            $tabs = $this->tabIds($this->info($shown));
+            $connections = array_search('#connections', $tabs, true);
+            $this->assertNotFalse($connections, implode(' ', $tabs));
+            //Of the tabs before it, the nearest one shown follows the template's order: associated parts if shown, else shopping information
+            $before = array_slice($tabs, 0, $connections);
+            $this->assertNotContains('#history', $before, implode(' ', $tabs));
+            $this->assertNotContains('#projects', $before, implode(' ', $tabs));
+            $this->assertContains('#part_lots', $before, implode(' ', $tabs));
+            if (in_array('#associations', $tabs, true)) {
+                $this->assertSame('#associations', end($before), implode(' ', $tabs));
+            }
+        }
+    }
+
     public function testAConnectedPartListsItsMetaParts(): void
     {
         $meta = $this->exampleMetaPart();

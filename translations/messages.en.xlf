@@ -16772,5 +16772,11 @@ Buerklin-API Authentication server:
         <target>The [project] was not deleted, because the build [part] of the [project] %project% is used in the BOM of: %projects%. Remove it from these BOMs first, or turn off the setting "Refuse deleting [[part]] used in a BOM".</target>
       </segment>
     </unit>
+    <unit id="Zn2g8.Z" name="part.delete.used_in_bom.project_count">
+      <segment state="translated">
+        <source>part.delete.used_in_bom.project_count</source>
+        <target>{1}1 [project]|]1,Inf[%count% [[project]]</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

@@ -579,6 +579,26 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringStartsWith('Used in the BOM of First board, Second <b>board</b>;', trim($hint->text()));
     }
 
+    private function denyAdminProjectsRead(): void
+    {
+        $admin = $this->em->getRepository(User::class)->findOneBy(['name' => 'admin']);
+        $admin->getPermissions()->setPermissionValue('projects', 'read', false);
+        $this->em->flush();
+        $this->client->loginUser($admin);
+    }
+
+    public function testAUserWhoMayNotReadProjectsIsToldOnlyHowManyProjectsUseThePart(): void
+    {
+        $meta = $this->metaPartInTwoBoms(true);
+        $this->denyAdminProjectsRead();
+
+        $hint = $this->info($meta)->filter('#part-delete-refused');
+
+        $this->assertSame(0, $hint->filter('a')->count());
+        $this->assertStringStartsWith('Used in the BOM of 2 projects;', trim($hint->text()));
+        $this->assertStringNotContainsString('board', $hint->text());
+    }
+
     public function testWithTheSettingOffTheDeleteButtonIsAsToday(): void
     {
         $crawler = $this->info($this->metaPartInTwoBoms(false));
@@ -607,6 +627,23 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertResponseRedirects('/en/part/'.$id.'/info');
         $text = $this->client->followRedirect()->filter('body')->text();
         $this->assertStringContainsString('First board, Second <b>board</b>', $text);
+        $this->em->clear();
+        $this->assertNotNull($this->em->find(Part::class, $id));
+    }
+
+    public function testARefusedDeleteGivesOnlyTheNumberOfProjectsToAUserWhoMayNotReadProjects(): void
+    {
+        $meta = $this->metaPartInTwoBoms(true);
+        $id = $meta->getID();
+        $this->denyAdminProjectsRead();
+        $token = $this->info($meta)->filter('#tools form input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', '/en/part/'.$id.'/delete', ['_method' => 'DELETE', '_token' => $token]);
+
+        $this->assertResponseRedirects('/en/part/'.$id.'/info');
+        $flash = $this->client->followRedirect()->filter('.alert-danger, .toast')->text();
+        $this->assertStringContainsString('used in the BOM of: 2 projects.', $flash);
+        $this->assertStringNotContainsString('First board', $flash);
         $this->em->clear();
         $this->assertNotNull($this->em->find(Part::class, $id));
     }

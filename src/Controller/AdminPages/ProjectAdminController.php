@@ -90,7 +90,7 @@ class ProjectAdminController extends BaseAdminController
                 } catch (PartUsedInBomException $exception) {
                     $this->addFlash('error', t('project.delete.refused_build_part_used_in_bom', [
                         '%project%' => $project->getName(),
-                        '%projects%' => implode(', ', $exception->getProjectNames()),
+                        '%projects%' => $exception->getProjectsParameter(),
                     ]));
 
                     return $this->redirectToRoute('project_edit', ['id' => $entity->getID()]);

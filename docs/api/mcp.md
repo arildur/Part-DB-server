@@ -300,7 +300,8 @@ API token/OAuth2 grant (see [Permissions](#permissions) above) and the correspon
 * **delete_part** *(write)* – Permanently delete a part by its database ID, including its stock lots, parameters,
   orderdetails, associations and connections. The parts connected to a deleted meta part stay. This cannot be undone
   and there is no confirmation step. While the setting "Refuse deleting parts used in a BOM" is on, a part that a BOM
-  entry points to is not deleted, and the tool returns an error naming the projects.
+  entry points to is not deleted, and the tool returns an error naming the projects, or giving only their number to a
+  user without the permission to read projects.
 * **withdraw_part_stock** / **add_part_stock** / **stocktake_part_lot** *(write)* – Adjust the stock of a part lot
   by its database ID: remove or add a given amount, or set a lot's stock to a known actual amount (a
   stocktake/inventory count). These mirror the same withdraw/add/stocktake actions available in the web UI,

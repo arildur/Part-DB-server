@@ -28,6 +28,7 @@ use App\Entity\ProjectSystem\Project;
 use App\Exceptions\PartUsedInBomException;
 use App\Settings\BehaviorSettings\PartDeletionSettings;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\SecurityBundle\Security;
 
 /**
  * The one check whether a part may be deleted, asked by every path that deletes a part: the part page, the delete
@@ -38,7 +39,8 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final readonly class PartDeletionGuard
 {
-    public function __construct(private EntityManagerInterface $entityManager, private PartDeletionSettings $settings)
+    public function __construct(private EntityManagerInterface $entityManager, private PartDeletionSettings $settings,
+        private Security $security)
     {
     }
 
@@ -75,7 +77,8 @@ final readonly class PartDeletionGuard
     }
 
     /**
-     * Does nothing while the setting is off; otherwise throws when a BOM entry points to the part.
+     * Does nothing while the setting is off; otherwise throws when a BOM entry points to the part, naming the projects
+     * only to a user who may read projects.
      * @param  list<Project>  $deletedProjects  projects that are deleted together with the part, which do not count
      * @throws PartUsedInBomException
      */
@@ -87,7 +90,8 @@ final readonly class PartDeletionGuard
 
         $projects = $this->getBlockingProjects($part, $deletedProjects);
         if ($projects !== []) {
-            throw new PartUsedInBomException($part->getName(), array_map(static fn (Project $p): string => $p->getName(), $projects));
+            throw new PartUsedInBomException($part->getName(), array_map(static fn (Project $p): string => $p->getName(), $projects),
+                $this->security->isGranted('@projects.read'));
         }
     }
 }

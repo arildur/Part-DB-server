@@ -189,7 +189,8 @@ the part is refused while the other entry has it.
 ## Deleting a part used in a BOM
 
 While the setting "Refuse deleting parts used in a BOM" is on, `DELETE /api/parts/{id}` of a part that a BOM entry points to
-is answered with `409 Conflict` and deletes nothing; the `detail` of the error names the projects. A user without the right to
+is answered with `409 Conflict` and deletes nothing; the `detail` of the error names the projects, or gives only their
+number to a user without the permission to read projects. A user without the right to
 delete the part still gets `403` first. While it is off (the default), the part is deleted and its BOM entries keep only its name.
 
 ## Ordering results

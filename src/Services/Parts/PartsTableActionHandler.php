@@ -193,7 +193,7 @@ implode(',', array_map(static fn (PartLot $lot) => $lot->getID(), $part->getPart
                     } catch (PartUsedInBomException $exception) {
                         $errors[] = [
                             'part' => $part,
-                            'message' => t('parts.table.action_handler.error.used_in_bom', ['%projects%' => implode(', ', $exception->getProjectNames())]),
+                            'message' => t('parts.table.action_handler.error.used_in_bom', ['%projects%' => $exception->getProjectsParameter()]),
                         ];
                         break;
                     }

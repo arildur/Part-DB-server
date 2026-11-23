@@ -30,6 +30,7 @@ use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Settings\BehaviorSettings\PartDeletionSettings;
 use ApiPlatform\Symfony\Bundle\Test\Client;
+use App\Entity\UserSystem\User;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -300,6 +301,21 @@ final class PartEndpointTest extends CrudEndpointTestCase
         $this->assertStringContainsString('API project', $response->toArray(false)['detail']);
         self::getContainer()->get(EntityManagerInterface::class)->clear();
         $this->assertNotNull(self::getContainer()->get(EntityManagerInterface::class)->find(Part::class, $id));
+    }
+
+    public function testTheRefusalGivesOnlyTheNumberOfProjectsToAUserWhoMayNotReadProjects(): void
+    {
+        [$client, $id] = $this->clientAndPart(true);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $em->getRepository(User::class)->findOneBy(['name' => 'admin'])->getPermissions()->setPermissionValue('projects', 'read', false);
+        $em->flush();
+
+        $response = $client->request('DELETE', '/api/parts/'.$id);
+
+        self::assertResponseStatusCodeSame(409);
+        $detail = $response->toArray(false)['detail'];
+        $this->assertStringContainsString('used in the BOM of 1 project(s)', $detail);
+        $this->assertStringNotContainsString('API project', $detail);
     }
 
     public function testDeletingAPartInABomUnlinksItWhileTheSettingIsOff(): void

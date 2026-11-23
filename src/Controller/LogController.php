@@ -232,7 +232,7 @@ class LogController extends AbstractController
                     try {
                         $this->deletionGuard->assertDeletable($element);
                     } catch (PartUsedInBomException $exception) {
-                        $this->addFlash('error', t('part.delete.refused_used_in_bom', ['%projects%' => implode(', ', $exception->getProjectNames())]));
+                        $this->addFlash('error', t('part.delete.refused_used_in_bom', ['%projects%' => $exception->getProjectsParameter()]));
 
                         return;
                     }

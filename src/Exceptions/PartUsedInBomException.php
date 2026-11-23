@@ -24,21 +24,25 @@ declare(strict_types=1);
 
 namespace App\Exceptions;
 
+use Symfony\Component\Translation\TranslatableMessage;
+
 /**
  * Thrown when a part is to be deleted while the setting "Refuse deleting parts used in a BOM" is on and a BOM entry
- * points to it. The message is plain English text naming the part and the projects, for REST (409) and MCP; the web
- * UI builds its own translated message from getPartName() and getProjectNames().
+ * points to it. The projects are named only to a user who may read projects; others learn how many there are. The
+ * message is plain English text, for REST (409) and MCP; the web UI puts getProjectsParameter() into its own message.
  * @see \App\Services\Parts\PartDeletionGuard
  */
 class PartUsedInBomException extends \RuntimeException
 {
     /**
      * @param list<string> $projectNames the names of the projects whose BOM uses the part, each once
+     * @param bool $projectNamesShown whether the user may read projects, and so learn their names
      */
-    public function __construct(private readonly string $partName, private readonly array $projectNames)
+    public function __construct(private readonly string $partName, private readonly array $projectNames,
+        private readonly bool $projectNamesShown = true)
     {
-        parent::__construct(sprintf('The part "%s" can not be deleted, because it is used in the BOM of the project(s): %s. Remove it from these BOMs first, or turn off the setting "Refuse deleting parts used in a BOM".',
-            $partName, implode(', ', $projectNames)));
+        parent::__construct(sprintf('The part "%s" can not be deleted, because it is used in the BOM of %s. Remove it from these BOMs first, or turn off the setting "Refuse deleting parts used in a BOM".',
+            $partName, $projectNamesShown ? 'the project(s): '.implode(', ', $projectNames) : count($projectNames).' project(s)'));
     }
 
     public function getPartName(): string
@@ -47,10 +51,25 @@ class PartUsedInBomException extends \RuntimeException
     }
 
     /**
-     * @return list<string>
+     * @return list<string> the names of the projects, or none when the user may not read projects
      */
     public function getProjectNames(): array
     {
-        return $this->projectNames;
+        return $this->projectNamesShown ? $this->projectNames : [];
+    }
+
+    public function getProjectCount(): int
+    {
+        return count($this->projectNames);
+    }
+
+    /**
+     * The projects as the parameter %projects% of a translated message: their names, or their number for a user who
+     * may not read projects.
+     */
+    public function getProjectsParameter(): string|TranslatableMessage
+    {
+        return $this->projectNamesShown ? implode(', ', $this->projectNames)
+            : new TranslatableMessage('part.delete.used_in_bom.project_count', ['%count%' => count($this->projectNames)]);
     }
 }

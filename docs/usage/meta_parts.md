@@ -87,8 +87,8 @@ measurement unit than such a meta part, the merge form says so and saves nothing
 its connected parts, and deleting a connected part removes it from its meta parts.
 
 With the setting "Refuse deleting parts used in a BOM" (System settings > Behavior, off by default) Part-DB refuses to delete a part
-that a BOM entry points to, a meta part or a manufacturing part, and names the projects; the delete button of the part page is then
-disabled. Only a BOM entry that names the part itself counts: a connected part used only through its meta part can still be deleted,
+that a BOM entry points to, a meta part or a manufacturing part, and names the projects to a user who may read projects;
+others are told how many projects use it. The delete button of the part page is then disabled. Only a BOM entry that names the part itself counts: a connected part used only through its meta part can still be deleted,
 and it is removed from its meta parts as above. Deleting a project deletes its build part, so deleting a sub-project whose build
 part is in the BOM of another project, normally its parent, is refused the same way; deleting the parent together with its
 sub-projects is not. With the setting off, the BOM entries of a deleted part keep only its name.

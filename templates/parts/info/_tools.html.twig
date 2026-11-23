@@ -113,8 +113,18 @@
     </div>
     {% if delete_refused_projects is not empty %}
         <div class="form-text text-danger" id="part-delete-refused">
-            {% set project_links = delete_refused_projects|map(p => '<a href="' ~ entity_url(p)|e('html_attr') ~ '">' ~ p.name|e ~ '</a>')|join(', ') %}
-            {{ 'part.delete.refused_used_in_bom.hint'|trans({'%projects%': project_links})|raw }}
+            {#- The projects are named only to a user who may read them, and escaped where they are written -#}
+            {%- set projects_text -%}
+                {%- if is_granted('@projects.read') -%}
+                    {%- for project in delete_refused_projects -%}
+                        {%- if not loop.first %}, {% endif -%}
+                        <a href="{{ entity_url(project) }}">{{ project.name }}</a>
+                    {%- endfor -%}
+                {%- else -%}
+                    {{ 'part.delete.used_in_bom.project_count'|trans({'%count%': delete_refused_projects|length}) }}
+                {%- endif -%}
+            {%- endset %}
+            {{ 'part.delete.refused_used_in_bom.hint'|trans({'%projects%': projects_text})|raw }}
         </div>
     {% endif %}
 </form>

@@ -29,11 +29,14 @@ use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartKind;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
+use App\Entity\UserSystem\User;
 use App\Exceptions\PartUsedInBomException;
 use App\Services\Parts\PartDeletionGuard;
 use App\Settings\BehaviorSettings\PartDeletionSettings;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
+use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 
 final class PartDeletionGuardTest extends KernelTestCase
 {
@@ -48,6 +51,15 @@ final class PartDeletionGuardTest extends KernelTestCase
         $this->guard = self::getContainer()->get(PartDeletionGuard::class);
         $this->settings = self::getContainer()->get(PartDeletionSettings::class);
         $this->settings->refuseDeletingPartsUsedInBom = true;
+        $this->loginAdmin();
+    }
+
+    private function loginAdmin(): User
+    {
+        $admin = $this->em->getRepository(User::class)->findOneBy(['name' => 'admin']);
+        self::getContainer()->get(TokenStorageInterface::class)->setToken(new UsernamePasswordToken($admin, 'main', $admin->getRoles()));
+
+        return $admin;
     }
 
     private function part(string $name, PartKind $kind = PartKind::MANUFACTURING): Part
@@ -86,6 +98,27 @@ final class PartDeletionGuardTest extends KernelTestCase
             $this->assertSame('Guarded part', $exception->getPartName());
             $this->assertSame(['Alpha project', 'Zeta project'], $exception->getProjectNames());
             $this->assertStringContainsString('Alpha project, Zeta project', $exception->getMessage());
+        }
+    }
+
+    public function testAUserWhoMayNotReadProjectsLearnsOnlyHowManyThereAre(): void
+    {
+        $this->loginAdmin()->getPermissions()->setPermissionValue('projects', 'read', false);
+        $part = $this->part('Guarded part');
+        $this->useIn($part, 'Zeta project');
+        $this->useIn($part, 'Alpha project');
+        $this->em->flush();
+
+        try {
+            $this->guard->assertDeletable($part);
+            $this->fail('The guard did not refuse.');
+        } catch (PartUsedInBomException $exception) {
+            $this->assertSame([], $exception->getProjectNames());
+            $this->assertSame(2, $exception->getProjectCount());
+            $this->assertStringContainsString('used in the BOM of 2 project(s)', $exception->getMessage());
+            $this->assertStringNotContainsString('Alpha', $exception->getMessage());
+            //The synonym is filled in by a request, which this test has not
+            $this->assertSame('2 [[project]]', $exception->getProjectsParameter()->trans(self::getContainer()->get('translator')));
         }
     }
 

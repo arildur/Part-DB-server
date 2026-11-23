@@ -153,8 +153,9 @@ bundled with Part-DB. Set `DATABASE_MYSQL_SSL_VERIFY_CERT` if you want to accept
   they conflict with your keyboard layout or system shortcuts.
 * `REFUSE_DELETING_PARTS_USED_IN_BOM`: Set this to 1 to refuse deleting a part (meta or manufacturing) that a BOM entry
   of a project points to, on the part page, in part tables, over the REST API and over MCP, and deleting a project
-  whose build part another project's BOM uses. The message names the projects. A part used only through a meta part can still be deleted. Off by default, as before: deleting such a part
-  turns its BOM entries into entries that keep only its name. Also under System settings > Behavior > Deleting parts.
+  whose build part another project's BOM uses. The message names the projects, or gives only their number to a user
+  without the permission to read projects. A part used only through a meta part can still be deleted. Off by default,
+  as before: deleting such a part turns its BOM entries into entries that keep only its name. Also under System settings > Behavior > Deleting parts.
 
 ### E-Mail settings (all env only)
 

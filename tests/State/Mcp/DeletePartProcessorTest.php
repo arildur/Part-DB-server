@@ -169,6 +169,21 @@ class DeletePartProcessorTest extends WebTestCase
         self::assertNotNull($this->em->getRepository(Part::class)->find($id));
     }
 
+    public function testTheToolErrorGivesOnlyTheNumberOfProjectsToAUserWhoMayNotReadProjects(): void
+    {
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = true;
+        $this->useInABom();
+        $admin = $this->em->getRepository(User::class)->findOneBy(['name' => 'admin']);
+        $admin->getPermissions()->setPermissionValue('projects', 'read', false);
+        $this->em->flush();
+        $this->client->loginUser($admin);
+
+        $result = $this->processor->process(new DeletePartInput(id: $this->part->getID()), $this->getOperation());
+
+        $this->assertErrorResult($result, 'used in the BOM of 1 project(s)');
+        self::assertStringNotContainsString('MCP project', $result->content[0]->text);
+    }
+
     public function testAPartInABomIsDeletedAndTheEntryKeepsItsNameWhileTheSettingIsOff(): void
     {
         self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = false;

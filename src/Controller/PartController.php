@@ -355,7 +355,7 @@ final class PartController extends AbstractController
             try {
                 $deletionGuard->assertDeletable($part);
             } catch (PartUsedInBomException $exception) {
-                $this->addFlash('error', t('part.delete.refused_used_in_bom', ['%projects%' => implode(', ', $exception->getProjectNames())]));
+                $this->addFlash('error', t('part.delete.refused_used_in_bom', ['%projects%' => $exception->getProjectsParameter()]));
 
                 return $this->redirectToRoute('part_info', ['id' => $part->getID()]);
             }

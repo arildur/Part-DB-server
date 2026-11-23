@@ -229,7 +229,7 @@ final class PartController extends AbstractController
             }
         }
 
-        return $this->renderPartForm('edit', $request, $part, [], [
+        return $this->renderPartForm('edit', $request, $part, ['with_meta_parts' => true], [
             'bulk_job' => $bulkJob
         ]);
     }

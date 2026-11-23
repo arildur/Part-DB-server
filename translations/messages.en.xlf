@@ -16352,6 +16352,48 @@ Buerklin-API Authentication server:
         <target>%part% has another [footprint] than this meta [part].</target>
       </segment>
     </unit>
+    <unit id="alOgKZa" name="part_connection.footprint_differs_from_meta_part">
+      <segment state="translated">
+        <source>part_connection.footprint_differs_from_meta_part</source>
+        <target>%part% has another [footprint] than this [part].</target>
+      </segment>
+    </unit>
+    <unit id="8ZvM.m5" name="part_connection.edit.meta_part">
+      <segment state="translated">
+        <source>part_connection.edit.meta_part</source>
+        <target>Meta [part]</target>
+      </segment>
+    </unit>
+    <unit id="3Ga6pG8" name="part_connection.edit.create_meta_part">
+      <segment state="translated">
+        <source>part_connection.edit.create_meta_part</source>
+        <target>Connect to a meta [part]</target>
+      </segment>
+    </unit>
+    <unit id="BeFQeee" name="part_connection.edit.position.last">
+      <segment state="translated">
+        <source>part_connection.edit.position.last</source>
+        <target>Last in the order of the meta [part], when saved</target>
+      </segment>
+    </unit>
+    <unit id="rJYeLc." name="part_connection.edit.read_only">
+      <segment state="translated">
+        <source>part_connection.edit.read_only</source>
+        <target>Read only</target>
+      </segment>
+    </unit>
+    <unit id="FeI5yL6" name="part_connection.edit.meta_part_read_only">
+      <segment state="translated">
+        <source>part_connection.edit.meta_part_read_only</source>
+        <target>Only a user who may edit this meta [part] can change or remove this connection.</target>
+      </segment>
+    </unit>
+    <unit id="pYek0X1" name="part_connection.edit.meta_part_not_editable">
+      <segment state="translated">
+        <source>part_connection.edit.meta_part_not_editable</source>
+        <target>The connection to the meta [part] %name% can only be added, changed or removed by a user who may edit that meta [part]. Nothing was saved.</target>
+      </segment>
+    </unit>
     <unit id="VkauRWa" name="part_lots.own_lots">
       <segment state="translated">
         <source>part_lots.own_lots</source>

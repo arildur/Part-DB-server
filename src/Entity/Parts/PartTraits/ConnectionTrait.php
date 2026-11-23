@@ -78,6 +78,41 @@ trait ConnectionTrait
     }
 
     /**
+     * Connects this part to the meta part of the connection, from this side. The connection is added to the meta part
+     * too, whose side persists it, and goes last in its order of priority unless it already has a position.
+     */
+    public function addConnectionsAsPart(PartConnection $connection): self
+    {
+        $connection->setConnectedPart($this);
+        $this->connections_as_part->add($connection);
+
+        $metaPart = $connection->getMetaPart();
+        if ($metaPart instanceof Part && !$metaPart->getPartConnections()->contains($connection)) {
+            if ($connection->getPosition() === null) {
+                $highest = 0;
+                foreach ($metaPart->getPartConnections() as $other) {
+                    $highest = max($highest, $other->getPosition() ?? 0);
+                }
+                $connection->setPosition($highest + 1);
+            }
+            $metaPart->addPartConnection($connection);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Removes the connection from this side and from its meta part, whose side deletes it. Both parts stay.
+     */
+    public function removeConnectionsAsPart(PartConnection $connection): self
+    {
+        $this->connections_as_part->removeElement($connection);
+        $connection->getMetaPart()?->removePartConnection($connection);
+
+        return $this;
+    }
+
+    /**
      * Returns the connections of this meta part in their order (see PartConnection::compareByPriority()).
      * @return list<PartConnection>
      */

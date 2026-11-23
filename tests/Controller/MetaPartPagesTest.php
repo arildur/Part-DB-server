@@ -33,6 +33,7 @@ use App\Entity\Parts\Supplier;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\PriceInformations\Pricedetail;
 use App\Entity\UserSystem\User;
+use App\Tests\Security\PartEditDenyingDecisionManager;
 use App\Form\Part\PartBaseType;
 use App\Settings\MiscSettings\MetaPartSettings;
 use App\Settings\BehaviorSettings\PartDeletionSettings;
@@ -49,12 +50,20 @@ final class MetaPartPagesTest extends WebTestCase
 {
     private KernelBrowser $client;
     private EntityManagerInterface $em;
+    /** The edit page that editValues() read last */
+    private Crawler $editPage;
 
     protected function setUp(): void
     {
         $this->client = static::createClient();
         $this->em = self::getContainer()->get(EntityManagerInterface::class);
         $this->client->loginUser($this->em->getRepository(User::class)->findOneBy(['name' => 'admin']));
+    }
+
+    protected function tearDown(): void
+    {
+        PartEditDenyingDecisionManager::$deniedPartIds = [];
+        parent::tearDown();
     }
 
     private function part(string $name, PartKind $kind = PartKind::MANUFACTURING): Part
@@ -850,6 +859,21 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertSame(1, $crawler->filter('[name="part_base[gtin]"]')->count());
     }
 
+    public function testOnTheEditPageTheConnectionsTabComesRightAfterTheAssociatedPartsOnBothKinds(): void
+    {
+        $meta = $this->exampleMetaPart();
+        $part = $meta->getOrderedConnections()[0]->getConnectedPart();
+
+        foreach (['#part_connections' => $meta, '#connections_as_part' => $part] as $tab => $shown) {
+            $crawler = $this->client->request('GET', '/en/part/'.$shown->getID().'/edit');
+            $this->assertResponseIsSuccessful();
+            $tabs = $crawler->filter('ul.nav-tabs a.nav-link')->each(static fn (Crawler $a) => (string) $a->attr('href'));
+            $associations = array_search('#associations', $tabs, true);
+            $this->assertNotFalse($associations, implode(' ', $tabs));
+            $this->assertSame($tab, $tabs[$associations + 1] ?? null, implode(' ', $tabs));
+        }
+    }
+
     public function testTheFormsOfAMetaPartOfferTheSixPriceMethodsWithSystemDefaultChosen(): void
     {
         foreach (['/en/part/new?kind=meta', '/en/part/'.$this->exampleMetaPart()->getID().'/edit'] as $url) {
@@ -972,6 +996,7 @@ final class MetaPartPagesTest extends WebTestCase
     private function editValues(Part $meta): array
     {
         $crawler = $this->client->request('GET', '/en/part/'.$meta->getID().'/edit');
+        $this->editPage = $crawler;
         $values = $crawler->filter('form[name="part_base"]')->form()->getPhpValues();
         $values['part_base']['save'] = '';
 
@@ -1106,6 +1131,227 @@ final class MetaPartPagesTest extends WebTestCase
 
         $crawler = $this->info($meta);
         $this->assertStringContainsString('kind=meta', (string) $crawler->filter('#merge-modal [data-autocomplete], select[data-autocomplete*="typeahead"]')->first()->attr('data-autocomplete'));
+    }
+
+    /**
+     * Saves and reloads the parts, so that the side of a connection that was not set in memory is read from the database.
+     * @return list<Part>
+     */
+    private function saveAndReload(Part ...$parts): array
+    {
+        $this->em->flush();
+        $ids = array_map(static fn (Part $part): ?int => $part->getID(), $parts);
+        $this->em->clear();
+        $this->client->loginUser($this->em->getRepository(User::class)->findOneBy(['name' => 'admin']));
+
+        return array_map(fn (?int $id): Part => $this->em->find(Part::class, $id), $ids);
+    }
+
+    /** @return array<string, array{position: string, read_only: bool, selects: int, remove: int}> The rows of the Meta parts tab by the name of the meta part */
+    private function metaPartRows(Crawler $crawler): array
+    {
+        $rows = [];
+        $crawler->filter('#meta_part_connection_table tbody tr')->each(function (Crawler $row) use (&$rows): void {
+            $rows[$row->filter('[data-meta-part]')->text()] = [
+                'position' => trim($row->filter('[data-position]')->text()),
+                'read_only' => $row->attr('data-read-only') !== null,
+                'selects' => $row->filter('select')->count(),
+                'remove' => $row->filter('button.btn-danger')->count(),
+            ];
+        });
+
+        return $rows;
+    }
+
+    /** @return string The key of the row of the given meta part in the values of the edit page that editValues() read */
+    private function metaPartRowKey(Part $meta): string
+    {
+        $row = $this->editPage->filter('#meta_part_connection_table tbody tr')
+            ->reduce(static fn (Crawler $row): bool => $row->filter('[data-meta-part="'.$meta->getID().'"]')->count() > 0);
+        $this->assertCount(1, $row, 'No row for '.$meta->getName());
+        preg_match('/\[connections_as_part\]\[([^\]]+)\]/', (string) $row->filter('[name]')->attr('name'), $match);
+
+        return $match[1];
+    }
+
+    public function testTheMetaPartsTabShowsOnTheEditPageOfAManufacturingPartOnly(): void
+    {
+        $meta = $this->part('Tab meta', PartKind::META);
+        $part = $this->part('Tab part');
+        $this->connect($meta, $part, 3, PartConnectionStatus::USE_UP);
+        [$meta, $part] = $this->saveAndReload($meta, $part);
+
+        $crawler = $this->client->request('GET', '/en/part/'.$part->getID().'/edit');
+        $this->assertResponseIsSuccessful();
+        $this->assertSame('Meta parts', trim($crawler->filter('a[href="#connections_as_part"]')->text()));
+        $this->assertSame(1, $crawler->filter('a[href="#connections_as_part"] i.fa-sitemap')->count());
+        $this->assertSame(0, $crawler->filter('a[href="#part_connections"]')->count());
+        $this->assertSame(['Tab meta' => ['position' => '3', 'read_only' => false, 'selects' => 1, 'remove' => 1]], $this->metaPartRows($crawler));
+        $this->assertSame('use_up', $crawler->filter('#meta_part_connection_table select option[selected]')->attr('value'));
+        $this->assertSame(0, $crawler->filter('#meta_part_connection_table input[name$="[position]"]')->count(), 'The position is read-only');
+
+        //The picker of a new row offers only meta parts
+        $prototype = html_entity_decode((string) $crawler->filter('#connections_as_part [data-elements--collection-type-prototype-value]')->attr('data-elements--collection-type-prototype-value'));
+        $this->assertStringContainsString('kind=meta', $prototype);
+        $this->assertStringNotContainsString('kind=manufacturing', $prototype);
+
+        $crawler = $this->client->request('GET', '/en/part/'.$meta->getID().'/edit');
+        $this->assertSame(0, $crawler->filter('a[href="#connections_as_part"]')->count());
+        $this->assertSame(1, $crawler->filter('a[href="#part_connections"]')->count());
+    }
+
+    public function testMetaPartsCanBeAddedChangedAndRemovedFromTheManufacturingPart(): void
+    {
+        $added = $this->part('Added meta', PartKind::META);
+        $this->connect($added, $this->part('Other first'), 1);
+        $this->connect($added, $this->part('Other second'), 4);
+        $changed = $this->part('Changed meta', PartKind::META);
+        $removed = $this->part('Removed meta', PartKind::META);
+        $this->lot($removed, 3);
+        $part = $this->part('Linked part');
+        $this->lot($part, 7);
+        $this->connect($changed, $part, 1, note: 'change');
+        $this->connect($removed, $part, 2, note: 'remove');
+        [$added, $changed, $removed, $part] = $this->saveAndReload($added, $changed, $removed, $part);
+        [$partId, $addedId, $changedId, $removedId] = [$part->getID(), $added->getID(), $changed->getID(), $removed->getID()];
+
+        $values = $this->editValues($part);
+        $changedKey = $this->metaPartRowKey($changed);
+        $values['part_base']['connections_as_part'][$changedKey]['status'] = 'do_not_use';
+        $values['part_base']['connections_as_part'][$changedKey]['note'] = 'Changed';
+        unset($values['part_base']['connections_as_part'][$this->metaPartRowKey($removed)]);
+        $values['part_base']['connections_as_part'][9] = ['meta_part' => ['autocomplete' => (string) $addedId], 'status' => 'approved', 'note' => 'New'];
+
+        $this->client->request('POST', '/en/part/'.$partId.'/edit', $values);
+        $this->assertResponseRedirects();
+
+        $this->em->clear();
+        $part = $this->em->find(Part::class, $partId);
+        $byMeta = [];
+        foreach ($part->getConnectionsAsPart() as $connection) {
+            $byMeta[$connection->getMetaPart()->getName()] = $connection;
+        }
+        ksort($byMeta);
+        $this->assertSame(['Added meta', 'Changed meta'], array_keys($byMeta));
+        $this->assertSame(5, $byMeta['Added meta']->getPosition(), 'Last in the order of the meta part');
+        $this->assertSame(PartConnectionStatus::APPROVED, $byMeta['Added meta']->getStatus());
+        $this->assertSame('New', $byMeta['Added meta']->getNote());
+        $this->assertCount(3, $this->em->find(Part::class, $addedId)->getPartConnections());
+        $this->assertSame(PartConnectionStatus::DO_NOT_USE, $byMeta['Changed meta']->getStatus());
+        $this->assertSame('Changed', $byMeta['Changed meta']->getNote());
+        $this->assertSame(1, $byMeta['Changed meta']->getPosition());
+
+        $removed = $this->em->find(Part::class, $removedId);
+        $this->assertNotNull($removed, 'Removing leaves the meta part');
+        $this->assertCount(0, $removed->getPartConnections());
+        $this->assertSame(3.0, $removed->getPartLots()->first()->getAmount());
+        $this->assertSame(7.0, $part->getPartLots()->first()->getAmount(), 'and the part with its stock');
+        $this->assertNotNull($this->em->find(Part::class, $changedId));
+    }
+
+    public function testAMetaPartTheUserMayNotEditIsReadOnlyAndAForgedChangeIsRefused(): void
+    {
+        $locked = $this->part('Locked meta', PartKind::META);
+        $otherLocked = $this->part('Other locked meta', PartKind::META);
+        $open = $this->part('Open meta', PartKind::META);
+        $part = $this->part('Part under locked');
+        $this->connect($locked, $part, 2, note: 'locked');
+        $this->connect($open, $part, 1, note: 'open');
+        [$locked, $otherLocked, $part] = $this->saveAndReload($locked, $otherLocked, $part);
+        [$partId, $lockedId] = [$part->getID(), $locked->getID()];
+        PartEditDenyingDecisionManager::$deniedPartIds = [$lockedId, $otherLocked->getID()];
+        $url = '/en/part/'.$partId.'/edit';
+
+        $crawler = $this->client->request('GET', $url);
+        $this->assertResponseIsSuccessful();
+        $rows = $this->metaPartRows($crawler);
+        $this->assertSame(['position' => '2', 'read_only' => true, 'selects' => 0, 'remove' => 0], $rows['Locked meta']);
+        $this->assertSame(['position' => '1', 'read_only' => false, 'selects' => 1, 'remove' => 1], $rows['Open meta']);
+
+        //Saved unchanged, the read-only row is no change
+        $values = $this->editValues($part);
+        $this->client->request('POST', $url, $values);
+        $this->assertResponseRedirects();
+
+        $lockedKey = $this->metaPartRowKey($locked);
+        $forgeries = [
+            'remove' => static function (array $v) use ($lockedKey): array { unset($v['part_base']['connections_as_part'][$lockedKey]); return $v; },
+            'add' => static function (array $v) use ($otherLocked): array { $v['part_base']['connections_as_part'][9] = ['meta_part' => ['autocomplete' => (string) $otherLocked->getID()], 'status' => 'approved', 'note' => '']; return $v; },
+        ];
+        foreach ($forgeries as $name => $forge) {
+            $crawler = $this->client->request('POST', $url, $forge($values));
+            $this->assertResponseStatusCodeSame(422, $name);
+            $this->assertStringContainsString('can only be added, changed or removed by a user who may edit that meta part', $crawler->filter('#connections_as_part')->text(), $name);
+        }
+
+        //A forged change of the read-only row is ignored, as its fields are disabled
+        $forged = $values;
+        $forged['part_base']['connections_as_part'][$lockedKey] = ['status' => 'do_not_use', 'note' => 'forged'];
+        $this->client->request('POST', $url, $forged);
+        $this->assertResponseRedirects();
+
+        $this->em->clear();
+        $connections = $this->em->find(Part::class, $partId)->getConnectionsAsPart();
+        $this->assertCount(2, $connections, 'Nothing changed');
+        foreach ($connections as $connection) {
+            $this->assertSame(PartConnectionStatus::APPROVED, $connection->getStatus());
+            $this->assertSame($connection->getMetaPart()->getID() === $lockedId ? 'locked' : 'open', $connection->getNote());
+        }
+    }
+
+    public function testANoteWithOuterSpacesOrALineBreakIsKeptAndDoesNotBlockSavingThePart(): void
+    {
+        $locked = $this->part('Locked meta', PartKind::META);
+        $open = $this->part('Open meta', PartKind::META);
+        $part = $this->part('Part with notes');
+        $this->connect($locked, $part, 1, PartConnectionStatus::USE_UP, " prototypes\nonly ");
+        $this->connect($open, $part, 1, note: "keep\nthis ");
+        [$locked, $open, $part] = $this->saveAndReload($locked, $open, $part);
+        [$partId, $lockedId] = [$part->getID(), $locked->getID()];
+        PartEditDenyingDecisionManager::$deniedPartIds = [$lockedId];
+
+        $values = $this->editValues($part);
+        $values['part_base']['name'] = 'Renamed part';
+        //A browser drops the line break of a text field's value
+        $openKey = $this->metaPartRowKey($open);
+        $values['part_base']['connections_as_part'][$openKey]['note'] = 'keepthis ';
+        $this->client->request('POST', '/en/part/'.$partId.'/edit', $values);
+        $this->assertResponseRedirects();
+
+        $this->em->clear();
+        $part = $this->em->find(Part::class, $partId);
+        $this->assertSame('Renamed part', $part->getName());
+        $this->assertCount(2, $part->getConnectionsAsPart());
+        foreach ($part->getConnectionsAsPart() as $connection) {
+            if ($connection->getMetaPart()->getID() === $lockedId) {
+                $this->assertSame(" prototypes\nonly ", $connection->getNote());
+                $this->assertSame(PartConnectionStatus::USE_UP, $connection->getStatus());
+            } else {
+                $this->assertSame("keep\nthis ", $connection->getNote());
+            }
+        }
+    }
+
+    public function testADuplicatePairOrAManufacturingPartIsRefusedFromTheManufacturingPart(): void
+    {
+        $meta = $this->part('Already meta', PartKind::META);
+        $other = $this->part('Not a meta part');
+        $part = $this->part('Already connected');
+        $this->connect($meta, $part, 1);
+        [$meta, $other, $part] = $this->saveAndReload($meta, $other, $part);
+        $url = '/en/part/'.$part->getID().'/edit';
+
+        foreach ([[$meta, 'already connected'], [$other, 'can only be connected to a meta part']] as [$picked, $message]) {
+            $values = $this->editValues($part);
+            $values['part_base']['connections_as_part'][9] = ['meta_part' => ['autocomplete' => (string) $picked->getID()], 'status' => 'approved', 'note' => ''];
+            $crawler = $this->client->request('POST', $url, $values);
+
+            $this->assertResponseStatusCodeSame(422, $picked->getName());
+            $this->assertStringContainsString($message, $crawler->filter('#connections_as_part')->text());
+        }
+
+        $this->em->clear();
+        $this->assertCount(1, $this->em->find(Part::class, $part->getID())->getConnectionsAsPart());
     }
 
     public function testAPartListWithMetaPartsLoadsWithABoundedNumberOfQueries(): void

@@ -266,3 +266,70 @@
         </td>
     </tr>
 {% endblock %}
+
+{# A connection on the edit page of its manufacturing part. A row of a meta part the user may not edit is shown as text,
+   keeps its stored values and has no remove button. #}
+{% block part_meta_connection_widget %}
+    {% import 'components/collection_type.macro.html.twig' as collection %}
+    {% set editable = value is null or value.id is null or is_granted('edit', value) %}
+    <tr {% if not editable %}data-read-only="1"{% endif %}>
+        <td>
+            {% if form.meta_part is defined %}
+                {{ form_row(form.meta_part) }}
+            {% else %}
+                <div class="row mb-2">
+                    <div class="col-form-label {{ col_label }}">{% trans %}part_connection.edit.meta_part{% endtrans %}</div>
+                    <div class="{{ col_input }}">
+                        <span class="form-control-plaintext">
+                            <a href="{{ entity_url(value.metaPart, 'info') }}" data-meta-part="{{ value.metaPart.id }}">{{ value.metaPart.name }}</a>
+                            {% if value.hasDifferentFootprint %}
+                                <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs_from_meta_part'|trans({'%part%': value.metaPart.name}) }}</span>
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            {% endif %}
+            <div class="row mb-2">
+                <div class="col-form-label {{ col_label }}">{% trans %}part_connection.edit.position{% endtrans %}</div>
+                <div class="{{ col_input }}">
+                    <span class="form-control-plaintext" data-position>
+                        {% if value is not null and value.id is not null %}{{ value.position }}{% else %}<span class="text-muted">{% trans %}part_connection.edit.position.last{% endtrans %}</span>{% endif %}
+                    </span>
+                </div>
+            </div>
+            {% if editable %}
+                {{ form_row(form.status) }}
+                {{ form_row(form.note) }}
+            {% else %}
+                <div class="row mb-2">
+                    <div class="col-form-label {{ col_label }}">{% trans %}part_connection.edit.status{% endtrans %}</div>
+                    <div class="{{ col_input }}"><span class="form-control-plaintext">{{ value.status.translationKey|trans }}</span></div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-form-label {{ col_label }}">{% trans %}part_connection.edit.note{% endtrans %}</div>
+                    <div class="{{ col_input }}"><span class="form-control-plaintext">{{ value.note }}</span></div>
+                </div>
+                {# Keeps the row in the submit, so that it is not taken for removed. Its fields are disabled, so the
+                   value is ignored and the stored ones are kept. #}
+                <input type="hidden" name="{{ form.status.vars.full_name }}" value="">
+                {% do form.status.setRendered %}
+                {% do form.note.setRendered %}
+            {% endif %}
+        </td>
+        <td>
+            {% if editable %}
+                <button type="button" class="btn btn-danger lot_btn_delete position-relative" {{ collection.delete_btn() }}>
+                    <i class="fas fa-trash-alt fa-fw"></i>
+                    {% trans %}part_lot.delete{% endtrans %}
+                    {{ collection.new_element_indicator(value) }}
+                </button>
+            {% else %}
+                <span class="text-muted" title="{% trans %}part_connection.edit.meta_part_read_only{% endtrans %}">
+                    <i class="fas fa-lock fa-fw"></i>
+                    {% trans %}part_connection.edit.read_only{% endtrans %}
+                </span>
+            {% endif %}
+            {{ form_errors(form) }}
+        </td>
+    </tr>
+{% endblock %}

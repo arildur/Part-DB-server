@@ -56,14 +56,6 @@
             </a>
         </li>
         {% endif %}
-        {% if form.part_connections is defined %}
-        <li class="nav-item" data-part-kind-section="connections">
-            <a class="nav-link" data-bs-toggle="tab" role="tab" href="#part_connections">
-                <i class="fas fa-sitemap fa-fw"></i>
-                {% trans %}part_connection.labelp{% endtrans %}
-            </a>
-        </li>
-        {% endif %}
         <li class="nav-item">
             <a class="nav-link" data-bs-toggle="tab" role="tab" href="#advanced">
                 <i class="fas fa-shapes fa-fw"></i>
@@ -102,6 +94,22 @@
                 {% trans %}part.edit.tab.associations{% endtrans %}
             </a>
         </li>
+        {% if form.part_connections is defined %}
+        <li class="nav-item" data-part-kind-section="connections">
+            <a class="nav-link" data-bs-toggle="tab" role="tab" href="#part_connections">
+                <i class="fas fa-sitemap fa-fw"></i>
+                {% trans %}part_connection.labelp{% endtrans %}
+            </a>
+        </li>
+        {% endif %}
+        {% if form.connections_as_part is defined %}
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" role="tab" href="#connections_as_part">
+                <i class="fas fa-sitemap fa-fw"></i>
+                {% trans %}part_connection.meta_parts.labelp{% endtrans %}
+            </a>
+        </li>
+        {% endif %}
         <li class="nav-item">
             <a class="nav-link" data-bs-toggle="tab" role="tab" href="#eda">
                 <i class="fas fa-compass-drafting fa-fw"></i>
@@ -130,6 +138,11 @@
         {% if form.part_connections is defined %}
         <div class="tab-pane fade p-2" id="part_connections" role="tabpanel">
             {% include "parts/edit/_connections.html.twig" %}
+        </div>
+        {% endif %}
+        {% if form.connections_as_part is defined %}
+        <div class="tab-pane fade p-2" id="connections_as_part" role="tabpanel">
+            {% include "parts/edit/_meta_parts.html.twig" %}
         </div>
         {% endif %}
         <div class="tab-pane fade p-2" id="advanced" role="tabpanel">

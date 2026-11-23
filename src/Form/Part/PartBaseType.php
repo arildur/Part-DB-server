@@ -67,6 +67,10 @@ use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Translation\TranslatableMessage;
+use Symfony\Component\Form\FormError;
+use App\Validator\Constraints\UniqueObjectCollection;
+use Symfony\Component\Validator\Constraints\Valid;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 class PartBaseType extends AbstractType
 {
@@ -80,6 +84,7 @@ class PartBaseType extends AbstractType
         protected IpnSuggestSettings $ipnSuggestSettings,
         private readonly LocalizationSettings $localizationSettings,
         private readonly MetaPartSettings $metaPartSettings,
+        private readonly TranslatorInterface $translator,
     ) {
     }
 
@@ -368,6 +373,25 @@ class PartBaseType extends AbstractType
             ]);
         }
 
+        //The meta parts of a saved manufacturing part, edited from its side. Only on its edit page.
+        if ($options['with_meta_parts'] && !$new_part && !$chooseKind && $kind->canBeConnected()) {
+            $builder->add('connections_as_part', CollectionType::class, [
+                'entry_type' => PartMetaConnectionType::class,
+                'allow_add' => true,
+                'allow_delete' => true,
+                'reindex_enable' => true,
+                'label' => false,
+                'by_reference' => false,
+                'error_bubbling' => false,
+                //This side is not validated with the part, so its connections are validated here, as on the meta part
+                'constraints' => [
+                    new Valid(),
+                    new UniqueObjectCollection(fields: ['meta_part'], message: 'validator.part_connection.already_exists'),
+                ],
+            ]);
+            $this->refuseConnectionsTheUserMayNotEdit($builder, $part);
+        }
+
         //The price of a meta part: its method, and the user value with its currency, which are kept whatever the method
         if ($chooseKind || $kind->allowsPriceMethod()) {
             $defaultMethod = $this->metaPartSettings->getDefaultPriceMethod();
@@ -450,6 +474,46 @@ class PartBaseType extends AbstractType
     }
 
     /**
+     * A connection belongs to its meta part, so adding, changing or removing one from the manufacturing part's side needs
+     * edit on that meta part. Its row is shown read-only, and its fields are disabled, so a forged change of it is
+     * ignored. A forged addition or removal makes the form invalid, so that nothing is saved.
+     */
+    private function refuseConnectionsTheUserMayNotEdit(FormBuilderInterface $builder, Part $part): void
+    {
+        $before = [];
+        foreach ($part->getConnectionsAsPart() as $connection) {
+            $before[spl_object_id($connection)] = [$connection, $connection->getStatus(), $connection->getNote()];
+        }
+
+        $builder->addEventListener(FormEvents::POST_SUBMIT, function (FormEvent $event) use ($before): void {
+            /** @var Part $part */
+            $part = $event->getData();
+            $after = $part->getConnectionsAsPart();
+
+            $touched = [];
+            foreach ($after as $connection) {
+                $old = $before[spl_object_id($connection)] ?? null;
+                if ($old === null || $old[1] !== $connection->getStatus() || $old[2] !== $connection->getNote()) {
+                    $touched[] = $connection;
+                }
+            }
+            foreach ($before as [$connection]) {
+                if (!$after->contains($connection)) {
+                    $touched[] = $connection;
+                }
+            }
+
+            foreach ($touched as $connection) {
+                if (!$this->security->isGranted('edit', $connection)) {
+                    $event->getForm()->get('connections_as_part')->addError(new FormError(
+                        $this->translator->trans('part_connection.edit.meta_part_not_editable', ['%name%' => $connection->getMetaPart()?->getName() ?? ''])
+                    ));
+                }
+            }
+        });
+    }
+
+    /**
      * @return list<string> The fields of the form that a part of the given kind can not hold
      */
     private function fieldsTheKindDoesNotAllow(PartKind $kind): array
@@ -515,7 +579,9 @@ class PartBaseType extends AbstractType
             'info_provider_dto' => null,
             'warn_on_unsaved_changes' => true,
             'kind_mode' => self::KIND_FIXED,
+            'with_meta_parts' => false,
         ]);
+        $resolver->setAllowedTypes('with_meta_parts', 'bool');
 
         $resolver->setAllowedTypes('info_provider_dto', [PartDetailDTO::class, 'null']);
         $resolver->setAllowedValues('kind_mode', [self::KIND_CHOOSE, self::KIND_FIXED]);

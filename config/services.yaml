@@ -147,3 +147,8 @@ when@test: &test
                 - '@doctrine.fixtures.loader'
                 - '@doctrine'
                 - { default: '@App\Doctrine\Purger\DoNotUsePurgerFactory' }
+
+        # Lets a test deny edit on single parts, see the class
+        App\Tests\Security\PartEditDenyingDecisionManager:
+            decorates: security.access.decision_manager
+            arguments: ['@.inner']

@@ -68,7 +68,8 @@ Conversions are only available in the web interface, not over the REST API or MC
 
 ## Connecting parts
 
-Connections are edited on the edit page of the meta part, which needs the permission to edit it. Each connection has:
+Connections can be made from either side. The edit page of a meta part has a "Connected parts" tab, and the edit page of
+a manufacturing part a "Meta parts" tab. Each connection has:
 
 * **Priority**: The lowest comes first. Leave it empty to add the part at the end.
 * **Status**: "Approved" (the default) for a part that may be used, "Use up" for a part that may be used and whose stock
@@ -76,6 +77,15 @@ Connections are edited on the edit page of the meta part, which needs the permis
   but not be used. Only approved and use up parts are usable: their stock counts, builds can take from them and prices
   use them. The others are listed last on the pages of the meta part, marked with their status.
 * **Note**: Anything worth knowing about this part in this role.
+
+On the "Meta parts" tab of a manufacturing part, the picker offers only meta parts. A meta part added there goes last in
+the order of that meta part, as approved unless you choose another status. The priority is shown but can only be changed on the meta part, as it is its
+order; status and note can be changed on either side, and removing a connection on either side leaves both parts and
+their stock.
+
+A connection belongs to its meta part: adding, changing or removing one needs the permission to edit that meta part, from
+whichever side. On the edit page of a manufacturing part, a connection to a meta part you may not edit is shown read-only
+without a remove button, and a save that would change it anyway is refused with a message, and nothing is saved.
 
 Only manufacturing parts can be connected, and each only once to the same meta part. A connected part must have the same
 measurement unit as the meta part. Part-DB warns you when its footprint differs, but allows it. One part can be connected

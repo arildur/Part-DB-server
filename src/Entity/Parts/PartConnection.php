@@ -231,6 +231,6 @@ class PartConnection extends AbstractDBElement implements TimeStampableInterface
 
     public function getComparableFields(): array
     {
-        return ['connected_part' => $this->connected_part?->getID()];
+        return ['meta_part' => $this->meta_part?->getID(), 'connected_part' => $this->connected_part?->getID()];
     }
 }

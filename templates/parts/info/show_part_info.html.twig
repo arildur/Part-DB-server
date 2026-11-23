@@ -57,10 +57,10 @@
     {% set stock_rows = part.partLots | length %}
     {# The BOM entries that use the part, its own and those of the meta parts it is connected to #}
     {% set bom_usages = part.bomUsages %}
-    {% set has_suppliers = part.orderdetails is not empty %}
+    {% set supplier_rows = part.orderdetails | length %}
     {% for connection in connections %}
         {% set stock_rows = stock_rows + connection.connectedPart.partLots | length %}
-        {% set has_suppliers = has_suppliers or connection.connectedPart.orderdetails is not empty %}
+        {% set supplier_rows = supplier_rows + connection.connectedPart.orderdetails | length %}
     {% endfor %}
     {% set connection_count = part.kind.allowsConnections ? connections | length : part.connectionsAsPart | length %}
     {% set tabs = {
@@ -68,7 +68,7 @@
         comment: {tab_id: 'comment-tab', icon: 'fas fa-sticky-note fa-fw', label: 'comment.label', shown: part.comment is not empty},
         specifications: {tab_id: 'specifications-tab', icon: 'fas fa-atlas fa-fw', label: 'part.info.specifications', count: part.parameters | length, shown: has_parameters},
         attachments: {tab_id: 'attachment-tab', icon: 'fas fa-paperclip fa-fw', label: 'attachment.labelp', count: part.attachments | length, shown: part.attachments is not empty},
-        suppliers: {tab_id: 'supplier-tab', icon: 'fas fa-shopping-cart fa-fw', label: 'vendor.partinfo.shopping_infos', count: part.orderdetails | length, shown: has_suppliers},
+        suppliers: {tab_id: 'supplier-tab', icon: 'fas fa-shopping-cart fa-fw', label: 'vendor.partinfo.shopping_infos', count: supplier_rows, shown: supplier_rows > 0},
         associations: {tab_id: 'associations-tab', icon: 'fas fa-circle-nodes fa-fw', label: 'part.edit.tab.associations', count: part.associatedPartsAll | length, shown: part.associatedPartsAll is not empty},
         connections: {tab_id: 'connections-tab', icon: 'fas fa-sitemap fa-fw', label: part.kind.allowsConnections ? 'part_connection.labelp' : 'part_connection.meta_parts.labelp', count: connection_count, shown: part.kind.allowsConnections or connection_count > 0},
         history: {tab_id: 'history-tab', icon: 'fas fa-history', label: 'vendor.partinfo.history', disabled: datatable is null},
@@ -139,7 +139,7 @@
                 </div>
             {% endif %}
 
-            {% if has_suppliers %}
+            {% if supplier_rows > 0 %}
             <div {{ _self.pane_attributes('suppliers', tabs, combined) }}>
                 {{ _self.pane_heading('suppliers', tabs, combined) }}
                 {% if part.kind.allowsConnections %}

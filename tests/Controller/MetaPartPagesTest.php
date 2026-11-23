@@ -312,6 +312,18 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertLessThan(strpos($text, 'Retired source'), strpos($text, 'Second source'), 'Do not use comes last');
     }
 
+    public function testTheShoppingTabCountsTheOrderDetailsOfTheConnectedParts(): void
+    {
+        $meta = $this->part('Counted suppliers', PartKind::META);
+        $connected = $this->part('Two suppliers');
+        $this->price($connected, '1');
+        $this->price($connected, '2');
+        $this->connect($meta, $connected, 1);
+        $this->em->flush();
+
+        $this->assertSame('2', trim($this->info($meta)->filter('#supplier-tab .badge')->text()));
+    }
+
     public function testAMetaPartWithNoSuppliersHasNoShoppingTab(): void
     {
         $meta = $this->part('No suppliers', PartKind::META);

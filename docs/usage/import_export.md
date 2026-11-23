@@ -182,6 +182,13 @@ export format and level in the appearing menu.
 
 See the section about exporting data structures for more information about the export formats and levels.
 
-Every level includes the `kind` of a part. The level `full` also lists the connections of a meta part, with their
-position, status and note and the ID, name, kind and total stock of the connected part. These are for reading only: an
-import creates a meta part without connections, so you have to connect the parts again afterwards.
+Every level includes the `kind` of a part and two columns of linked parts:
+
+* **`linked_parts_count`**: The number of parts the part is linked to.
+* **`linked_parts`**: Those parts, joined by `; `. For a meta part, its connected parts in the order of priority, each
+  with the status of its connection as stored, the same in every language, for example
+  `RC0805FR (approved); ERJ-6ENF (use_up)`. For a manufacturing part, the names of the meta parts it is connected to,
+  sorted by name. A part with no links has 0 and an empty list.
+
+These columns are for reading only: an import ignores them, as it ignores the `part_connections` of files from earlier
+versions, so a meta part is created without connections and you have to connect the parts again afterwards.

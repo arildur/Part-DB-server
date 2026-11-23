@@ -178,6 +178,14 @@ Connections can be filtered by `meta_part`, `connected_part` and `status`, and o
 or deleting a connection needs the right to edit the meta part. A connection is refused if it would connect anything
 other than a manufacturing part, or connect the same two parts twice.
 
+## One part once per BOM
+
+A part, and a name, appear at most once in the BOM of a project. `POST` and `PATCH /api/project_bom_entries` of an entry whose
+project already has another entry with the same part, or the same name, are answered with `422`, the violation at `part` or
+`name`. Entries without a part, or without a name, are not compared on that field. The same part in the BOM of another
+project is allowed. A part stored twice in a BOM before this check keeps working; a `PATCH` of either entry that keeps
+the part is refused while the other entry has it.
+
 ## Deleting a part used in a BOM
 
 While the setting "Refuse deleting parts used in a BOM" is on, `DELETE /api/parts/{id}` of a part that a BOM entry points to

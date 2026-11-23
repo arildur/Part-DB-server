@@ -49,7 +49,9 @@ Only manufacturing parts can be connected, and each only once to the same meta p
 measurement unit as the meta part. Part-DB warns you when its footprint differs, but allows it. One part can be connected
 to several meta parts, with its own priority and status under each, and its page lists them.
 
-Merging two meta parts moves the connections to the target, a pair connected on both keeping the stricter status, and cloning a meta part copies them. Deleting a meta part leaves
+Merging two meta parts moves the connections to the target, a pair connected on both keeping the stricter status, and cloning a meta part copies them.
+Merging two manufacturing parts moves the connections of the removed part to the target; if the target then has another
+measurement unit than such a meta part, the merge form says so and saves nothing until you change the unit or cancel. Deleting a meta part leaves
 its connected parts, and deleting a connected part removes it from its meta parts.
 
 With the setting "Refuse deleting parts used in a BOM" (System settings > Behavior, off by default) Part-DB refuses to delete a part
@@ -107,6 +109,10 @@ straight at a part takes its largest lot first, as Part-DB always did. Lots of t
 they were created. Several entries can reach the same lot, so the proposal and
 the buildable count look at the whole BOM, and a lot can not be used for more than it holds.
 
+The Projects tab of a manufacturing part lists the BOM entries that use it directly, and after them those that use a
+meta part it is connected to, with that meta part in the column "Through meta part". Connections of every status count;
+a row reached through a part that is not usable is greyed, or red for "Do not use", and shows the status.
+
 A meta part can also be the part a project builds: on the edit page of the project, add a build part and choose the
 kind. When the built units are added to stock, the build form offers the meta part's own lots and the lots of each of its
 connected parts, whatever their status, or a new own lot of the meta part. Chosen at first is an own lot, or else a lot
@@ -121,8 +127,8 @@ next to the total cost.
 
 ## Other parts of Part-DB
 
-* **[Import and export](import_export.md)**: Files have a `kind` field. The level `full` lists connections, but an import
-  does not create them.
+* **[Import and export](import_export.md)**: Files have a `kind` field and, at every level, the number and list of linked
+  parts, which an import ignores: it does not create connections.
 * **[BOM import](bom_import.md)**: Rows can link different parts that have the same name, and such entries are saved
   without a name of their own. A row linked by a supplier part number links that manufacturing part, not a meta part.
 * **[KiCad](eda_integration.md)**: Meta parts are listed like other parts, with their total stock.

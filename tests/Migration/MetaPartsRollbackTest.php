@@ -22,6 +22,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Migration;
 
+use App\Command\Migrations\PrepareMetaPartsRollbackCommand;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
@@ -31,6 +32,7 @@ use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use DAMA\DoctrineTestBundle\PHPUnit\SkipDatabaseRollback;
 use Doctrine\DBAL\Connection;
+use Doctrine\Migrations\DependencyFactory;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -47,8 +49,8 @@ final class MetaPartsRollbackTest extends KernelTestCase
     /** The meta-part migrations, newest first: the order of a rollback. */
     private const MIGRATIONS = [
         'DoctrineMigrations\\Version20261123100000',
-        'DoctrineMigrations\\Version20261105130000',
-        'DoctrineMigrations\\Version20261105120000',
+        'DoctrineMigrations\\Version20261120110000',
+        'DoctrineMigrations\\Version20261120100000',
     ];
 
     private Connection $db;
@@ -147,6 +149,17 @@ final class MetaPartsRollbackTest extends KernelTestCase
         $this->projectIds = [$project->getID()];
 
         return ['meta' => $meta->getID(), 'connected' => $connected->getID(), 'lot' => $lot->getID(), 'entry' => $entry->getID()];
+    }
+
+    public function testTheMetaPartMigrationsAreTheLastOnesAfterTheTargetOfTheRollback(): void
+    {
+        //Migrating to the target must roll back only the meta-part migrations, none of Part-DB's own
+        $versions = array_map(static fn ($migration): string => (string) $migration->getVersion(),
+            self::getContainer()->get(DependencyFactory::class)->getMigrationRepository()->getMigrations()->getItems());
+        $target = array_search(PrepareMetaPartsRollbackCommand::MIGRATION_BEFORE_META_PARTS, $versions, true);
+
+        $this->assertIsInt($target);
+        $this->assertSame(array_reverse(self::MIGRATIONS), array_slice($versions, $target + 1));
     }
 
     public function testTheConnectionsRollbackIsRefusedNamingTheCommand(): void

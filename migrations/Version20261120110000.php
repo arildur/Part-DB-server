@@ -7,7 +7,7 @@ namespace DoctrineMigrations;
 use App\Migration\AbstractMultiPlatformMigration;
 use Doctrine\DBAL\Schema\Schema;
 
-final class Version20261105130000 extends AbstractMultiPlatformMigration
+final class Version20261120110000 extends AbstractMultiPlatformMigration
 {
     public function getDescription(): string
     {

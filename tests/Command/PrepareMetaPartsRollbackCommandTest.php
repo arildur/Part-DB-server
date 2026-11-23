@@ -155,7 +155,7 @@ final class PrepareMetaPartsRollbackCommandTest extends KernelTestCase
         $this->assertMatchesRegularExpression('/1\s+Rollback part A\s+'.$aId.'\s+approved/', $output, 'The connections by priority with status');
         $this->assertStringContainsString('under_evaluation', $output);
         $this->assertStringContainsString('Kept: 2, replaced: 0, skipped: 0', $output);
-        $this->assertStringContainsString("doctrine:migrations:migrate 'DoctrineMigrations\\Version20260907090000'", $output);
+        $this->assertStringContainsString("doctrine:migrations:migrate 'DoctrineMigrations\\Version20261119120000'", $output);
 
         $this->assertSame(0, $this->connectionsOf($firstId));
         $this->assertSame(0, $this->connectionsOf($secondId));

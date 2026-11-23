@@ -49,7 +49,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 final class PrepareMetaPartsRollbackCommand extends Command
 {
     /** The last migration before the meta parts: rolling back to it removes them from the schema. */
-    public const MIGRATION_BEFORE_META_PARTS = 'DoctrineMigrations\\Version20260907090000';
+    public const MIGRATION_BEFORE_META_PARTS = 'DoctrineMigrations\\Version20261119120000';
 
     private const KEEP = 'keep';
     private const REPLACE = 'replace';

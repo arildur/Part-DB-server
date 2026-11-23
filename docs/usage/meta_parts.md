@@ -214,15 +214,14 @@ with connections what to do:
 
    Each part is saved on its own, and the history of each changed part says why it changed. At the end the command
    says whether any connection is left.
-3. Roll back the three meta part migrations, then install the earlier version:
+3. Roll back to the version before the first meta part migration, then install the earlier version:
 
    ```bash
-   php bin/console doctrine:migrations:execute --down 'DoctrineMigrations\Version20261123100000' \
-       'DoctrineMigrations\Version20261105130000' 'DoctrineMigrations\Version20261105120000'
+   php bin/console doctrine:migrations:migrate 'DoctrineMigrations\Version20261119120000'
    ```
 
-   Do not roll back with `doctrine:migrations:migrate` to an older version: that also rolls back later migrations of
-   Part-DB itself, such as the alternative names, whose data is then lost.
+   This rolls back only the three meta part migrations, which come after Part-DB's own, so those stay, such as the
+   alternative names and their data. The command prints this line when no connection is left.
 
 The command needs the database at the latest version. If a rollback was started before and stopped at the connections,
 the later migrations have already been rolled back: run `php bin/console doctrine:migrations:migrate` first, then the

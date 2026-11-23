@@ -16478,5 +16478,17 @@ Buerklin-API Authentication server:
         <target>Not deleted, because it is used in the BOM of: %projects%.</target>
       </segment>
     </unit>
+    <unit id="_8nxEQz" name="part.meta.duplicate_name">
+      <segment state="translated">
+        <source>part.meta.duplicate_name</source>
+        <target>Saved, but the same name is used by: %names%. A meta [part] is easier to find with a name of its own.</target>
+      </segment>
+    </unit>
+    <unit id="xSfdJRG" name="part.meta.duplicate_name.entry">
+      <segment state="translated">
+        <source>part.meta.duplicate_name.entry</source>
+        <target>%name% (ID %id%)</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

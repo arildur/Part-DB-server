@@ -753,6 +753,50 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('another footprint', $crawler->filter('body')->html());
     }
 
+    /** @return string The text of the toasts on the page the save redirects to */
+    private function warningsAfterSaving(string $url, array $values): string
+    {
+        $this->client->request('POST', $url, $values);
+        $this->assertResponseRedirects();
+
+        return implode("\n", $this->client->followRedirect()->filter('.toast')->each(static fn (Crawler $toast) => $toast->text()));
+    }
+
+    public function testANewMetaPartWithAnExistingNameIsSavedWithAWarningNamingTheOtherWithItsId(): void
+    {
+        $first = $this->part('Duplicate meta', PartKind::META);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/en/part/new?kind=meta');
+        $values = $crawler->filter('form[name="part_base"]')->form()->getPhpValues();
+        $values['part_base']['name'] = 'Duplicate meta';
+        $values['part_base']['kind'] = 'meta';
+        $values['part_base']['category'] = '1';
+        $values['part_base']['save'] = '';
+        $warnings = $this->warningsAfterSaving('/en/part/new?kind=meta', $values);
+
+        $this->assertCount(2, $this->em->getRepository(Part::class)->findBy(['name' => 'Duplicate meta']), 'Saved all the same');
+        $this->assertStringContainsString('the same name is used by: Duplicate meta (ID '.$first->getID().')', $warnings);
+    }
+
+    public function testEditingAMetaPartNamedLikeOthersInAnotherCaseWarnsAndAManufacturingPartDoesNot(): void
+    {
+        $first = $this->part('Case meta', PartKind::META);
+        $second = $this->part('  CASE META ', PartKind::META);
+        $manufacturing = $this->part('Case meta');
+        $edited = $this->part('case Meta', PartKind::META);
+        $this->em->flush();
+
+        $warnings = $this->warningsAfterSaving('/en/part/'.$edited->getID().'/edit', $this->editValues($edited));
+        $this->assertStringContainsString(sprintf('Case meta (ID %d), CASE META (ID %d)', $first->getID(), $second->getID()), $warnings);
+        $this->assertStringNotContainsString('(ID '.$manufacturing->getID().')', $warnings, 'Only meta parts are named');
+        $this->assertStringNotContainsString('(ID '.$edited->getID().')', $warnings, 'Not the part itself');
+
+        $this->client->request('POST', '/en/part/'.$manufacturing->getID().'/edit', $this->editValues($manufacturing));
+        $this->assertResponseRedirects();
+        $this->assertStringNotContainsString('the same name is used by', $this->client->followRedirect()->filter('body')->html());
+    }
+
     public function testTheConnectionPickerAsksOnlyForManufacturingPartsAndTheMergePickerForTheSameKind(): void
     {
         $meta = $this->exampleMetaPart();

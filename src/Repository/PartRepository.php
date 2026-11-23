@@ -686,6 +686,32 @@ class PartRepository extends NamedDBElementRepository
     }
 
     /**
+     * Returns the other meta parts (of a kind that allows connections) with the same name as the given part, ignoring
+     * case and outer spaces, by ID. Empty for a part of another kind, as only meta parts are found by their name.
+     * @return list<Part>
+     */
+    public function findOtherMetaPartsWithName(Part $part): array
+    {
+        $kinds = array_values(array_map(static fn (PartKind $kind): string => $kind->value,
+            array_filter(PartKind::cases(), static fn (PartKind $kind): bool => $kind->allowsConnections())));
+        if (!$part->getKind()->allowsConnections() || $kinds === []) {
+            return [];
+        }
+
+        $qb = $this->createQueryBuilder('part')
+            ->where('part.kind IN (:kinds)')
+            ->andWhere('LOWER(TRIM(part.name)) = LOWER(TRIM(:name))')
+            ->setParameter('kinds', $kinds)
+            ->setParameter('name', $part->getName())
+            ->orderBy('part.id', 'ASC');
+        if ($part->getID() !== null) {
+            $qb->andWhere('part.id <> :id')->setParameter('id', $part->getID());
+        }
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
      * Finds a part based on the provided SPN (Supplier Part Number), with an option for case sensitivity.
      * If no part is found with the given SPN, null is returned.
      * @param  string  $spn

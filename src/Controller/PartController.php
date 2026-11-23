@@ -624,6 +624,22 @@ final class PartController extends AbstractController
     }
 
     /**
+     * A meta part is found by its name, so another meta part of the same name is worth a warning, but the name is still
+     * allowed. A validator could only refuse.
+     */
+    private function warnAboutDuplicateMetaPartName(Part $part): void
+    {
+        $others = $this->em->getRepository(Part::class)->findOtherMetaPartsWithName($part);
+        if ($others === []) {
+            return;
+        }
+
+        $names = array_map(fn (Part $other): string => $this->translator->trans('part.meta.duplicate_name.entry',
+            ['%name%' => $other->getName(), '%id%' => $other->getID()]), $others);
+        $this->addFlash('warning', t('part.meta.duplicate_name', ['%names%' => implode(', ', $names)]));
+    }
+
+    /**
      * This function provides a common implementation for methods, which use the part form.
      * @param  Request  $request
      * @param  Part  $data
@@ -687,6 +703,7 @@ final class PartController extends AbstractController
             } elseif ($mode === 'edit') {
                 $this->addFlash('success', 'part.edited_flash');
             }
+            $this->warnAboutDuplicateMetaPartName($new_part);
 
             //If a redirect URL was given, redirect there
             if ($request->query->get('_redirect')) {

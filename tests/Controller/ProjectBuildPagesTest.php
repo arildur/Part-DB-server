@@ -526,4 +526,45 @@ final class ProjectBuildPagesTest extends WebTestCase
             $this->assertSame($few, $many, $name);
         }
     }
+
+    /**
+     * A BOM stored with one part twice, as REST let through before it refused a second entry: the build
+     * page opens with fields for each entry and builds, withdrawing what both entries need.
+     */
+    public function testABomHoldingAPartTwiceOpensAndBuilds(): void
+    {
+        $part = $this->part('Twice in the BOM');
+        $lot = $this->lot($part, 100);
+        $project = $this->project([[$part, 3], [$part, 4]]);
+        [$first, $second] = array_values($project->getBomEntries()->toArray());
+
+        $crawler = $this->open($project);
+        $this->assertSame('3', $crawler->filter('input[name="'.$this->field($first, $lot).'"]')->attr('value'));
+        $this->assertSame('4', $crawler->filter('input[name="'.$this->field($second, $lot).'"]')->attr('value'));
+
+        $this->post($project, $crawler);
+        self::assertResponseRedirects();
+
+        $this->em->clear();
+        $this->assertSame(93.0, $this->em->find(PartLot::class, $lot->getID())->getAmount());
+    }
+
+    public function testABomHoldingAPartTwiceShowsOnTheProjectPageAndTheSecondEntryIsShort(): void
+    {
+        $part = $this->part('Twice on the info page');
+        $this->lot($part, 5);
+        $project = $this->project([[$part, 3], [$part, 4]]);
+
+        $crawler = $this->client->request('GET', '/en/project/'.$project->getID().'/info');
+        self::assertResponseIsSuccessful();
+        $this->assertStringContainsString('Twice on the info page', $crawler->filter('.alert-danger')->text());
+        $rows = $this->tableRows($project);
+        $this->assertCount(2, $rows);
+        $this->assertArrayNotHasKey('$$rowClass', $rows[0], 'The BOM table marks no row');
+
+        $crawler = $this->open($project);
+        $this->assertCount(1, $crawler->filter('form[name="project_build"] tr.table-danger'));
+        $this->post($project, $crawler);
+        self::assertResponseStatusCodeSame(422);
+    }
 }

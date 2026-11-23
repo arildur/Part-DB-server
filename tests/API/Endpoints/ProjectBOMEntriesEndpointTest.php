@@ -74,4 +74,78 @@ final class ProjectBOMEntriesEndpointTest extends CrudEndpointTestCase
         $response = $this->_testPostItem(['project' => '/api/projects/1', 'part' => $meta, 'quantity' => 1]);
         $this->assertSame('meta', $this->_testGetItem($this->getIdOfCreatedElement($response))->toArray()['part']['kind']);
     }
+
+    private function newPart(string $name): string
+    {
+        $client = static::createAuthenticatedClient();
+        $client->request('POST', '/api/parts', ['json' => ['name' => $name, 'category' => '/api/categories/1']]);
+        self::assertResponseStatusCodeSame(201);
+
+        return $client->getResponse()->toArray()['@id'];
+    }
+
+    private function post(array $data): array
+    {
+        $client = static::createAuthenticatedClient();
+        $client->request('POST', $this->getBasePath(), ['json' => $data]);
+
+        return [$client->getResponse()->getStatusCode(), $client->getResponse()->toArray(false)];
+    }
+
+    private function patch(string $iri, array $data): array
+    {
+        $client = static::createAuthenticatedClient();
+        $client->request('PATCH', $iri, ['json' => $data, 'headers' => ['Content-Type' => 'application/merge-patch+json']]);
+
+        return [$client->getResponse()->getStatusCode(), $client->getResponse()->toArray(false)];
+    }
+
+    private function bomSize(string $project): int
+    {
+        return count(static::createAuthenticatedClient()->request('GET', $project.'/bom')->toArray()['hydra:member']);
+    }
+
+    public function testASecondEntryForAPartInTheSameBomIsRefused(): void
+    {
+        $part = $this->newPart('Once per BOM');
+        $this->assertSame(201, $this->post(['project' => '/api/projects/1', 'part' => $part, 'quantity' => 1])[0]);
+        $before = $this->bomSize('/api/projects/1');
+        $this->assertGreaterThan(0, $before);
+
+        [$status, $body] = $this->post(['project' => '/api/projects/1', 'part' => $part, 'quantity' => 2]);
+
+        $this->assertSame(422, $status);
+        $this->assertSame('part', $body['violations'][0]['propertyPath']);
+        $this->assertSame('This part already exists in the BOM!', $body['violations'][0]['message']);
+        $this->assertSame($before, $this->bomSize('/api/projects/1'), 'The BOM keeps one entry');
+
+        //The same part in the BOM of another project
+        $this->assertSame(201, $this->post(['project' => '/api/projects/2', 'part' => $part, 'quantity' => 1])[0]);
+    }
+
+    public function testPatchingAnEntryToAPartAnotherEntryHasIsRefusedAndKeepingItsOwnPartIsNot(): void
+    {
+        $first = $this->newPart('First in BOM');
+        $second = $this->newPart('Second in BOM');
+        $this->post(['project' => '/api/projects/1', 'part' => $first, 'quantity' => 1]);
+        [, $entry] = $this->post(['project' => '/api/projects/1', 'part' => $second, 'quantity' => 1]);
+
+        [$status, $body] = $this->patch($entry['@id'], ['part' => $first]);
+        $this->assertSame(422, $status);
+        $this->assertSame('part', $body['violations'][0]['propertyPath']);
+
+        $this->assertSame(200, $this->patch($entry['@id'], ['part' => $second, 'quantity' => 5])[0]);
+        $this->assertSame(200, $this->patch($entry['@id'], ['quantity' => 6])[0]);
+    }
+
+    public function testEntriesWithoutAPartAreComparedByTheirName(): void
+    {
+        $this->assertSame(201, $this->post(['project' => '/api/projects/1', 'name' => 'Screw M3', 'quantity' => 4])[0]);
+        $this->assertSame(201, $this->post(['project' => '/api/projects/1', 'name' => 'Screw M4', 'quantity' => 4])[0]);
+
+        [$status, $body] = $this->post(['project' => '/api/projects/1', 'name' => 'Screw M3', 'quantity' => 1]);
+        $this->assertSame(422, $status);
+        $this->assertSame('name', $body['violations'][0]['propertyPath']);
+        $this->assertSame('There is already a BOM entry with this name!', $body['violations'][0]['message']);
+    }
 }

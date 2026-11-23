@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Entity\Parts\Part;
+use App\Entity\Parts\Category;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Services\ImportExportSystem\BOMImporter;
@@ -479,6 +481,80 @@ final class ProjectControllerTest extends WebTestCase
                 'SELECT COUNT(bom_entry.id) FROM App\\Entity\\ProjectSystem\\ProjectBOMEntry bom_entry WHERE bom_entry.id = :id'
             )->setParameter('id', $entry->getID())->getSingleScalarResult()
         );
+    }
+
+    /**
+     * @return array{Project, ProjectBOMEntry, ProjectBOMEntry, Part, Part} A project whose BOM holds two parts
+     */
+    private function bomOfTwoParts(string $name): array
+    {
+        $project = $this->createProject($name);
+        $parts = [];
+        $entries = [];
+        foreach (['X', 'Y'] as $suffix) {
+            $part = new Part();
+            $part->setName($name.' '.$suffix);
+            $part->setCategory($this->entityManager->find(Category::class, 1));
+            $this->entityManager->persist($part);
+            $entry = (new ProjectBOMEntry())->setQuantity(1.0);
+            $part->addProjectBomEntry($entry);
+            $project->addBomEntry($entry);
+            $parts[] = $part;
+            $entries[] = $entry;
+        }
+        $this->entityManager->flush();
+        array_push($this->entitiesToRemove, ...$entries, ...$parts);
+
+        return [$project, $entries[0], $entries[1], $parts[0], $parts[1]];
+    }
+
+    private function partIdOf(ProjectBOMEntry $entry): ?int
+    {
+        $this->entityManager->clear();
+
+        return $this->entityManager->find(ProjectBOMEntry::class, $entry->getID())->getPart()?->getID();
+    }
+
+    public function testTheSingleEntryPageRefusesAPartAnotherEntryOfTheBomHas(): void
+    {
+        [$project, , $second, $x, $y] = $this->bomOfTwoParts('Single entry page');
+
+        $crawler = $this->client->request('GET', sprintf('/en/project/%d/bom/%d/edit', $project->getID(), $second->getID()));
+        $form = $crawler->filterXPath('//form[.//input[@name="bom_entry_edit[bom_entry][name]"]]')->form();
+        $values = $form->getPhpValues();
+        $values['bom_entry_edit']['bom_entry']['part']['autocomplete'] = (string) $x->getID();
+        $this->client->request('POST', $form->getUri(), $values);
+
+        $this->assertFalse($this->client->getResponse()->isRedirect());
+        $this->assertStringContainsString('This part already exists in the BOM!', (string) $this->client->getResponse()->getContent());
+        $this->assertSame($y->getID(), $this->partIdOf($second));
+    }
+
+    public function testTheBomFormRefusesAPartTwiceAndStillAcceptsTwoEntriesSwappingTheirParts(): void
+    {
+        [$project, $first, $second, $x, $y] = $this->bomOfTwoParts('BOM form');
+        $submit = function (callable $change) use ($project): void {
+            $form = $this->client->request('GET', sprintf('/en/project/%d/edit', $project->getID()))->filter('form[name="project_admin_form"]')->form();
+            $values = $form->getPhpValues();
+            $change($values['project_admin_form']['bom_entries']);
+            $this->client->request('POST', $form->getUri(), $values);
+        };
+        $swap = static function (array &$rows) use ($x, $y): void {
+            foreach ($rows as &$row) {
+                $row['part']['autocomplete'] = $row['part']['autocomplete'] === (string) $x->getID() ? (string) $y->getID() : (string) $x->getID();
+            }
+        };
+
+        $submit($swap);
+        $this->assertSame([$y->getID(), $x->getID()], [$this->partIdOf($first), $this->partIdOf($second)]);
+
+        $submit(static function (array &$rows) use ($x): void {
+            foreach ($rows as &$row) {
+                $row['part']['autocomplete'] = (string) $x->getID();
+            }
+        });
+        $this->assertStringContainsString('This part already exists in the BOM!', (string) $this->client->getResponse()->getContent());
+        $this->assertSame([$y->getID(), $x->getID()], [$this->partIdOf($first), $this->partIdOf($second)]);
     }
 
     private function createProject(string $name): Project

@@ -48,6 +48,7 @@ use App\Validator\Constraints\BigDecimal\BigDecimalPositive;
 use App\Validator\Constraints\Selectable;
 use Brick\Math\BigDecimal;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
 use Symfony\Component\Serializer\Attribute\Groups;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
@@ -62,8 +63,8 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
     operations: [
         new Get(uriTemplate: '/project_bom_entries/{id}.{_format}', security: 'is_granted("read", object)',),
         new GetCollection(uriTemplate: '/project_bom_entries.{_format}', security: 'is_granted("@projects.read")',),
-        new Post(uriTemplate: '/project_bom_entries.{_format}', securityPostDenormalize: 'is_granted("create", object)',),
-        new Patch(uriTemplate: '/project_bom_entries/{id}.{_format}', security: 'is_granted("edit", object)',),
+        new Post(uriTemplate: '/project_bom_entries.{_format}', securityPostDenormalize: 'is_granted("create", object)', validationContext: ['groups' => ['Default', 'bom_entry:api']],),
+        new Patch(uriTemplate: '/project_bom_entries/{id}.{_format}', security: 'is_granted("edit", object)', validationContext: ['groups' => ['Default', 'bom_entry:api']],),
         new Delete(uriTemplate: '/project_bom_entries/{id}.{_format}', security: 'is_granted("delete", object)',),
         new GetCollection(
             uriTemplate: '/projects/{id}/bom.{_format}',
@@ -77,6 +78,11 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 )]
 #[ApiFilter(PropertyFilter::class)]
 #[ApiFilter(LikeFilter::class, properties: ["name", "comment", 'mountnames'])]
+//A part, and a name, at most once in a BOM, against the stored entries. Only REST writes use the group: the BOM form
+//and the import check their collection in project_bom, and the add-parts and single-entry pages have the same checks
+//on their forms. An entry without a part, or without a name, is not compared on that field.
+#[UniqueEntity(fields: ['project', 'part'], message: 'project.bom_entry.part_already_in_bom', errorPath: 'part', ignoreNull: true, groups: ['bom_entry:api'])]
+#[UniqueEntity(fields: ['project', 'name'], message: 'project.bom_entry.name_already_in_bom', errorPath: 'name', ignoreNull: true, groups: ['bom_entry:api'])]
 #[ApiFilter(RangeFilter::class, properties: ['quantity'])]
 #[ApiFilter(OrderFilter::class, properties: ['name', 'id', 'addedDate', 'lastModified', 'quantity'])]
 class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInterface, TimeStampableInterface

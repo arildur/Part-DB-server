@@ -29,6 +29,7 @@ use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\Category;
+use App\Entity\UserSystem\User;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -51,6 +52,26 @@ final class ScanControllerTest extends WebTestCase
     {
         $this->client->request('GET', '/en/scan?input=0000001');
         $this->assertResponseRedirects('/en/part/1');
+    }
+
+    public function testReturnToScannerCheckboxPrefilledFromQuery(): void
+    {
+        $this->client->request('GET', '/en/scan?return_to_scanner=1');
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorExists('#scan_dialog_return_to_scanner[checked]');
+
+        $this->client->request('GET', '/en/scan');
+        $this->assertSelectorNotExists('#scan_dialog_return_to_scanner[checked]');
+    }
+
+    public function testTurboRedirectBackToScannerRendersFullPage(): void
+    {
+        //Turbo keeps its turbo-stream Accept header when following the redirect after saving a new part
+        $this->client->request('GET', '/en/scan?return_to_scanner=1', [], [], [
+            'HTTP_ACCEPT' => 'text/vnd.turbo-stream.html, text/html, application/xhtml+xml',
+        ]);
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorExists('#scan_dialog_return_to_scanner[checked]');
     }
 
     public function testScanQRCode(): void
@@ -135,5 +156,51 @@ final class ScanControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $this->assertCount(1, $crawler->filter('h4.card-title'));
         $this->assertCount(0, $crawler->filter('.part-kind-total'));
+    }
+
+    private function submitInfoModeScan(string $input): string
+    {
+        $crawler = $this->client->request('GET', '/en/scan');
+        $form = $crawler->selectButton('scan_dialog[submit]')->form([
+            'scan_dialog[input]' => $input,
+            'scan_dialog[info_mode]' => true,
+        ]);
+        $this->client->submit($form);
+        $this->assertResponseIsSuccessful();
+
+        return $this->client->getResponse()->getContent();
+    }
+
+    public function testInfoModeShowsPart(): void
+    {
+        $content = $this->submitInfoModeScan('P0001');
+        $this->assertStringContainsString('Part 1', $content);
+    }
+
+    /**
+     * A user with only the label scanner permission must not be able to read parts/lots/storage locations
+     * via the info mode (GHSA-4gvj-mg37-hc6p).
+     */
+    public function testInfoModeDoesNotLeakUnreadableEntities(): void
+    {
+        $em = self::getContainer()->get('doctrine')->getManager();
+        /** @var User $user */
+        $user = $em->getRepository(User::class)->findOneBy(['name' => 'noread']);
+        $user->getPermissions()->setPermissionValue('tools', 'label_scanner', true);
+        $em->flush();
+        //Remove the admin basic auth credentials, so that the logged in user is used
+        $this->client->setServerParameters([]);
+        $this->client->loginUser($user);
+
+        $content = $this->submitInfoModeScan('P0001');
+        $this->assertStringNotContainsString('Part 1', $content);
+        $this->assertSelectorNotExists('.card.border-success');
+
+        $content = $this->submitInfoModeScan('L0001');
+        $this->assertStringNotContainsString('Part 1', $content);
+        $this->assertSelectorNotExists('.card.border-success');
+
+        $this->submitInfoModeScan('S0001');
+        $this->assertSelectorNotExists('.card.border-success');
     }
 }

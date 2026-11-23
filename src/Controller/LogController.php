@@ -23,6 +23,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\DataTables\Filters\LogFilter;
+use App\Controller\Helpers\SafeRedirectTrait;
 use App\DataTables\LogDataTable;
 use App\Entity\Base\AbstractDBElement;
 use App\Entity\Parts\Part;
@@ -57,6 +58,8 @@ use function Symfony\Component\Translation\t;
 #[Route(path: '/log')]
 class LogController extends AbstractController
 {
+    use SafeRedirectTrait;
+
     protected DBElementRepository $dbRepository;
 
     public function __construct(protected EntityManagerInterface $entityManager, protected TimeTravel $timeTravel,
@@ -165,9 +168,7 @@ class LogController extends AbstractController
 
         $eventUndoHelper->clearUndoneEvent();
 
-        $redirect = $request->request->get('redirect_back');
-
-        return $this->redirect($redirect);
+        return $this->safeRedirect($request->request->get('redirect_back'), 'log_view');
     }
 
     protected function revertLog(AbstractLogEntry $logEntry): void

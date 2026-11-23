@@ -48,6 +48,11 @@ use App\State\Mcp\ListStructuralElementsProcessor;
 use App\Validator\Constraints\UniqueObjectCollection;
 use Doctrine\DBAL\Types\Types;
 use App\Entity\Attachments\ProjectAttachment;
+use App\Entity\Attribute\AdminCrud;
+use App\Entity\Attribute\EntityConfig;
+use App\Form\AdminPages\ProjectAdminForm;
+use App\Services\AdminPages\Extension\ProjectAdminExtension;
+use App\Entity\AlternativeNames\ProjectAlternativeName;
 use App\Entity\Base\AbstractStructuralDBElement;
 use App\Entity\Parameters\ProjectParameter;
 use App\Entity\Parts\Part;
@@ -64,8 +69,10 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
 /**
  * This class represents a project in the database.
  *
- * @extends AbstractStructuralDBElement<ProjectAttachment, ProjectParameter>
+ * @extends AbstractStructuralDBElement<ProjectAttachment, ProjectParameter, ProjectAlternativeName>
  */
+#[EntityConfig(routeBase: 'project')]
+#[AdminCrud(formClass: ProjectAdminForm::class, extensionClass: ProjectAdminExtension::class, showAlternativeNames: false)]
 #[ORM\Entity(repositoryClass: DeviceRepository::class)]
 #[ORM\Table(name: 'projects')]
 #[ApiResource(
@@ -188,6 +195,10 @@ class Project extends AbstractStructuralDBElement
     #[Groups(['project:read', 'project:write'])]
     protected Collection $parameters;
 
+    #[ORM\OneToMany(targetEntity: ProjectAlternativeName::class, mappedBy: 'element', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['sort_index' => 'ASC', 'name' => 'ASC'])]
+    protected Collection $alternative_names;
+
     #[Groups(['project:read'])]
     protected ?\DateTimeImmutable $addedDate = null;
     #[Groups(['project:read'])]
@@ -204,6 +215,7 @@ class Project extends AbstractStructuralDBElement
     {
         $this->attachments = new ArrayCollection();
         $this->parameters = new ArrayCollection();
+        $this->alternative_names = new ArrayCollection();
         parent::__construct();
         $this->bom_entries = new ArrayCollection();
         $this->children = new ArrayCollection();

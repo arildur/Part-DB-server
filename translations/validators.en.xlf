@@ -223,6 +223,12 @@
         <target>Set a value here, or upload a file to automatically use its filename as name for the attachment.</target>
       </segment>
     </unit>
+    <unit id="sfKWMsX" name="validator.attachment.external_url_invalid_scheme">
+      <segment state="translated">
+        <source>validator.attachment.external_url_invalid_scheme</source>
+        <target>Only HTTP and HTTPS URLs are allowed for external attachments.</target>
+      </segment>
+    </unit>
     <unit id="DH0IkNR" name="validator.part_lot.owner_must_match_storage_location_owner">
       <segment state="translated">
         <source>validator.part_lot.owner_must_match_storage_location_owner</source>
@@ -383,6 +389,18 @@
       <segment state="translated">
         <source>validator.build_part.reached_by_own_bom</source>
         <target>The BOM of this [project], or of one of its sub-[[project]], already uses this [part], a meta [part] connected to it or one of its connected [[part]], so the [project] would contain itself.</target>
+      </segment>
+    </unit>
+    <unit id="dTHY_Rh" name="settings.external_part_links.rules.unknown_placeholder">
+      <segment state="translated">
+        <source>settings.external_part_links.rules.unknown_placeholder</source>
+        <target>Unknown placeholder "{%placeholder%}". Only {mpn}, {manufacturer}, {ipn}, {name}, {category}, {footprint} and {id} are supported.</target>
+      </segment>
+    </unit>
+    <unit id="wHI1itr" name="settings.external_part_links.rules.invalid_template">
+      <segment state="translated">
+        <source>settings.external_part_links.rules.invalid_template</source>
+        <target>This does not result in a valid https URL once the placeholders are filled in.</target>
       </segment>
     </unit>
   </file>

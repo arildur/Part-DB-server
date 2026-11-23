@@ -26,6 +26,9 @@ use App\Entity\LogSystem\ElementEditedLogEntry;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartKind;
+use App\Entity\Parts\PartPriceMethod;
+use App\Entity\PriceInformations\Currency;
 use Brick\Math\BigDecimal;
 use App\Services\LogSystem\TimeTravel;
 use Doctrine\ORM\EntityManagerInterface;
@@ -115,5 +118,61 @@ final class TimeTravelTest extends KernelTestCase
         $this->service->applyEntry($part, $logEntry);
 
         $this->assertNull($part->getFootprint());
+    }
+
+    public function testRevertSavedMetaPartAcrossChangesOfItsPriceFields(): void
+    {
+        $category = $this->em->find(Category::class, 1);
+        $currency = $this->em->find(Currency::class, 1);
+
+        $part = new Part();
+        $part->setName('Time travel meta part');
+        $part->setKind(PartKind::META);
+        $part->setCategory($category);
+        $this->em->persist($part);
+        $this->em->flush();
+        $id = $part->getID();
+
+        $part->setPriceMethod(PartPriceMethod::USER_VALUE);
+        $part->setPriceUserValue(BigDecimal::of('12.5'));
+        $this->em->flush();
+        $part->setPriceUserCurrency($currency);
+        $this->em->flush();
+        $part->setPriceMethod(PartPriceMethod::PRIMARY_SOURCE);
+        $this->em->flush();
+
+        //The log keeps whole seconds only, so the three changes are moved 10 seconds apart into the past
+        $entries = $this->em->getRepository(ElementEditedLogEntry::class)
+            ->findBy(['target_id' => $id], ['id' => 'ASC']);
+        $this->assertCount(3, $entries);
+        $timestamps = [];
+        foreach ($entries as $i => $entry) {
+            $timestamps[$i] = new \DateTimeImmutable(sprintf('-%d seconds', 30 - 10 * $i));
+            $this->em->createQuery('UPDATE '.ElementEditedLogEntry::class.' log SET log.timestamp = :ts WHERE log.id = :id')
+                ->setParameter('ts', $timestamps[$i], 'datetime_immutable')
+                ->setParameter('id', $entry->getID())
+                ->execute();
+        }
+
+        //Price method, user price and currency ID before each change
+        $expected = [
+            [PartPriceMethod::SYSTEM_DEFAULT, null, null],
+            [PartPriceMethod::USER_VALUE, '12.5', null],
+            [PartPriceMethod::USER_VALUE, '12.5', $currency->getID()],
+        ];
+        foreach ($expected as $i => [$method, $userPrice, $currencyId]) {
+            $this->em->clear();
+            $fresh = $this->em->find(Part::class, $id);
+
+            $this->service->revertEntityToTimestamp($fresh, $timestamps[$i]->modify('-1 second'));
+
+            $this->assertSame($method, $fresh->getPriceMethod(), "before change $i");
+            if (null === $userPrice) {
+                $this->assertNull($fresh->getPriceUserValue(), "before change $i");
+            } else {
+                $this->assertTrue($fresh->getPriceUserValue()?->isEqualTo($userPrice), "before change $i");
+            }
+            $this->assertSame($currencyId, $fresh->getPriceUserCurrency()?->getID(), "before change $i");
+        }
     }
 }

@@ -27,6 +27,7 @@ use ApiPlatform\State\ProcessorInterface;
 use App\Entity\Parts\Part;
 use App\Mcp\DTO\DeletePartInput;
 use App\Services\LogSystem\EventCommentHelper;
+use App\Services\Parts\PartDeletionGuard;
 use App\Settings\AISettings\McpSettings;
 use Doctrine\ORM\EntityManagerInterface;
 use Mcp\Schema\Content\TextContent;
@@ -49,6 +50,7 @@ final class DeletePartProcessor implements ProcessorInterface
         private readonly AuthorizationCheckerInterface $authorizationChecker,
         private readonly EventCommentHelper $eventCommentHelper,
         private readonly McpSettings $mcpSettings,
+        private readonly PartDeletionGuard $deletionGuard,
     ) {
     }
 
@@ -76,6 +78,9 @@ final class DeletePartProcessor implements ProcessorInterface
         if (!$this->authorizationChecker->isGranted('delete', $part)) {
             throw new AccessDeniedException(sprintf('Access denied to delete part with id %d.', $data->id));
         }
+
+        //A part used in a BOM may be refused by a setting; the exception becomes a tool error naming the projects
+        $this->deletionGuard->assertDeletable($part);
 
         $name = $part->getName();
         $id = $part->getID();

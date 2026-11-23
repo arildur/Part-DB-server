@@ -46,3 +46,11 @@ api_platform:
   mcp:
     enabled: true # default: true
     format: jsonld # default: 'jsonld'
+
+  # Setting this list replaces API Platform's own, so its three defaults are repeated here
+  exception_to_status:
+    Symfony\Component\Serializer\Exception\ExceptionInterface: 400
+    ApiPlatform\Metadata\Exception\InvalidArgumentException: 400
+    Doctrine\ORM\OptimisticLockException: 409
+    # A delete refused by the state of the data: the request is allowed, but a BOM uses the part
+    App\Exceptions\PartUsedInBomException: 409

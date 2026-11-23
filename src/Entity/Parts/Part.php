@@ -71,6 +71,7 @@ use App\Mcp\DTO\StocktakePartLotInput;
 use App\Mcp\DTO\UpdatePartInput;
 use App\Mcp\DTO\WithdrawPartStockInput;
 use App\Repository\PartRepository;
+use App\State\PartDeleteProcessor;
 use App\State\Mcp\AddPartStockProcessor;
 use App\State\Mcp\AdvancedPartSearchInputProvider;
 use App\State\Mcp\AdvancedSearchPartsProcessor;
@@ -138,7 +139,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         new GetCollection(security: 'is_granted("@parts.read")'),
         new Post(securityPostDenormalize: 'is_granted("create", object)'),
         new Patch(security: 'is_granted("edit", object)'),
-        new Delete(security: 'is_granted("delete", object)'),
+        new Delete(security: 'is_granted("delete", object)', processor: PartDeleteProcessor::class),
     ],
     normalizationContext: ['groups' => ['part:read', 'provider_reference:read', 'api:basic:read', 'part_lot:read'], 'openapi_definition_name' => 'Read'],
     denormalizationContext: ['groups' => ['part:write', 'api:basic:write', 'eda_info:write', 'attachment:write', 'parameter:write'], 'openapi_definition_name' => 'Write'],
@@ -217,7 +218,7 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
         ),
         'delete_part' => new McpTool(
             title: 'Delete a part',
-            description: 'Permanently delete a part by its database ID, including its stock lots, parameters, orderdetails, associations and connections. The parts connected to a deleted meta part stay. This cannot be undone - there is no confirmation step, so make sure this is really the part the user wants deleted before calling this tool.',
+            description: 'Permanently delete a part by its database ID, including its stock lots, parameters, orderdetails, associations and connections. The parts connected to a deleted meta part stay. Depending on a setting of Part-DB, the delete may be refused while a BOM uses the part directly; the error then names the projects. This cannot be undone - there is no confirmation step, so make sure this is really the part the user wants deleted before calling this tool.',
             structuredContent: false,
             annotations: ['readOnlyHint' => false, 'destructiveHint' => true, 'idempotentHint' => true, 'openWorldHint' => false], // Not enforced by the MCP call pipeline - see create_part's note; the real check is manual, inside DeletePartProcessor.
             security: 'is_granted("@parts.delete")', // The processor returns a plain text confirmation via CallToolResult, not a normalized Part (which no longer exists)

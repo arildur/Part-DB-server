@@ -25,12 +25,14 @@ namespace App\Controller;
 use App\DataTables\Filters\LogFilter;
 use App\DataTables\LogDataTable;
 use App\Entity\Base\AbstractDBElement;
+use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Entity\LogSystem\AbstractLogEntry;
 use App\Entity\LogSystem\CollectionElementDeleted;
 use App\Entity\LogSystem\ElementCreatedLogEntry;
 use App\Entity\LogSystem\ElementDeletedLogEntry;
 use App\Entity\LogSystem\ElementEditedLogEntry;
+use App\Exceptions\PartUsedInBomException;
 use App\Form\Filters\LogFilterType;
 use App\Repository\DBElementRepository;
 use App\Services\LogSystem\EventUndoHelper;
@@ -39,6 +41,7 @@ use App\Services\LogSystem\LogEntryExtraFormatter;
 use App\Services\LogSystem\LogLevelHelper;
 use App\Services\LogSystem\LogTargetHelper;
 use App\Services\LogSystem\TimeTravel;
+use App\Services\Parts\PartDeletionGuard;
 use App\Settings\BehaviorSettings\TableSettings;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
@@ -49,12 +52,15 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
+use function Symfony\Component\Translation\t;
+
 #[Route(path: '/log')]
 class LogController extends AbstractController
 {
     protected DBElementRepository $dbRepository;
 
-    public function __construct(protected EntityManagerInterface $entityManager, protected TimeTravel $timeTravel)
+    public function __construct(protected EntityManagerInterface $entityManager, protected TimeTravel $timeTravel,
+        private readonly PartDeletionGuard $deletionGuard)
     {
         $this->dbRepository = $entityManager->getRepository(AbstractDBElement::class);
     }
@@ -221,6 +227,16 @@ class LogController extends AbstractController
         } elseif ($log_element instanceof ElementCreatedLogEntry) {
             $element = $this->entityManager->find($log_element->getTargetClass(), $log_element->getTargetID());
             if (null !== $element) {
+                //Undoing the creation of a part deletes it, which a setting refuses while a BOM uses the part
+                if ($element instanceof Part) {
+                    try {
+                        $this->deletionGuard->assertDeletable($element);
+                    } catch (PartUsedInBomException $exception) {
+                        $this->addFlash('error', t('part.delete.refused_used_in_bom', ['%projects%' => implode(', ', $exception->getProjectNames())]));
+
+                        return;
+                    }
+                }
                 $this->entityManager->remove($element);
                 $this->entityManager->flush();
                 $this->addFlash('success', 'log.undo.element_delete_success');

@@ -92,19 +92,23 @@ trait ProjectTrait
 
 
     /**
-     *  Get all projects which uses this part.
+     * Get all projects whose BOM uses this part directly, each project once, sorted by name.
      *
-     * @return Project[] * all devices which uses this part as a one-dimensional array of Device objects
-     *                  (empty array if there are no ones)
-     *                  * the array is sorted by the devices names
+     * @return list<Project> an empty array if no BOM uses this part
      */
     public function getProjects(): array
     {
         $projects = [];
 
-        foreach($this->project_bom_entries as $entry) {
-            $projects[] = $entry->getProject();
+        foreach ($this->project_bom_entries as $entry) {
+            $project = $entry->getProject();
+            if ($project !== null) {
+                $projects[spl_object_id($project)] = $project;
+            }
         }
+
+        $projects = array_values($projects);
+        usort($projects, static fn (Project $a, Project $b): int => strnatcasecmp($a->getName(), $b->getName()));
 
         return $projects;
     }

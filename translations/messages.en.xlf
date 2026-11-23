@@ -16442,5 +16442,41 @@ Buerklin-API Authentication server:
         <target>The price method of every meta [part] whose own method is system default. Primary source is the first usable connected [part] with a price, in their order; weighted by stock weighs each usable connected [part] by its stock.</target>
       </segment>
     </unit>
+    <unit id="hj0eW.." name="settings.behavior.part_deletion">
+      <segment state="translated">
+        <source>settings.behavior.part_deletion</source>
+        <target>Deleting [[part]]</target>
+      </segment>
+    </unit>
+    <unit id="YMbLbxk" name="settings.behavior.part_deletion.refuse_deleting_parts_used_in_bom">
+      <segment state="translated">
+        <source>settings.behavior.part_deletion.refuse_deleting_parts_used_in_bom</source>
+        <target>Refuse deleting [[part]] used in a BOM</target>
+      </segment>
+    </unit>
+    <unit id="sImfGpJ" name="settings.behavior.part_deletion.refuse_deleting_parts_used_in_bom.help">
+      <segment state="translated">
+        <source>settings.behavior.part_deletion.refuse_deleting_parts_used_in_bom.help</source>
+        <target>While on, a [part] that a BOM entry points to can not be deleted: not on the [part] page, not in [part] tables, not over the REST API or MCP. A [part] used only through a meta [part] can still be deleted. While off, deleting a [part] keeps its name in its BOM entries, which then no longer point to a [part].</target>
+      </segment>
+    </unit>
+    <unit id="j_xFR.y" name="part.delete.refused_used_in_bom">
+      <segment state="translated">
+        <source>part.delete.refused_used_in_bom</source>
+        <target>The [part] was not deleted, because it is used in the BOM of: %projects%. Remove it from these BOMs first, or turn off the setting "Refuse deleting [[part]] used in a BOM".</target>
+      </segment>
+    </unit>
+    <unit id="2xeN69b" name="part.delete.refused_used_in_bom.hint">
+      <segment state="translated">
+        <source>part.delete.refused_used_in_bom.hint</source>
+        <target>Used in the BOM of %projects%; deleting is refused while the setting "Refuse deleting [[part]] used in a BOM" is on.</target>
+      </segment>
+    </unit>
+    <unit id="7Dqhrts" name="parts.table.action_handler.error.used_in_bom">
+      <segment state="translated">
+        <source>parts.table.action_handler.error.used_in_bom</source>
+        <target>Not deleted, because it is used in the BOM of: %projects%.</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

@@ -35,6 +35,9 @@ use App\Entity\PriceInformations\Pricedetail;
 use App\Entity\UserSystem\User;
 use App\Form\Part\PartBaseType;
 use App\Settings\MiscSettings\MetaPartSettings;
+use App\Settings\BehaviorSettings\PartDeletionSettings;
+use App\Entity\ProjectSystem\Project;
+use App\Entity\ProjectSystem\ProjectBOMEntry;
 use Brick\Math\BigDecimal;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -352,6 +355,71 @@ final class MetaPartPagesTest extends WebTestCase
         $message = $this->info($part)->filter('#tools form[data-delete-message]')->attr('data-delete-message');
 
         $this->assertStringContainsString('Example meta', (string) $message);
+    }
+
+    /** A meta part in the BOM of two projects, and a part connected to it that no BOM names, with deleting refused or not. */
+    private function metaPartInTwoBoms(bool $refuse): Part
+    {
+        $this->client->disableReboot();
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = $refuse;
+        $meta = $this->part('Meta in two BOMs', PartKind::META);
+        $this->connect($meta, $this->part('Connected, in no BOM'), 1);
+        foreach (['Second <b>board</b>', 'First board'] as $name) {
+            $project = new Project();
+            $project->setName($name);
+            $entry = (new ProjectBOMEntry())->setQuantity(1.0);
+            $project->addBomEntry($entry);
+            $meta->addProjectBomEntry($entry);
+            $this->em->persist($project);
+        }
+        $this->em->flush();
+        $id = $meta->getID();
+        $this->em->clear();
+        $this->client->loginUser($this->em->getRepository(User::class)->findOneBy(['name' => 'admin']));
+
+        return $this->em->find(Part::class, $id);
+    }
+
+    public function testWithTheSettingOnTheDeleteButtonIsDisabledAndNamesTheProjects(): void
+    {
+        $crawler = $this->info($this->metaPartInTwoBoms(true));
+
+        $this->assertNotNull($crawler->filter('#tools form[data-delete-message] button.btn-danger')->first()->attr('disabled'));
+        $hint = $crawler->filter('#part-delete-refused');
+        $this->assertSame(2, $hint->filter('a')->count());
+        $this->assertStringStartsWith('Used in the BOM of First board, Second <b>board</b>;', trim($hint->text()));
+    }
+
+    public function testWithTheSettingOffTheDeleteButtonIsAsToday(): void
+    {
+        $crawler = $this->info($this->metaPartInTwoBoms(false));
+
+        $this->assertNull($crawler->filter('#tools form[data-delete-message] button.btn-danger')->first()->attr('disabled'));
+        $this->assertSame(0, $crawler->filter('#part-delete-refused')->count());
+    }
+
+    public function testAPartUsedOnlyThroughAMetaPartCanStillBeDeleted(): void
+    {
+        $part = $this->metaPartInTwoBoms(true)->getOrderedConnections()[0]->getConnectedPart();
+        $crawler = $this->info($part);
+
+        $this->assertNull($crawler->filter('#tools form[data-delete-message] button.btn-danger')->first()->attr('disabled'));
+        $this->assertStringContainsString('Meta in two BOMs', (string) $crawler->filter('#tools form[data-delete-message]')->attr('data-delete-message'));
+    }
+
+    public function testARefusedDeleteReturnsToThePartWithAnError(): void
+    {
+        $meta = $this->metaPartInTwoBoms(true);
+        $id = $meta->getID();
+        $token = $this->info($meta)->filter('#tools form input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', '/en/part/'.$id.'/delete', ['_method' => 'DELETE', '_token' => $token]);
+
+        $this->assertResponseRedirects('/en/part/'.$id.'/info');
+        $text = $this->client->followRedirect()->filter('body')->text();
+        $this->assertStringContainsString('First board, Second <b>board</b>', $text);
+        $this->em->clear();
+        $this->assertNotNull($this->em->find(Part::class, $id));
     }
 
     private function kindField(Crawler $crawler): Crawler

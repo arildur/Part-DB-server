@@ -27,6 +27,11 @@ use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartKind;
+use App\Entity\Parts\Category;
+use App\Entity\ProjectSystem\Project;
+use App\Entity\ProjectSystem\ProjectBOMEntry;
+use App\Settings\BehaviorSettings\PartDeletionSettings;
+use Symfony\Contracts\Translation\TranslatorInterface;
 use App\Entity\UserSystem\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface;
@@ -167,6 +172,73 @@ final class PartsTableActionHandlerTest extends WebTestCase
 
         $this->assertCount(0, $meta->getPartLots());
         $this->assertCount(1, $errors);
+    }
+
+    /**
+     * @return array{0: Part, 1: Part} a part used in the BOM of "Table project" and a part used in none, both saved
+     */
+    private function partInABomAndAnUnusedPart(): array
+    {
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $used = new Part();
+        $used->setName('Table part in a BOM');
+        $used->setCategory($em->find(Category::class, 1));
+        $unused = new Part();
+        $unused->setName('Table part in no BOM');
+        $unused->setCategory($em->find(Category::class, 1));
+        $project = new Project();
+        $project->setName('Table project');
+        $entry = (new ProjectBOMEntry())->setQuantity(1.0);
+        $project->addBomEntry($entry);
+        $used->addProjectBomEntry($entry);
+        $em->persist($used);
+        $em->persist($unused);
+        $em->persist($project);
+        $em->flush();
+
+        return [$used, $unused];
+    }
+
+    public function testDeletingWithTheSettingOnSkipsAPartInABomAndDeletesTheOthers(): void
+    {
+        $this->loginAsAdmin();
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = true;
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        [$used, $unused] = $this->partInABomAndAnUnusedPart();
+        $usedId = $used->getID();
+        $unusedId = $unused->getID();
+
+        $errors = [];
+        $this->service->handleAction('delete', [$used, $unused], null, null, $errors);
+        $em->flush();
+
+        $this->assertCount(1, $errors);
+        $this->assertSame($used, $errors[0]['part']);
+        $message = $errors[0]['message']->trans(self::getContainer()->get(TranslatorInterface::class), 'en');
+        $this->assertStringContainsString('Table project', $message);
+
+        $em->clear();
+        $this->assertNotNull($em->find(Part::class, $usedId));
+        $this->assertNull($em->find(Part::class, $unusedId));
+    }
+
+    public function testDeletingWithTheSettingOffDeletesBoth(): void
+    {
+        $this->loginAsAdmin();
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = false;
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        [$used, $unused] = $this->partInABomAndAnUnusedPart();
+        $usedId = $used->getID();
+        $unusedId = $unused->getID();
+
+        $errors = [];
+        $this->service->handleAction('delete', [$used, $unused], null, null, $errors);
+        $em->flush();
+
+        $this->assertSame([], $errors);
+        $em->clear();
+        $this->assertNull($em->find(Part::class, $usedId));
+        $this->assertNull($em->find(Part::class, $unusedId));
     }
 
     private function loginAsAdmin(): void

@@ -28,7 +28,10 @@ use App\Entity\Parts\Category;
 use App\Entity\Parts\Part;
 use App\Entity\UserSystem\User;
 use App\Mcp\DTO\DeletePartInput;
+use App\Entity\ProjectSystem\Project;
+use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Settings\AISettings\McpSettings;
+use App\Settings\BehaviorSettings\PartDeletionSettings;
 use App\State\Mcp\DeletePartProcessor;
 use Doctrine\ORM\EntityManagerInterface;
 use Mcp\Schema\Content\TextContent;
@@ -138,5 +141,58 @@ class DeletePartProcessorTest extends WebTestCase
 
         $this->assertErrorResult($result, 'Editing via MCP tools is disabled');
         self::assertNotNull($this->em->getRepository(Part::class)->find($id));
+    }
+
+    private function useInABom(): Project
+    {
+        $project = new Project();
+        $project->setName('MCP project');
+        $entry = (new ProjectBOMEntry())->setQuantity(1.0);
+        $project->addBomEntry($entry);
+        $this->part->addProjectBomEntry($entry);
+        $this->em->persist($project);
+        $this->em->flush();
+
+        return $project;
+    }
+
+    public function testAPartInABomIsRefusedWithAToolErrorWhileTheSettingIsOn(): void
+    {
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = true;
+        $this->useInABom();
+        $id = $this->part->getID();
+
+        $result = $this->processor->process(new DeletePartInput(id: $id), $this->getOperation());
+
+        $this->assertErrorResult($result, 'MCP project');
+        $this->em->clear();
+        self::assertNotNull($this->em->getRepository(Part::class)->find($id));
+    }
+
+    public function testAPartInABomIsDeletedAndTheEntryKeepsItsNameWhileTheSettingIsOff(): void
+    {
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = false;
+        $projectId = $this->useInABom()->getID();
+        $id = $this->part->getID();
+
+        $result = $this->processor->process(new DeletePartInput(id: $id), $this->getOperation());
+
+        self::assertFalse($result->isError);
+        $this->em->clear();
+        self::assertNull($this->em->getRepository(Part::class)->find($id));
+        $entry = $this->em->find(Project::class, $projectId)->getBomEntries()->first();
+        self::assertNull($entry->getPart());
+        self::assertSame('MCP Delete Test Part', $entry->getName());
+    }
+
+    public function testAPartInNoBomIsDeletedWhileTheSettingIsOn(): void
+    {
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = true;
+        $id = $this->part->getID();
+
+        $result = $this->processor->process(new DeletePartInput(id: $id), $this->getOperation());
+
+        self::assertFalse($result->isError);
+        self::assertNull($this->em->getRepository(Part::class)->find($id));
     }
 }

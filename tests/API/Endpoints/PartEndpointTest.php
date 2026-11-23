@@ -23,6 +23,14 @@ declare(strict_types=1);
 
 namespace App\Tests\API\Endpoints;
 
+use App\DataFixtures\APITokenFixtures;
+use App\Entity\Parts\Category;
+use App\Entity\Parts\Part;
+use App\Entity\ProjectSystem\Project;
+use App\Entity\ProjectSystem\ProjectBOMEntry;
+use App\Settings\BehaviorSettings\PartDeletionSettings;
+use ApiPlatform\Symfony\Bundle\Test\Client;
+use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 final class PartEndpointTest extends CrudEndpointTestCase
@@ -242,6 +250,82 @@ final class PartEndpointTest extends CrudEndpointTestCase
     public function testDeleteItem(): void
     {
         $this->_testDeleteItem(1);
+    }
+
+    /**
+     * A client that keeps one kernel, so that the setting set here holds for its requests, and a part, used in the BOM
+     * of "API project" unless told otherwise.
+     * @return array{0: Client, 1: int, 2: int|null} the client, the part's ID and the project's ID
+     */
+    private function clientAndPart(bool $refuse, bool $inABom = true): array
+    {
+        $client = self::createAuthenticatedClient();
+        $client->disableReboot();
+        self::getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = $refuse;
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $part = new Part();
+        $part->setName('API part in a BOM');
+        $part->setCategory($em->find(Category::class, 1));
+        $em->persist($part);
+        $project = null;
+        if ($inABom) {
+            $project = new Project();
+            $project->setName('API project');
+            $entry = (new ProjectBOMEntry())->setQuantity(1.0);
+            $project->addBomEntry($entry);
+            $part->addProjectBomEntry($entry);
+            $em->persist($project);
+        }
+        $em->flush();
+        $ids = [$client, $part->getID(), $project?->getID()];
+        $em->clear();
+
+        return $ids;
+    }
+
+    public function testDeletingAPartInABomIsRefusedWith409WhileTheSettingIsOn(): void
+    {
+        [$client, $id] = $this->clientAndPart(true);
+
+        $response = $client->request('DELETE', '/api/parts/'.$id);
+
+        self::assertResponseStatusCodeSame(409);
+        $this->assertStringContainsString('API project', $response->toArray(false)['detail']);
+        self::getContainer()->get(EntityManagerInterface::class)->clear();
+        $this->assertNotNull(self::getContainer()->get(EntityManagerInterface::class)->find(Part::class, $id));
+    }
+
+    public function testDeletingAPartInABomUnlinksItWhileTheSettingIsOff(): void
+    {
+        [$client, $id, $projectId] = $this->clientAndPart(false);
+
+        $client->request('DELETE', '/api/parts/'.$id);
+
+        self::assertResponseStatusCodeSame(204);
+        $em = self::getContainer()->get(EntityManagerInterface::class);
+        $em->clear();
+        $this->assertNull($em->find(Part::class, $id));
+        $entry = $em->find(Project::class, $projectId)->getBomEntries()->first();
+        $this->assertNull($entry->getPart());
+        $this->assertSame('API part in a BOM', $entry->getName());
+    }
+
+    public function testDeletingAPartInNoBomWorksWhileTheSettingIsOn(): void
+    {
+        [$client, $id] = $this->clientAndPart(true, false);
+
+        $client->request('DELETE', '/api/parts/'.$id);
+
+        self::assertResponseStatusCodeSame(204);
+    }
+
+    public function testAUserWithoutDeleteGets403BeforeTheRefusal(): void
+    {
+        [$client, $id] = $this->clientAndPart(true);
+
+        $client->request('DELETE', '/api/parts/'.$id, ['headers' => ['authorization' => 'Token '.APITokenFixtures::TOKEN_READONLY]]);
+
+        self::assertResponseStatusCodeSame(403);
     }
 
     public function testMasterPictureAttachmentPatchWithIRI(): void

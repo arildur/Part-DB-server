@@ -34,6 +34,7 @@ use App\Entity\Parts\Supplier;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Entity\UserSystem\User;
+use App\Settings\BehaviorSettings\PartDeletionSettings;
 use App\Services\InfoProviderSystem\DTOs\BulkSearchResponseDTO;
 use PHPUnit\Framework\Attributes\Group;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -550,6 +551,94 @@ final class PartControllerTest extends WebTestCase
             $client->getResponse()->getStatusCode() === Response::HTTP_FORBIDDEN ||
             $client->getResponse()->isRedirect()
         );
+    }
+
+    /**
+     * @return array{0: Part, 1: Project} a saved part used in the BOM of a saved project
+     */
+    private function partInABom($entityManager, string $partName, string $projectName): array
+    {
+        $part = new Part();
+        $part->setName($partName);
+        $part->setCategory($entityManager->getRepository(Category::class)->find(1));
+        $project = new Project();
+        $project->setName($projectName);
+        $entry = (new ProjectBOMEntry())->setQuantity(1.0);
+        $project->addBomEntry($entry);
+        $part->addProjectBomEntry($entry);
+        $entityManager->persist($part);
+        $entityManager->persist($project);
+        $entityManager->flush();
+
+        return [$part, $project];
+    }
+
+    public function testDeletingAPartInABomIsRefusedWhileTheSettingIsOn(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $this->loginAsUser($client, 'admin');
+        $client->getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = true;
+        $entityManager = $client->getContainer()->get('doctrine')->getManager();
+        [$part] = $this->partInABom($entityManager, 'Refused delete part', 'Refusing project');
+        $id = $part->getID();
+
+        $token = $client->request('GET', "/en/part/{$id}/info")->filter('#tools form input[name="_token"]')->attr('value');
+        $client->request('POST', "/en/part/{$id}/delete", ['_method' => 'DELETE', '_token' => $token]);
+
+        $this->assertResponseRedirects("/en/part/{$id}/info");
+        $crawler = $client->followRedirect();
+        $this->assertStringContainsString('Refusing project', $crawler->filter('body')->text());
+        $entityManager->clear();
+        $this->assertNotNull($entityManager->getRepository(Part::class)->find($id));
+    }
+
+    public function testDeletingAPartInABomUnlinksItWhileTheSettingIsOff(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $this->loginAsUser($client, 'admin');
+        $entityManager = $client->getContainer()->get('doctrine')->getManager();
+        [$part, $project] = $this->partInABom($entityManager, 'Unlinked delete part', 'Unlinking project');
+        $id = $part->getID();
+        $projectId = $project->getID();
+
+        $token = $client->request('GET', "/en/part/{$id}/info")->filter('#tools form input[name="_token"]')->attr('value');
+        $client->request('POST', "/en/part/{$id}/delete", ['_method' => 'DELETE', '_token' => $token]);
+
+        $this->assertResponseRedirects('/en/');
+        $entityManager->clear();
+        $this->assertNull($entityManager->getRepository(Part::class)->find($id));
+        $entry = $entityManager->getRepository(Project::class)->find($projectId)->getBomEntries()->first();
+        $this->assertNull($entry->getPart());
+        $this->assertSame('Unlinked delete part', $entry->getName());
+    }
+
+    public function testMergingAPartInABomSucceedsWhileTheSettingIsOn(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        $this->loginAsUser($client, 'admin');
+        $client->getContainer()->get(PartDeletionSettings::class)->refuseDeletingPartsUsedInBom = true;
+        $entityManager = $client->getContainer()->get('doctrine')->getManager();
+        [$other, $project] = $this->partInABom($entityManager, 'Merged away part', 'Merge project');
+        $target = new Part();
+        $target->setName('Merge target part');
+        $target->setCategory($entityManager->getRepository(Category::class)->find(1));
+        $entityManager->persist($target);
+        $entityManager->flush();
+        $otherId = $other->getID();
+        $targetId = $target->getID();
+        $projectId = $project->getID();
+
+        $crawler = $client->request('GET', "/en/part/{$targetId}/merge/{$otherId}");
+        $client->submit($crawler->filter('button[name="part_base[save]"]')->form());
+
+        $this->assertResponseRedirects();
+        $entityManager->clear();
+        $this->assertNull($entityManager->getRepository(Part::class)->find($otherId));
+        $entry = $entityManager->getRepository(Project::class)->find($projectId)->getBomEntries()->first();
+        $this->assertSame($targetId, $entry->getPart()?->getID());
     }
 
     private function loginAsUser($client, string $username): void

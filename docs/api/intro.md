@@ -178,6 +178,12 @@ Connections can be filtered by `meta_part`, `connected_part` and `status`, and o
 or deleting a connection needs the right to edit the meta part. A connection is refused if it would connect anything
 other than a manufacturing part, or connect the same two parts twice.
 
+## Deleting a part used in a BOM
+
+While the setting "Refuse deleting parts used in a BOM" is on, `DELETE /api/parts/{id}` of a part that a BOM entry points to
+is answered with `409 Conflict` and deletes nothing; the `detail` of the error names the projects. A user without the right to
+delete the part still gets `403` first. While it is off (the default), the part is deleted and its BOM entries keep only its name.
+
 ## Ordering results
 
 When retrieving a list of entities, you can order the results by various fields using the `order` query parameter.

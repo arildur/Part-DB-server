@@ -25,6 +25,7 @@ namespace App\EntityListeners;
 
 use App\Entity\Parts\Part;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
+use App\Services\Parts\PartDeletionGuard;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\Events;
 use Doctrine\ORM\Event\OnFlushEventArgs;
@@ -44,14 +45,29 @@ use Doctrine\ORM\Event\OnFlushEventArgs;
  * foreign key violation. Entries that are *not* also being deleted still need to be unlinked here, and since
  * onFlush fires after the main changeset computation, recomputeSingleEntityChangeSet() is required for that
  * mutation to actually be persisted.
+ *
+ * While the setting "Refuse deleting parts used in a BOM" is on, it unlinks nothing and throws a PartUsedInBomException
+ * instead, before any SQL is sent. Every delete path asks PartDeletionGuard first, so this only stops a path that
+ * forgot to.
  */
 #[AsDoctrineListener(event: Events::onFlush)]
 class PartProjectBOMEntryUnlinkListener
 {
+    public function __construct(private readonly PartDeletionGuard $deletionGuard)
+    {
+    }
+
     public function onFlush(OnFlushEventArgs $event): void
     {
         $em = $event->getObjectManager();
         $uow = $em->getUnitOfWork();
+
+        //Check every part first, so that a refusal leaves all BOM entries as they are
+        foreach ($uow->getScheduledEntityDeletions() as $entity) {
+            if ($entity instanceof Part) {
+                $this->deletionGuard->assertDeletable($entity);
+            }
+        }
 
         foreach ($uow->getScheduledEntityDeletions() as $entity) {
             if (!$entity instanceof Part) {

@@ -30,6 +30,7 @@ use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartLot;
+use App\Exceptions\PartUsedInBomException;
 use Doctrine\ORM\EntityManagerInterface;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\RedirectResponse;
@@ -40,7 +41,8 @@ use function Symfony\Component\Translation\t;
 
 final readonly class PartsTableActionHandler
 {
-    public function __construct(private EntityManagerInterface $entityManager, private Security $security, private UrlGeneratorInterface $urlGenerator)
+    public function __construct(private EntityManagerInterface $entityManager, private Security $security, private UrlGeneratorInterface $urlGenerator,
+        private PartDeletionGuard $deletionGuard)
     {
     }
 
@@ -185,6 +187,16 @@ implode(',', array_map(static fn (PartLot $lot) => $lot->getID(), $part->getPart
                     break;
                 case 'delete':
                     $this->denyAccessUnlessGranted('delete', $part);
+                    //A part used in a BOM may be refused by a setting: it stays, the others are deleted
+                    try {
+                        $this->deletionGuard->assertDeletable($part);
+                    } catch (PartUsedInBomException $exception) {
+                        $errors[] = [
+                            'part' => $part,
+                            'message' => t('parts.table.action_handler.error.used_in_bom', ['%projects%' => implode(', ', $exception->getProjectNames())]),
+                        ];
+                        break;
+                    }
                     $this->entityManager->remove($part);
                     break;
                 case 'change_category':

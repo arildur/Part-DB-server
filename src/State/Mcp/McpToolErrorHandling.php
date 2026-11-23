@@ -23,6 +23,7 @@ declare(strict_types=1);
 namespace App\State\Mcp;
 
 use ApiPlatform\Validator\Exception\ValidationException;
+use App\Exceptions\PartUsedInBomException;
 use Mcp\Schema\Content\TextContent;
 use Mcp\Schema\Result\CallToolResult;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -56,7 +57,7 @@ trait McpToolErrorHandling
     {
         try {
             return $fn();
-        } catch (AccessDeniedException|NotFoundHttpException|BadRequestHttpException|ValidationException|\LogicException $e) {
+        } catch (AccessDeniedException|NotFoundHttpException|BadRequestHttpException|ValidationException|PartUsedInBomException|\LogicException $e) {
             return new CallToolResult([new TextContent($e->getMessage())], isError: true);
         }
     }

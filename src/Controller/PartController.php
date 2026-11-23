@@ -36,6 +36,7 @@ use App\Entity\Parts\Supplier;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\ProjectSystem\Project;
 use App\Exceptions\AttachmentDownloadException;
+use App\Exceptions\PartUsedInBomException;
 use App\Form\Part\PartBaseType;
 use App\Form\Part\PartLotType;
 use App\Services\Attachments\AttachmentSubmitHandler;
@@ -50,6 +51,7 @@ use App\Services\LogSystem\EventCommentHelper;
 use App\Services\LogSystem\HistoryHelper;
 use App\Services\LogSystem\TimeTravel;
 use App\Services\Parameters\ParameterExtractor;
+use App\Services\Parts\PartDeletionGuard;
 use App\Services\Parts\PartLotWithdrawAddHelper;
 use App\Services\Parts\PricedetailHelper;
 use App\Services\ProjectSystem\ProjectBuildPartHelper;
@@ -340,11 +342,20 @@ final class PartController extends AbstractController
     }
 
     #[Route(path: '/{id}/delete', name: 'part_delete', methods: ['DELETE'])]
-    public function delete(Request $request, Part $part): RedirectResponse
+    public function delete(Request $request, Part $part, PartDeletionGuard $deletionGuard): RedirectResponse
     {
         $this->denyAccessUnlessGranted('delete', $part);
 
         if ($this->isCsrfTokenValid('delete' . $part->getID(), $request->request->get('_token'))) {
+
+            //A part used in a BOM may be refused by a setting: then nothing is deleted and the user stays on the part
+            try {
+                $deletionGuard->assertDeletable($part);
+            } catch (PartUsedInBomException $exception) {
+                $this->addFlash('error', t('part.delete.refused_used_in_bom', ['%projects%' => implode(', ', $exception->getProjectNames())]));
+
+                return $this->redirectToRoute('part_info', ['id' => $part->getID()]);
+            }
 
             $this->commentHelper->setMessage($request->request->get('log_comment', null));
 

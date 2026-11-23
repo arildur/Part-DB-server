@@ -55,6 +55,8 @@
 {% endif %}
 
 
+{# While a setting refuses deleting parts used in a BOM, the button is disabled beforehand and the projects are named #}
+{% set delete_refused_projects = settings_instance('part_deletion').refuseDeletingPartsUsedInBom ? part.projects : [] %}
 <form method="post" class="mt-2" action="{{ entity_url(part, 'delete') }}"
         {{ stimulus_controller('elements/delete_btn') }} {{ stimulus_action('elements/delete_btn', "submit", "submit") }}
       data-delete-title="{% trans with {'%name%': part.name|escape }%}part.delete.confirm_title{% endtrans %}"
@@ -63,7 +65,7 @@
     <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ part.id) }}">
     <div class="form-group">
         <div class="btn-group">
-            <button class="btn btn-danger" {% if not is_granted("delete", part) %}disabled{% endif %}>
+            <button class="btn btn-danger" {% if not is_granted("delete", part) or delete_refused_projects is not empty %}disabled{% endif %}>
                 <i class="fa fa-trash fa-fw"></i>
                 {% trans %}part.delete{% endtrans %}
             </button>
@@ -79,6 +81,12 @@
             </div>
         </div>
     </div>
+    {% if delete_refused_projects is not empty %}
+        <div class="form-text text-danger" id="part-delete-refused">
+            {% set project_links = delete_refused_projects|map(p => '<a href="' ~ entity_url(p)|e('html_attr') ~ '">' ~ p.name|e ~ '</a>')|join(', ') %}
+            {{ 'part.delete.refused_used_in_bom.hint'|trans({'%projects%': project_links})|raw }}
+        </div>
+    {% endif %}
 </form>
 
 {{ dropdown.profile_dropdown('part', part.id) }}

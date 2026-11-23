@@ -178,6 +178,7 @@ final class MetaPartPagesTest extends WebTestCase
         $crawler = $this->info($this->exampleMetaPart());
 
         $this->assertContains('#connections', $this->tabIds($crawler));
+        $this->assertStringContainsString('Connected parts', $crawler->filter('a[href="#connections"]')->text());
         $rows = $crawler->filter('#connections tbody tr:not(.table-light)')->each(static fn (Crawler $r) => $r->text());
         $this->assertCount(3, $rows);
         $this->assertStringContainsString('First source', $rows[0]);
@@ -320,6 +321,8 @@ final class MetaPartPagesTest extends WebTestCase
 
         $this->assertContains('#connections', $this->tabIds($crawler));
         $this->assertStringContainsString('Example meta', $crawler->filter('#connections')->text());
+        $this->assertStringContainsString('Meta parts', $crawler->filter('a[href="#connections"]')->text());
+        $this->assertStringNotContainsString('Connected parts', $crawler->filter('a[href="#connections"]')->text());
     }
 
     public function testAPastViewSaysConnectedStockIsCurrent(): void

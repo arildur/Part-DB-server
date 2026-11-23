@@ -16058,6 +16058,12 @@ Buerklin-API Authentication server:
         <target>Connected parts</target>
       </segment>
     </unit>
+    <unit id="JDs4scq" name="part_connection.meta_parts.labelp">
+      <segment state="translated">
+        <source>part_connection.meta_parts.labelp</source>
+        <target>Meta parts</target>
+      </segment>
+    </unit>
     <unit id="3.eZQfP" name="log.undo.part_connection_can_not_be_restored">
       <segment state="translated">
         <source>log.undo.part_connection_can_not_be_restored</source>

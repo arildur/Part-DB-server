@@ -24,6 +24,7 @@ namespace App\Tests\Services\LogSystem;
 
 use App\Entity\LogSystem\ElementEditedLogEntry;
 use App\Entity\Parts\Category;
+use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Part;
 use Brick\Math\BigDecimal;
 use App\Services\LogSystem\TimeTravel;
@@ -97,5 +98,22 @@ final class TimeTravelTest extends KernelTestCase
         $this->service->applyEntry($part, $logEntry);
 
         $this->assertNull($part->getPriceUserValue());
+    }
+
+    public function testApplyEntryWithNullOldAssociation(): void
+    {
+        $part = new Part();
+        //Fake an ID
+        (new \ReflectionClass($part))->getProperty('id')->setValue($part, 1000);
+        $part->setName('Test Part');
+        $part->setFootprint($this->em->find(Footprint::class, 1));
+
+        //A nullable link that changed from empty to an element logs null as the old value
+        $logEntry = new ElementEditedLogEntry($part);
+        $logEntry->setOldData(['footprint' => null]);
+
+        $this->service->applyEntry($part, $logEntry);
+
+        $this->assertNull($part->getFootprint());
     }
 }

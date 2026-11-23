@@ -264,6 +264,10 @@ class TimeTravel
                     $entity = $this->em->getReference($target_class, $data['@id']);
                     $this->setField($element, $field, $entity);
                 }
+                //A link that was empty logs null as its old value
+                if (null === $data && $metadata->isSingleValuedAssociation($field)) {
+                    $this->setField($element, $field, null);
+                }
             }
         }
 

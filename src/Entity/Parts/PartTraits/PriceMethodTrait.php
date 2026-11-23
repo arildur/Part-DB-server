@@ -106,8 +106,12 @@ trait PriceMethodTrait
     public function setPriceUserValue(?BigDecimal $priceUserValue): self
     {
         $value = $priceUserValue?->toScale(Pricedetail::PRICE_PRECISION, RoundingMode::HalfUp);
-        //Only change the object if the value changes, so that Doctrine does not see a change
-        if ((string) $value !== (string) $this->priceUserValue) {
+        //Only change the object if the value changes, so that Doctrine does not see a change. Compared by value,
+        //as the loaded value may lack the trailing zeros of the scale
+        $unchanged = null === $value || null === $this->priceUserValue
+            ? $value === $this->priceUserValue
+            : $value->isEqualTo($this->priceUserValue);
+        if (!$unchanged) {
             $this->priceUserValue = $value;
         }
 

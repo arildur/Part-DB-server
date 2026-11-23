@@ -114,6 +114,40 @@ final class PartPriceFieldsTest extends KernelTestCase
         $this->assertSame('system_default', $this->em->getConnection()->fetchOne("SELECT price_method FROM $table WHERE id = ?", [$plain->getID()]));
     }
 
+    public function testSettingAnEqualUserValueKeepsTheInstance(): void
+    {
+        $part = new Part();
+        $loaded = BigDecimal::of('12.5');
+        //As a database may give the stored value back, without the trailing zeros of the scale
+        (new \ReflectionProperty(Part::class, 'priceUserValue'))->setValue($part, $loaded);
+
+        $part->setPriceUserValue(BigDecimal::of('12.5'));
+        $this->assertSame($loaded, $part->getPriceUserValue());
+        $part->setPriceUserValue(BigDecimal::of('12.500000'));
+        $this->assertSame($loaded, $part->getPriceUserValue());
+
+        $part->setPriceUserValue(BigDecimal::of('12.6'));
+        $this->assertSame('12.60000', (string) $part->getPriceUserValue());
+    }
+
+    public function testSavingAnUnchangedUserValueComputesNoChange(): void
+    {
+        $meta = (new Part())->setKind(PartKind::META)->setPriceUserValue(BigDecimal::of('12.5'));
+        $meta->setName('Price change test meta');
+        $meta->setCategory($this->em->find(Category::class, 1));
+        $this->em->persist($meta);
+        $this->em->flush();
+        $this->em->clear();
+
+        $meta = $this->em->find(Part::class, $meta->getID());
+        //As the edit form sets the value again on every save
+        $meta->setPriceUserValue(BigDecimal::of('12.5'));
+        $uow = $this->em->getUnitOfWork();
+        $uow->computeChangeSets();
+
+        $this->assertArrayNotHasKey('priceUserValue', $uow->getEntityChangeSet($meta));
+    }
+
     public function testAManufacturingPartRefusesEachPriceField(): void
     {
         $part = new Part();

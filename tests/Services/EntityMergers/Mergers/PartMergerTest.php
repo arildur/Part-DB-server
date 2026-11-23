@@ -31,6 +31,7 @@ use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\MeasurementUnit;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartAssociation;
+use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartCustomState;
 use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
@@ -44,6 +45,7 @@ use App\Services\EntityMergers\Mergers\PartMerger;
 use Brick\Math\BigDecimal;
 use PHPUnit\Framework\TestCase;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class PartMergerTest extends KernelTestCase
 {
@@ -530,5 +532,37 @@ final class PartMergerTest extends KernelTestCase
         $merged = $this->merger->merge($this->meta(PartPriceMethod::USER_VALUE, '0.1'), $this->meta(PartPriceMethod::USER_VALUE, '0.3', $currency));
         $this->assertSame('0.10000', (string) $merged->getPriceUserValue());
         $this->assertNull($merged->getPriceUserCurrency(), 'The base currency of the target stays with its value');
+    }
+
+    /**
+     * @return list<string> The violations of the merged part as path: message
+     */
+    private function mergeAndValidate(?MeasurementUnit $targetUnit): array
+    {
+        $meta = (new Part())->setKind(PartKind::META)->setName('Pieces meta');
+        $other = (new Part())->setName('Other in pieces');
+        $connection = (new PartConnection())->setConnectedPart($other)->setPosition(1);
+        $meta->addPartConnection($connection);
+        $other->getConnectionsAsPart()->add($connection);
+        $target = (new Part())->setName('Target')->setPartUnit($targetUnit);
+
+        $merged = $this->merger->merge($target, $other);
+
+        $this->assertCount(1, $merged->getConnectionsAsPart(), 'The moved connection is on the target\'s side too');
+        $this->assertSame($meta, $merged->getConnectionsAsPart()->first()->getMetaPart());
+        $found = [];
+        foreach (self::getContainer()->get(ValidatorInterface::class)->validate($merged) as $violation) {
+            $found[] = $violation->getPropertyPath().': '.$violation->getMessageTemplate();
+        }
+
+        return $found;
+    }
+
+    public function testAMergedConnectionToAMetaPartOfAnotherUnitIsRefusedAtTheUnit(): void
+    {
+        $grams = (new MeasurementUnit())->setName('Grams')->setUnit('g');
+
+        $this->assertContains('partUnit: validator.part_connection.units_must_match', $this->mergeAndValidate($grams));
+        $this->assertNotContains('partUnit: validator.part_connection.units_must_match', $this->mergeAndValidate(null));
     }
 }

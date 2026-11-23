@@ -216,7 +216,10 @@ class PartMerger implements EntityMergerInterface
             if ($existing instanceof PartConnection) {
                 $this->combineConnections($existing, $connection);
             } else {
-                $metaPart->addPartConnection((clone $connection)->setConnectedPart($target));
+                //On the target's side too, so that validating the merged part sees the meta part's unit
+                $clone = (clone $connection)->setConnectedPart($target);
+                $metaPart->addPartConnection($clone);
+                $target->getConnectionsAsPart()->add($clone);
             }
         }
     }

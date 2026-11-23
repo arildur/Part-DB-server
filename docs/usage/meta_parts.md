@@ -69,7 +69,8 @@ Conversions are only available in the web interface, not over the REST API or MC
 ## Connecting parts
 
 Connections can be made from either side. The edit page of a meta part has a "Connected parts" tab, and the edit page of
-a manufacturing part a "Meta parts" tab. Each connection has:
+a manufacturing part a "Meta parts" tab, both right after "Associated parts". The part page shows the same tab in the same
+place: always for a meta part, and for a manufacturing part while it is connected to a meta part. Each connection has:
 
 * **Priority**: The lowest comes first. Leave it empty to add the part at the end.
 * **Status**: "Approved" (the default) for a part that may be used, "Use up" for a part that may be used and whose stock
@@ -85,7 +86,8 @@ their stock.
 
 A connection belongs to its meta part: adding, changing or removing one needs the permission to edit that meta part, from
 whichever side. On the edit page of a manufacturing part, a connection to a meta part you may not edit is shown read-only
-without a remove button, and a save that would change it anyway is refused with a message, and nothing is saved.
+without a remove button, and saving the part keeps its status and note as they are. Adding or removing a connection of such
+a meta part is refused with a message, and nothing is saved.
 
 Only manufacturing parts can be connected, and each only once to the same meta part. A connected part must have the same
 measurement unit as the meta part. Part-DB warns you when its footprint differs, but allows it. One part can be connected
@@ -103,8 +105,10 @@ and it is removed from its meta parts as above. Deleting a project deletes its b
 part is in the BOM of another project, normally its parent, is refused the same way; deleting the parent together with its
 sub-projects is not. With the setting off, the BOM entries of a deleted part keep only its name.
 
-Changes to connections are logged on both parts. Time travel and undo do not follow connections, as that would rewrite the
-stock of other parts, so an old version of a meta part shows the current stock of its connected parts.
+Changes to connections are logged on both parts. Time travel shows the price method, user price and its currency of a
+meta part as they were at that time. Time travel and undo do not follow connections, as that would rewrite the stock of
+other parts, so an old version of a meta part shows the current stock of its connected parts, and a price worked out
+from their current prices.
 
 ## Searching
 
@@ -118,8 +122,8 @@ unknown amount and expired lots do not count. The own lots of a meta part never 
 
 * The **Stock** tab lists its own lots and those of its connected parts with a total, and marks what is not counted. You
   can only change its own lots there: to withdraw from another part, use the page of that part.
-* The **Shopping** tab lists the suppliers of each connected part, and the summary shows the price of the meta part for
-  one unit, followed by its price method.
+* The **Shopping** tab lists the suppliers of each connected part, and counts them in its title. The summary shows the
+  price of the meta part for one unit, followed by its price method.
 * In part tables, the amount, its sorting and its filter use the total. The storage location column includes the locations
   of every connected part, those of parts that are not usable last and greyed, while the filters on lots, including the storage location filter, only look at a part's own lots.
 
@@ -166,8 +170,8 @@ part of a meta part that is the build part, nor a meta part sharing a connected 
 entry, on the connection and on the build part.
 
 The cost of a BOM entry pointing at a meta part is the price of the meta part at the quantity of the entry times the
-number of builds. A meta part with no price leaves its entry blank, and the project page counts the entries with no price
-next to the total cost.
+number of builds. A meta part with no price leaves its entry blank. The project page counts every entry with a part of
+either kind but no price next to the total cost, as these are left out of it.
 
 ## Other parts of Part-DB
 
@@ -209,9 +213,16 @@ with connections what to do:
     * **skip**: nothing changes for now, and the rollback stays refused.
 
    Each part is saved on its own, and the history of each changed part says why it changed. At the end the command
-   names the rollback command when no connection is left.
-3. Roll back with `php bin/console doctrine:migrations:migrate 'DoctrineMigrations\Version20260907090000'`, then install
-   the earlier version.
+   says whether any connection is left.
+3. Roll back the three meta part migrations, then install the earlier version:
+
+   ```bash
+   php bin/console doctrine:migrations:execute --down 'DoctrineMigrations\Version20261123100000' \
+       'DoctrineMigrations\Version20261105130000' 'DoctrineMigrations\Version20261105120000'
+   ```
+
+   Do not roll back with `doctrine:migrations:migrate` to an older version: that also rolls back later migrations of
+   Part-DB itself, such as the alternative names, whose data is then lost.
 
 The command needs the database at the latest version. If a rollback was started before and stopped at the connections,
 the later migrations have already been rolled back: run `php bin/console doctrine:migrations:migrate` first, then the

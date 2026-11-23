@@ -312,8 +312,10 @@ class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInte
     /**
      * Returns the lots this entry may draw on, in the order they are taken from: the part's own, then for a meta part those
      * of its usable connected parts, the ones whose stock is used first (use up) before the others, each by priority.
-     * Within a part lots go by amount, so that leftovers are used up first. Lots of unknown amount can not be planned
-     * with, so they are left out.
+     * Within a part the order depends on the entry: a meta part entry takes the smallest lots first, so that leftovers
+     * are used up, while an entry pointing straight at a part takes the largest first, as upstream does; equal amounts
+     * go by ID, so that the same stock always gives the same proposal. Lots of unknown amount can not be planned with,
+     * so they are left out.
      * @return list<PartLot>
      */
     public function getLotsInReach(): array
@@ -343,11 +345,13 @@ class ProjectBOMEntry extends AbstractDBElement implements UniqueValidatableInte
         $parts = array_keys($byPart);
         usort($parts, static fn (int $a, int $b): int => $rank($a) <=> $rank($b));
 
+        $smallestFirst = $this->part->getKind()->allowsConnections();
         $lots = [];
         foreach ($parts as $part) {
             $partLots = $byPart[$part];
             usort($partLots, static fn (PartLot $a, PartLot $b): int =>
-                [$a->getAmount(), $a->getID() ?? PHP_INT_MAX] <=> [$b->getAmount(), $b->getID() ?? PHP_INT_MAX]);
+                ($smallestFirst ? $a->getAmount() <=> $b->getAmount() : $b->getAmount() <=> $a->getAmount())
+                ?: ($a->getID() ?? PHP_INT_MAX) <=> ($b->getID() ?? PHP_INT_MAX));
             $lots = array_merge($lots, $partLots);
         }
 

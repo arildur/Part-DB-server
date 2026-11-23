@@ -295,6 +295,134 @@ final class ProjectBuildMetaPartTest extends KernelTestCase
         }
     }
 
+    public function testADirectEntryTakesTheLargestLotFirstAsUpstreamDoes(): void
+    {
+        $part = new Part();
+        $ten = $this->lot($part, 10, 1);
+        $fifty = $this->lot($part, 50, 2);
+        $thirty = $this->lot($part, 30, 3);
+        $project = $this->project([[$part, 40.0]]);
+        $entry = $project->getBomEntries()->first();
+
+        $request = new ProjectBuildRequest($project, 1);
+
+        $this->assertSame([$fifty, $thirty, $ten], $request->getPartLotsForBOMEntry($entry));
+        $this->assertSame(40.0, $request->getWithdrawAmount($entry, $fifty));
+        $this->assertSame(0.0, $request->getWithdrawAmount($entry, $thirty));
+        $this->assertSame(0.0, $request->getWithdrawAmount($entry, $ten));
+    }
+
+    public function testAMetaPartEntryKeepsTakingTheSmallestLotFirst(): void
+    {
+        $part = new Part();
+        $ten = $this->lot($part, 10, 1);
+        $fifty = $this->lot($part, 50, 2);
+        $thirty = $this->lot($part, 30, 3);
+        $meta = $this->meta();
+        $this->connect($meta, $part, 1);
+        $project = $this->project([[$meta, 40.0]]);
+        $entry = $project->getBomEntries()->first();
+
+        $request = new ProjectBuildRequest($project, 1);
+
+        $this->assertSame([$ten, $thirty, $fifty], $request->getPartLotsForBOMEntry($entry));
+        $this->assertSame(10.0, $request->getWithdrawAmount($entry, $ten));
+        $this->assertSame(30.0, $request->getWithdrawAmount($entry, $thirty));
+        $this->assertSame(0.0, $request->getWithdrawAmount($entry, $fifty));
+    }
+
+    public function testEqualAmountsGoByIdForBothKindsOfEntry(): void
+    {
+        $part = new Part();
+        $later = $this->lot($part, 20, 7);
+        $earlier = $this->lot($part, 20, 3);
+        $meta = $this->meta();
+        $this->connect($meta, $part, 1);
+
+        foreach ([$part, $meta] as $bomPart) {
+            $entry = $this->project([[$bomPart, 1.0]])->getBomEntries()->first();
+            $this->assertSame([$earlier, $later], $entry->getLotsInReach(), $bomPart->getKind()->value);
+        }
+    }
+
+    public function testEachEntryOrdersASharedLotByItsOwnRuleAfterItsGroups(): void
+    {
+        $part = new Part();
+        $ten = $this->lot($part, 10, 1);
+        $fifty = $this->lot($part, 50, 2);
+        $meta = $this->meta();
+        $own = $this->lot($meta, 70, 3);
+        $usedUp = new Part();
+        $old = $this->lot($usedUp, 90, 4);
+        $this->connect($meta, $part, 1);
+        $this->connect($meta, $usedUp, 2, PartConnectionStatus::USE_UP);
+        $project = $this->project([[$part, 20.0], [$meta, 165.0]]);
+        [$direct, $metaEntry] = array_values($project->getBomEntries()->toArray());
+
+        $this->assertSame([$fifty, $ten], $direct->getLotsInReach());
+        //Own lots, then use up, then approved, and within a part smallest first
+        $this->assertSame([$own, $old, $ten, $fifty], $metaEntry->getLotsInReach());
+
+        $request = new ProjectBuildRequest($project, 1);
+        $this->assertSame(20.0, $request->getWithdrawAmount($direct, $fifty));
+        $this->assertSame(0.0, $request->getWithdrawAmount($direct, $ten));
+        $this->assertSame(70.0, $request->getWithdrawAmount($metaEntry, $own));
+        $this->assertSame(90.0, $request->getWithdrawAmount($metaEntry, $old));
+        //The rest from the shared part's smallest lot, while the direct entry took from its largest
+        $this->assertSame(5.0, $request->getWithdrawAmount($metaEntry, $ten));
+        $this->assertSame(0.0, $request->getWithdrawAmount($metaEntry, $fifty));
+    }
+
+    public function testADirectOnlyBomIsProposedAsUpstreamProposesIt(): void
+    {
+        //Upstream took each entry's lots in the order of the collection, amount descending (InstockTrait), filling
+        //them one after another; equal amounts came in the order of the database, here that of the IDs
+        $upstream = static function (Project $project, int $builds): array {
+            $proposal = [];
+            foreach ($project->getBomEntries() as $entry) {
+                $lots = $entry->getPart()->getPartLots()->toArray();
+                usort($lots, static fn (PartLot $a, PartLot $b): int => [$b->getAmount(), $a->getID()] <=> [$a->getAmount(), $b->getID()]);
+                $remaining = $entry->getQuantity() * $builds;
+                foreach ($lots as $lot) {
+                    $withdraw = min($remaining, $lot->getAmount());
+                    $proposal[$entry->getID()][$lot->getID()] = $withdraw;
+                    $remaining -= max(0, $withdraw);
+                }
+            }
+
+            return $proposal;
+        };
+
+        $amounts = [[10, 50, 30], [20, 20, 5], [7], [100, 1, 1, 60], [3, 3, 3]];
+        $id = 1;
+        $bom = [];
+        foreach ($amounts as $i => $lotAmounts) {
+            $part = new Part();
+            foreach ($lotAmounts as $amount) {
+                $this->lot($part, $amount, $id++);
+            }
+            $bom[] = [$part, (float) [40, 25, 10, 61, 4][$i]];
+        }
+        $project = $this->project($bom);
+
+        foreach ([1, 2] as $builds) {
+            $request = new ProjectBuildRequest($project, $builds);
+            $branch = [];
+            foreach ($project->getBomEntries() as $entry) {
+                foreach ($request->getPartLotsForBOMEntry($entry) as $lot) {
+                    $branch[$entry->getID()][$lot->getID()] = $request->getWithdrawAmount($entry, $lot);
+                }
+            }
+            $expected = $upstream($project, $builds);
+            foreach ($expected as $entryId => $lots) {
+                foreach ($lots as $lotId => $amount) {
+                    $this->assertEqualsWithDelta($amount, $branch[$entryId][$lotId], 1e-9, sprintf('%d builds, entry %d, lot %d', $builds, $entryId, $lotId));
+                }
+            }
+            $this->assertSame(array_map(array_keys(...), $expected), array_map(array_keys(...), $branch), 'The same lots in the same order');
+        }
+    }
+
     public function testTheBuildWithdrawsOnceFromALotReachedByTwoEntries(): void
     {
         $part = new Part();

@@ -548,9 +548,9 @@ final class ProjectBuildHelperTest extends WebTestCase
         // Only the good lot counts: 10 < 50, so no build is possible
         $this->assertSame(0, $this->service->getMaximumBuildableCount($project));
 
-        // The proposal takes the good lot first, and the rest from the expired one
+        // The proposal takes the largest lot first, as upstream does, here all from the expired one
         $request = new ProjectBuildRequest($project, 1);
-        $this->assertEqualsWithDelta(10.0, $request->getLotWithdrawAmount($good), 0.001);
-        $this->assertEqualsWithDelta(40.0, $request->getLotWithdrawAmount($expired), 0.001);
+        $this->assertEqualsWithDelta(0.0, $request->getLotWithdrawAmount($good), 0.001);
+        $this->assertEqualsWithDelta(50.0, $request->getLotWithdrawAmount($expired), 0.001);
     }
 }

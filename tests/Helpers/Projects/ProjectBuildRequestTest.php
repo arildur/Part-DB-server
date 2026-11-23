@@ -134,9 +134,10 @@ final class ProjectBuildRequestTest extends TestCase
     {
         //The values should be already prefilled correctly
         $request = new ProjectBuildRequest($this->project1, 10);
-        //We need totally 20: Take 10 from the first (maximum 10) and 10 from the second (maximum 20)
-        $this->assertEqualsWithDelta(10.0, $request->getLotWithdrawAmount($this->lot1a), PHP_FLOAT_EPSILON);
-        $this->assertEqualsWithDelta(10.0, $request->getLotWithdrawAmount($this->lot1b), PHP_FLOAT_EPSILON);
+        //We need totally 20: The largest lot comes first, as in the collection read from the database (amount
+        //descending), so all 20 are taken from the second (maximum 20) and none from the first (maximum 10)
+        $this->assertEqualsWithDelta(0.0, $request->getLotWithdrawAmount($this->lot1a), PHP_FLOAT_EPSILON);
+        $this->assertEqualsWithDelta(20.0, $request->getLotWithdrawAmount($this->lot1b), PHP_FLOAT_EPSILON);
 
         //If the needed amount is higher than the maximum, we should get the maximum
         $this->assertEqualsWithDelta(2.5, $request->getLotWithdrawAmount($this->lot2), PHP_FLOAT_EPSILON);
@@ -215,7 +216,8 @@ final class ProjectBuildRequestTest extends TestCase
                 return 11;
             }
         };
-        $lot_b->setAmount(17.76);
+        //Smaller than the need, so that the largest lot, taken first, leaves a rest with float residue for the other
+        $lot_b->setAmount(2.0);
         $part->addPartLot($lot_b);
 
         $bom_entry = $this->entryWithId(1);
@@ -229,8 +231,8 @@ final class ProjectBuildRequestTest extends TestCase
         $this->assertSame(2.86, $request->getNeededAmountForBOMEntry($bom_entry));
 
         //The prefilled values must exactly match the needed amount
-        $this->assertSame(1.2, $request->getLotWithdrawAmount($lot_a));
-        $this->assertSame(1.66, $request->getLotWithdrawAmount($lot_b));
+        $this->assertSame(0.86, $request->getLotWithdrawAmount($lot_a));
+        $this->assertSame(2.0, $request->getLotWithdrawAmount($lot_b));
         $this->assertSame(2.86, $request->getWithdrawAmountSum($bom_entry));
 
         //Values entered by the user (as they come from the form) must also match exactly

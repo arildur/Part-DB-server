@@ -238,8 +238,8 @@ class TimeTravel
             //We use the fieldMappings property directly instead of the hasField method, as we do not want to match the embedded field itself
             //The sub fields are handled in the setField method
             if (isset($metadata->fieldMappings[$field])) {
-                //We need to convert the string to a BigDecimal first
-                if (!$data instanceof BigDecimal && ('big_decimal' === $metadata->getFieldMapping($field)->type)) {
+                //We need to convert the string to a BigDecimal first (a nullable field may have logged null)
+                if (null !== $data && !$data instanceof BigDecimal && ('big_decimal' === $metadata->getFieldMapping($field)->type)) {
                     $data = is_float($data) ? BigDecimal::fromFloatShortest($data) : BigDecimal::of($data);
                 }
 

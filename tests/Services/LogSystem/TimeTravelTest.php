@@ -24,6 +24,8 @@ namespace App\Tests\Services\LogSystem;
 
 use App\Entity\LogSystem\ElementEditedLogEntry;
 use App\Entity\Parts\Category;
+use App\Entity\Parts\Part;
+use Brick\Math\BigDecimal;
 use App\Services\LogSystem\TimeTravel;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -78,5 +80,22 @@ final class TimeTravelTest extends KernelTestCase
 
         //The category with 1 should have the name 'Test' at this timestamp
         $this->assertEquals('Test', $category->getName());
+    }
+
+    public function testApplyEntryWithNullOldBigDecimal(): void
+    {
+        $part = new Part();
+        //Fake an ID
+        (new \ReflectionClass($part))->getProperty('id')->setValue($part, 1000);
+        $part->setName('Test Part');
+        $part->setPriceUserValue(BigDecimal::of('12.5'));
+
+        //A nullable big_decimal field that changed from null to a value logs null as the old value
+        $logEntry = new ElementEditedLogEntry($part);
+        $logEntry->setOldData(['priceUserValue' => null]);
+
+        $this->service->applyEntry($part, $logEntry);
+
+        $this->assertNull($part->getPriceUserValue());
     }
 }

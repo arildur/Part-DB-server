@@ -173,3 +173,34 @@ next to the total cost.
   `/api/part_connections`. A meta part also has `price_method`, `user_price` and `user_price_currency`, and the
   response for a single meta part holds its read-only `price`. A project's `build_part` can be a meta part.
 * **[MCP](../api/mcp.md)**: The part tools take and show the kind, the connections and the price method.
+
+## Going back to a version without meta parts
+
+The database can be rolled back to the version before meta parts. Meta parts without connections need nothing: when the
+rollback drops the kind of parts, they become ordinary parts, keeping their ID, lots, BOM entries, parameters,
+attachments and history. Their price methods and user prices are lost. The rollback warns with how many parts each of
+these affects.
+
+The rollback refuses while connections exist, so remove them first with a console command, which asks for each meta part
+with connections what to do:
+
+1. Make a backup, for example with `php bin/console partdb:backup --full backup.zip`.
+2. Run `php bin/console partdb:meta-parts:prepare-rollback`. Add `--dry-run` to see what it would do without changing
+   anything. For each meta part it shows the projects using it, its own lots and its connections in the order of
+   priority, and asks:
+    * **keep** (the default, and the answer under `--no-interaction`): only the connections are removed. The part stays
+      and becomes an ordinary part after the rollback. The connected parts are not touched.
+    * **replace**: every BOM entry of the meta part points at one of its connected parts instead, keeping quantity, mount
+      names and comment, and the meta part is deleted. The primary source (the first usable connection) is offered first.
+      This is refused while the meta part has lots of its own, is the build part of a project, or a BOM using it already
+      has an entry for the chosen part; the command says why and asks again.
+    * **skip**: nothing changes for now, and the rollback stays refused.
+
+   Each part is saved on its own, and the history of each changed part says why it changed. At the end the command
+   names the rollback command when no connection is left.
+3. Roll back with `php bin/console doctrine:migrations:migrate 'DoctrineMigrations\Version20260907090000'`, then install
+   the earlier version.
+
+The command needs the database at the latest version. If a rollback was started before and stopped at the connections,
+the later migrations have already been rolled back: run `php bin/console doctrine:migrations:migrate` first, then the
+command and the rollback.

@@ -15,12 +15,13 @@ final class Version20261105130000 extends AbstractMultiPlatformMigration
     }
 
     /**
-     * Dropping the table would lose the connections with no sign, so this is refused while any exist.
+     * Dropping the table would lose the connections with no sign, so this is refused while any exist, of any status.
+     * The command named in the message lets the user decide per meta part what becomes of them.
      */
     private function abortIfConnectionsExist(): void
     {
         $count = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM part_connections');
-        $this->abortIf($count > 0, sprintf('Can not roll back: %d part connections exist. Remove them first.', $count));
+        $this->abortIf($count > 0, sprintf('Can not roll back: %d part connections exist. Run "php bin/console doctrine:migrations:migrate" (back to the latest version, as the later down steps have already run), then "php bin/console partdb:meta-parts:prepare-rollback", then roll back again.', $count));
     }
 
     public function mySQLUp(Schema $schema): void

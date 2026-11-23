@@ -15,13 +15,13 @@ final class Version20261105120000 extends AbstractMultiPlatformMigration
     }
 
     /**
-     * Dropping the column would turn meta parts into ordinary parts, so this is refused while any exist.
+     * Dropping the column turns every meta part into an ordinary part, keeping its row and data, so the log says how many.
      */
-    private function abortIfMetaPartsExist(): void
+    private function warnAboutMetaParts(): void
     {
         $table = $this->connection->getDatabasePlatform()->quoteSingleIdentifier('parts');
         $count = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM '.$table." WHERE kind <> 'manufacturing'");
-        $this->abortIf($count > 0, sprintf('Can not roll back: %d parts are not manufacturing parts. Remove them first.', $count));
+        $this->warnIf($count > 0, sprintf('%d parts are not manufacturing parts. They become ordinary parts, keeping their data.', $count));
     }
 
     public function mySQLUp(Schema $schema): void
@@ -31,7 +31,7 @@ final class Version20261105120000 extends AbstractMultiPlatformMigration
 
     public function mySQLDown(Schema $schema): void
     {
-        $this->abortIfMetaPartsExist();
+        $this->warnAboutMetaParts();
         $this->addSql('ALTER TABLE `parts` DROP COLUMN kind');
     }
 
@@ -42,7 +42,7 @@ final class Version20261105120000 extends AbstractMultiPlatformMigration
 
     public function sqLiteDown(Schema $schema): void
     {
-        $this->abortIfMetaPartsExist();
+        $this->warnAboutMetaParts();
         $this->addSql('ALTER TABLE "parts" DROP COLUMN kind');
     }
 
@@ -53,7 +53,7 @@ final class Version20261105120000 extends AbstractMultiPlatformMigration
 
     public function postgreSQLDown(Schema $schema): void
     {
-        $this->abortIfMetaPartsExist();
+        $this->warnAboutMetaParts();
         $this->addSql('ALTER TABLE "parts" DROP COLUMN kind');
     }
 }

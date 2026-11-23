@@ -51,19 +51,6 @@ class PartUsedInBomException extends \RuntimeException
     }
 
     /**
-     * @return list<string> the names of the projects, or none when the user may not read projects
-     */
-    public function getProjectNames(): array
-    {
-        return $this->projectNamesShown ? $this->projectNames : [];
-    }
-
-    public function getProjectCount(): int
-    {
-        return count($this->projectNames);
-    }
-
-    /**
      * The projects as the parameter %projects% of a translated message: their names, or their number for a user who
      * may not read projects.
      */

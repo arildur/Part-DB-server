@@ -25,6 +25,8 @@ namespace App\EntityListeners;
 
 use App\Entity\Parts\Part;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
+use App\Exceptions\PartUsedInBomException;
+use App\Exceptions\PartUsedInBomSafetyNetException;
 use App\Services\Parts\PartDeletionGuard;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 use Doctrine\ORM\Events;
@@ -46,9 +48,9 @@ use Doctrine\ORM\Event\OnFlushEventArgs;
  * onFlush fires after the main changeset computation, recomputeSingleEntityChangeSet() is required for that
  * mutation to actually be persisted.
  *
- * While the setting "Refuse deleting parts used in a BOM" is on, it unlinks nothing and throws a PartUsedInBomException
- * instead, before any SQL is sent. Every delete path asks PartDeletionGuard first, so this only stops a path that
- * forgot to.
+ * While the setting "Refuse deleting parts used in a BOM" is on, it unlinks nothing and throws a
+ * PartUsedInBomSafetyNetException instead, before any SQL is sent. Every delete path asks PartDeletionGuard first, so
+ * this only stops a path that forgot to.
  */
 #[AsDoctrineListener(event: Events::onFlush)]
 class PartProjectBOMEntryUnlinkListener
@@ -65,7 +67,11 @@ class PartProjectBOMEntryUnlinkListener
         //Check every part first, so that a refusal leaves all BOM entries as they are
         foreach ($uow->getScheduledEntityDeletions() as $entity) {
             if ($entity instanceof Part) {
-                $this->deletionGuard->assertDeletable($entity);
+                try {
+                    $this->deletionGuard->assertDeletable($entity);
+                } catch (PartUsedInBomException $refusal) {
+                    throw new PartUsedInBomSafetyNetException($refusal);
+                }
             }
         }
 

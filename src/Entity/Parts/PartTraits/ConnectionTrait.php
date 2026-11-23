@@ -88,14 +88,8 @@ trait ConnectionTrait
 
         $metaPart = $connection->getMetaPart();
         if ($metaPart instanceof Part && !$metaPart->getPartConnections()->contains($connection)) {
-            if ($connection->getPosition() === null) {
-                $highest = 0;
-                foreach ($metaPart->getPartConnections() as $other) {
-                    $highest = max($highest, $other->getPosition() ?? 0);
-                }
-                $connection->setPosition($highest + 1);
-            }
             $metaPart->addPartConnection($connection);
+            $connection->setNextFreePositionIfEmpty();
         }
 
         return $this;

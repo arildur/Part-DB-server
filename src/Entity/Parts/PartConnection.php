@@ -113,8 +113,9 @@ class PartConnection extends AbstractDBElement implements TimeStampableInterface
     }
 
     /**
-     * REST sets the two ends through setters, so the place to give a new connection its position is here. It
-     * must not stay empty: position 0 or none would sort first, and make the part the primary source.
+     * REST sets the two ends through setters, so the place to give a new connection its position is here, last in
+     * its meta part's order; Part::addConnectionsAsPart() calls it as soon as the meta part is known. It must not stay
+     * empty: position 0 or none would sort first, and make the part the primary source.
      */
     #[ORM\PrePersist]
     public function setNextFreePositionIfEmpty(): void

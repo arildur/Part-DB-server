@@ -48,7 +48,8 @@ framework:
     # Their HTTP status stays in api_platform.yaml (exception_to_status): a status_code here would wrap the exception in
     # an HttpException before it is logged, so the log would no longer name it.
     exceptions:
-        # A part refused deletion by the setting "Refuse deleting parts used in a BOM" (REST answers 409)
+        # A part refused deletion by the setting "Refuse deleting parts used in a BOM" (REST answers 409). The safety
+        # net of a delete path that did not ask first, PartUsedInBomSafetyNetException, is not one: it stays critical.
         App\Exceptions\PartUsedInBomException:
             log_level: warning
 

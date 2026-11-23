@@ -96,7 +96,7 @@ final class PartDeletionGuardTest extends KernelTestCase
             $this->fail('The guard did not refuse.');
         } catch (PartUsedInBomException $exception) {
             $this->assertSame('Guarded part', $exception->getPartName());
-            $this->assertSame(['Alpha project', 'Zeta project'], $exception->getProjectNames());
+            $this->assertSame('Alpha project, Zeta project', $exception->getProjectsParameter());
             $this->assertStringContainsString('Alpha project, Zeta project', $exception->getMessage());
         }
     }
@@ -113,8 +113,6 @@ final class PartDeletionGuardTest extends KernelTestCase
             $this->guard->assertDeletable($part);
             $this->fail('The guard did not refuse.');
         } catch (PartUsedInBomException $exception) {
-            $this->assertSame([], $exception->getProjectNames());
-            $this->assertSame(2, $exception->getProjectCount());
             $this->assertStringContainsString('used in the BOM of 2 project(s)', $exception->getMessage());
             $this->assertStringNotContainsString('Alpha', $exception->getMessage());
             //The synonym is filled in by a request, which this test has not

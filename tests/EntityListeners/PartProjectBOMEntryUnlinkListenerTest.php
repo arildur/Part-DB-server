@@ -28,9 +28,16 @@ use App\Entity\Parts\Part;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Exceptions\PartUsedInBomException;
+use App\Exceptions\PartUsedInBomSafetyNetException;
 use App\Settings\BehaviorSettings\PartDeletionSettings;
 use Doctrine\ORM\EntityManagerInterface;
+use Monolog\Handler\TestHandler;
+use Monolog\Level;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
+use Symfony\Component\HttpKernel\EventListener\ErrorListener;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
 
 /**
  * The listener is the safety net behind the delete paths: with the setting on, a flush that would delete a part used in
@@ -79,15 +86,39 @@ final class PartProjectBOMEntryUnlinkListenerTest extends KernelTestCase
         try {
             $this->em->flush();
             $this->fail('The flush deleted a part used in a BOM.');
-        } catch (PartUsedInBomException $exception) {
-            $this->assertSame(['Listener project'], $exception->getProjectNames());
-            $this->assertStringContainsString('Listener part', $exception->getMessage());
+        } catch (PartUsedInBomSafetyNetException $exception) {
+            $this->assertStringContainsString('did not ask PartDeletionGuard', $exception->getMessage());
+            $this->assertInstanceOf(PartUsedInBomException::class, $exception->getPrevious());
+            $this->assertStringContainsString('"Listener part"', $exception->getMessage());
+            $this->assertStringContainsString('Listener project', $exception->getMessage());
         }
         $this->assertSame($part, $entry->getPart());
 
         $this->em->clear();
         $this->assertNotNull($this->em->find(Part::class, $partId));
         $this->assertSame($partId, $this->em->find(ProjectBOMEntry::class, $entryId)?->getPart()?->getID());
+    }
+
+    /**
+     * The safety net fires only when a delete path forgot to ask the guard, which is a bug and must be logged as
+     * critical; the refusal of a path that asked is expected and only a warning.
+     */
+    public function testTheSafetyNetIsLoggedAsCriticalAndTheRefusalAsAWarning(): void
+    {
+        $refusal = new PartUsedInBomException('Logged part', ['Logged project']);
+        $levels = [];
+        foreach ([$refusal, new PartUsedInBomSafetyNetException($refusal)] as $exception) {
+            $handler = new TestHandler();
+            self::getContainer()->get('monolog.logger.request')->pushHandler($handler);
+            /** @var ErrorListener $errorListener */
+            $errorListener = self::getContainer()->get('exception_listener');
+            $errorListener->logKernelException(new ExceptionEvent(self::$kernel, Request::create('/api/parts/1', 'DELETE'),
+                HttpKernelInterface::MAIN_REQUEST, $exception));
+            $levels[$exception::class] = array_map(static fn ($record): Level => $record->level, $handler->getRecords());
+            self::getContainer()->get('monolog.logger.request')->popHandler();
+        }
+
+        $this->assertSame([PartUsedInBomException::class => [Level::Warning], PartUsedInBomSafetyNetException::class => [Level::Critical]], $levels);
     }
 
     public function testAProjectDeletedTogetherWithItsPartPasses(): void

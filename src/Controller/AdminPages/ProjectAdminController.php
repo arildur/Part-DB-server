@@ -23,19 +23,24 @@ declare(strict_types=1);
 namespace App\Controller\AdminPages;
 
 use App\Entity\Attachments\ProjectAttachment;
+use App\Entity\Parts\Part;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\Parameters\ProjectParameter;
 use App\Entity\Base\AbstractDBElement;
 use App\Entity\Base\AbstractNamedDBElement;
+use App\Exceptions\PartUsedInBomException;
 use App\Form\AdminPages\ProjectAdminForm;
 use App\Services\ImportExportSystem\EntityExporter;
 use App\Services\ImportExportSystem\EntityImporter;
+use App\Services\Parts\PartDeletionGuard;
 use App\Services\Trees\StructuralElementRecursionHelper;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+
+use function Symfony\Component\Translation\t;
 
 #[Route(path: '/project')]
 class ProjectAdminController extends BaseAdminController
@@ -60,8 +65,39 @@ class ProjectAdminController extends BaseAdminController
     }
 
     #[Route(path: '/{id}', name: 'project_delete', methods: ['DELETE'])]
-    public function delete(Request $request, Project $entity, StructuralElementRecursionHelper $recursionHelper): RedirectResponse
+    public function delete(Request $request, Project $entity, StructuralElementRecursionHelper $recursionHelper, PartDeletionGuard $deletionGuard): RedirectResponse
     {
+        $this->denyAccessUnlessGranted('delete', $entity);
+
+        //Deleting a project deletes its build part, and those of the sub-projects deleted with it. A setting may refuse
+        //that while a BOM of another project uses one: then nothing is deleted and the user stays on the project.
+        if ($this->isCsrfTokenValid('delete'.$entity->getID(), $request->request->get('_token'))) {
+            $deleted = [$entity];
+            if ($request->get('delete_recursive', false)) {
+                $recursionHelper->execute($entity, static function (Project $project) use (&$deleted): void {
+                    if (!in_array($project, $deleted, true)) {
+                        $deleted[] = $project;
+                    }
+                });
+            }
+
+            foreach ($deleted as $project) {
+                if (!$project->getBuildPart() instanceof Part) {
+                    continue;
+                }
+                try {
+                    $deletionGuard->assertDeletable($project->getBuildPart(), $deleted);
+                } catch (PartUsedInBomException $exception) {
+                    $this->addFlash('error', t('project.delete.refused_build_part_used_in_bom', [
+                        '%project%' => $project->getName(),
+                        '%projects%' => implode(', ', $exception->getProjectNames()),
+                    ]));
+
+                    return $this->redirectToRoute('project_edit', ['id' => $entity->getID()]);
+                }
+            }
+        }
+
         return $this->_delete($request, $entity, $recursionHelper);
     }
 

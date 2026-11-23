@@ -89,7 +89,9 @@ its connected parts, and deleting a connected part removes it from its meta part
 With the setting "Refuse deleting parts used in a BOM" (System settings > Behavior, off by default) Part-DB refuses to delete a part
 that a BOM entry points to, a meta part or a manufacturing part, and names the projects; the delete button of the part page is then
 disabled. Only a BOM entry that names the part itself counts: a connected part used only through its meta part can still be deleted,
-and it is removed from its meta parts as above. With the setting off, the BOM entries of a deleted part keep only its name.
+and it is removed from its meta parts as above. Deleting a project deletes its build part, so deleting a sub-project whose build
+part is in the BOM of another project, normally its parent, is refused the same way; deleting the parent together with its
+sub-projects is not. With the setting off, the BOM entries of a deleted part keep only its name.
 
 Changes to connections are logged on both parts. Time travel and undo do not follow connections, as that would rewrite the
 stock of other parts, so an old version of a meta part shows the current stock of its connected parts.

@@ -152,8 +152,8 @@ bundled with Part-DB. Set `DATABASE_MYSQL_SSL_VERIFY_CERT` if you want to accept
 * `KEYBINDINGS_SPECIAL_CHARS_ENABLED`: Set this to 0 to disable the special character keybindings (Alt + key) for inserting special characters. This can be useful if
   they conflict with your keyboard layout or system shortcuts.
 * `REFUSE_DELETING_PARTS_USED_IN_BOM`: Set this to 1 to refuse deleting a part (meta or manufacturing) that a BOM entry
-  of a project points to, on the part page, in part tables, over the REST API and over MCP. The message names the
-  projects. A part used only through a meta part can still be deleted. Off by default, as before: deleting such a part
+  of a project points to, on the part page, in part tables, over the REST API and over MCP, and deleting a project
+  whose build part another project's BOM uses. The message names the projects. A part used only through a meta part can still be deleted. Off by default, as before: deleting such a part
   turns its BOM entries into entries that keep only its name. Also under System settings > Behavior > Deleting parts.
 
 ### E-Mail settings (all env only)

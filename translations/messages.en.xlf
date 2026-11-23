@@ -16766,5 +16766,11 @@ Buerklin-API Authentication server:
         <target>Nothing was converted, as saving failed: %error%</target>
       </segment>
     </unit>
+    <unit id="Nz4Sha8" name="project.delete.refused_build_part_used_in_bom">
+      <segment state="translated">
+        <source>project.delete.refused_build_part_used_in_bom</source>
+        <target>The [project] was not deleted, because the build [part] of the [project] %project% is used in the BOM of: %projects%. Remove it from these BOMs first, or turn off the setting "Refuse deleting [[part]] used in a BOM".</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

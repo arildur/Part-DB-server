@@ -31,8 +31,9 @@ use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * The one check whether a part may be deleted, asked by every path that deletes a part: the part page, the delete
- * action of part tables, REST, MCP and, as a safety net, PartProjectBOMEntryUnlinkListener. Only a BOM entry that
- * points to the part itself counts; a part used only through a meta part may be deleted. A merge does not ask it.
+ * action of part tables, REST, MCP, the deletion of a project (for its build part) and, as a safety net,
+ * PartProjectBOMEntryUnlinkListener. Only a BOM entry that points to the part itself counts; a part used only through a
+ * meta part may be deleted. A merge does not ask it.
  * @see \App\Tests\Services\Parts\PartDeletionGuardTest
  */
 final readonly class PartDeletionGuard
@@ -52,15 +53,17 @@ final readonly class PartDeletionGuard
     /**
      * The projects whose BOM points to the part, each once and sorted by name, leaving out entries that are already
      * scheduled for deletion (their project is deleted in the same flush). It does not look at the setting.
+     * @param  list<Project>  $deletedProjects  projects that are deleted together with the part, which do not count
      * @return list<Project>
      */
-    public function getBlockingProjects(Part $part): array
+    public function getBlockingProjects(Part $part, array $deletedProjects = []): array
     {
         $uow = $this->entityManager->getUnitOfWork();
         $projects = [];
         foreach ($part->getProjectBomEntries() as $entry) {
             $project = $entry->getProject();
-            if ($project === null || $uow->isScheduledForDelete($entry) || $uow->isScheduledForDelete($project)) {
+            if ($project === null || $uow->isScheduledForDelete($entry) || $uow->isScheduledForDelete($project)
+                || in_array($project, $deletedProjects, true)) {
                 continue;
             }
             $projects[spl_object_id($project)] = $project;
@@ -73,15 +76,16 @@ final readonly class PartDeletionGuard
 
     /**
      * Does nothing while the setting is off; otherwise throws when a BOM entry points to the part.
+     * @param  list<Project>  $deletedProjects  projects that are deleted together with the part, which do not count
      * @throws PartUsedInBomException
      */
-    public function assertDeletable(Part $part): void
+    public function assertDeletable(Part $part, array $deletedProjects = []): void
     {
         if (!$this->isRefusing()) {
             return;
         }
 
-        $projects = $this->getBlockingProjects($part);
+        $projects = $this->getBlockingProjects($part, $deletedProjects);
         if ($projects !== []) {
             throw new PartUsedInBomException($part->getName(), array_map(static fn (Project $p): string => $p->getName(), $projects));
         }

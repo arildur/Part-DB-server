@@ -215,21 +215,76 @@ final class EntityExporterTest extends WebTestCase
         }
     }
 
-    public function testOnlyFullHoldsConnectionsAndEndsThere(): void
+    public function testNoLevelWritesTheConnectionsButEveryLevelTheLinkedParts(): void
     {
-        foreach (['simple', 'extended'] as $level) {
+        foreach (['simple', 'extended', 'full'] as $level) {
             $data = json_decode($this->service->exportEntities($this->metaPart(), ['format' => 'json', 'level' => $level]), true);
             $this->assertArrayNotHasKey('part_connections', $data[0], $level);
+            $this->assertSame(1, $data[0]['linked_parts_count'], $level);
+            $this->assertSame('Connected part (do_not_use)', $data[0]['linked_parts'], $level);
+
+            $header = str_getcsv(strtok($this->service->exportEntities($this->metaPart(), ['format' => 'csv', 'level' => $level]), "\n"), ';', '"', '\\');
+            $this->assertContains('linked_parts_count', $header, $level);
+            $this->assertContains('linked_parts', $header, $level);
+            $this->assertNotContains('part_connections', $header, $level);
+        }
+    }
+
+    private function connection(Part $meta, Part $part, int $position, PartConnectionStatus $status): void
+    {
+        $connection = (new PartConnection())->setConnectedPart($part)->setPosition($position)->setStatus($status);
+        $meta->addPartConnection($connection);
+        $part->getConnectionsAsPart()->add($connection);
+    }
+
+    private function part(string $name, PartKind $kind = PartKind::MANUFACTURING): Part
+    {
+        $part = (new Part())->setKind($kind);
+        $part->setName($name);
+
+        return $part;
+    }
+
+    /**
+     * @return array<string, array<string, string>> The exported values of each part by its name
+     */
+    private function exportedRows(array $parts, string $format): array
+    {
+        $file = $this->service->exportEntities($parts, ['format' => $format, 'level' => 'simple']);
+        if ($format === 'json') {
+            $rows = json_decode($file, true);
+        } else {
+            $lines = array_map(static fn (string $line): array => str_getcsv($line, ';', '"', '\\'), array_filter(explode("\n", $file)));
+            $header = array_shift($lines);
+            $rows = array_map(static fn (array $line): array => array_combine($header, $line), $lines);
         }
 
-        $data = json_decode($this->service->exportEntities($this->metaPart(), ['format' => 'json', 'level' => 'full']), true);
-        $this->assertCount(1, $data[0]['part_connections']);
-        $connection = $data[0]['part_connections'][0];
-        $this->assertSame(3, $connection['position']);
-        $this->assertSame('do_not_use', $connection['status']);
-        $this->assertSame('Connected part', $connection['connected_part']['name']);
-        $this->assertArrayHasKey('id', $connection['connected_part']);
-        $this->assertArrayNotHasKey('manufacturer_product_number', $connection['connected_part'], 'A connected part is not written out in full');
+        return array_column($rows, null, 'name');
+    }
+
+    public function testTheLinkedPartsOfEachSideInCsvAndJson(): void
+    {
+        $resistor = $this->part('Resistor 10k', PartKind::META);
+        $alsoResistor = $this->part('Alternative 10k', PartKind::META);
+        $first = $this->part('RC0805FR');
+        $second = $this->part('ERJ-6ENF');
+        $this->connection($resistor, $second, 2, PartConnectionStatus::USE_UP);
+        $this->connection($resistor, $first, 1, PartConnectionStatus::APPROVED);
+        $this->connection($alsoResistor, $first, 1, PartConnectionStatus::UNDER_EVALUATION);
+        $alone = $this->part('Not linked');
+
+        foreach (['json', 'csv'] as $format) {
+            $rows = $this->exportedRows([$resistor, $alsoResistor, $first, $second, $alone], $format);
+
+            $this->assertEquals(2, $rows['Resistor 10k']['linked_parts_count'], $format);
+            $this->assertSame('RC0805FR (approved); ERJ-6ENF (use_up)', $rows['Resistor 10k']['linked_parts'], $format);
+            $this->assertEquals(2, $rows['RC0805FR']['linked_parts_count'], $format);
+            $this->assertSame('Alternative 10k; Resistor 10k', $rows['RC0805FR']['linked_parts'], $format);
+            $this->assertEquals(1, $rows['ERJ-6ENF']['linked_parts_count'], $format);
+            $this->assertSame('Resistor 10k', $rows['ERJ-6ENF']['linked_parts'], $format);
+            $this->assertEquals(0, $rows['Not linked']['linked_parts_count'], $format);
+            $this->assertSame('', $rows['Not linked']['linked_parts'], $format);
+        }
     }
 
     public function testAFullExportImportsAsAMetaPartWithoutConnections(): void
@@ -238,7 +293,7 @@ final class EntityExporterTest extends WebTestCase
 
         foreach (['json' => ',', 'csv' => ';'] as $format => $delimiter) {
             $file = $this->service->exportEntities($this->metaPart(), ['format' => $format, 'level' => 'full']);
-            $this->assertStringContainsString('part_connections', $file);
+            $this->assertStringContainsString('linked_parts', $file);
 
             $errors = [];
             $results = $importer->importString($file, ['class' => Part::class, 'format' => $format, 'csv_delimiter' => $delimiter, 'part_category' => (new Category())->setName('Kind')], $errors);

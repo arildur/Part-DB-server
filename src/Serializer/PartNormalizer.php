@@ -137,6 +137,10 @@ class PartNormalizer implements NormalizerInterface, DenormalizerInterface, Norm
 
     public function denormalize($data, string $type, ?string $format = null, array $context = []): ?Part
     {
+        //The linked parts are written by the export for reading, and connections are made in Part-DB, not by import.
+        //part_connections comes from files of earlier versions, which wrote it at level full.
+        unset($data['linked_parts_count'], $data['linked_parts'], $data['part_connections']);
+
         $this->normalizeKeys($data);
 
         //Empty IPN should be null, or we get a constraint error

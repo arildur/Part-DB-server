@@ -21,6 +21,7 @@
 declare(strict_types=1);namespace App\Entity\Parts\PartTraits;
 
 use ApiPlatform\Metadata\ApiProperty;
+use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Validator\Constraints\UniqueObjectCollection;
 use Doctrine\Common\Collections\Collection;
@@ -92,12 +93,13 @@ trait ConnectionTrait
     }
 
     /**
-     * What clients and export files read about the connections of this part: a fixed list of fields, so that a connected
-     * part is never written out in full and the output ends there. Connections are written through their own resource,
-     * and are not read from an import file. A part that can not hold connections has none, and the check saves it a query.
+     * What REST clients read about the connections of this part: a fixed list of fields, so that a connected part is
+     * never written out in full and the output ends there. Connections are written through their own resource. Export
+     * files hold the linked parts instead (getLinkedPartsList). A part that can not hold connections has none, and the
+     * check saves it a query.
      * @return list<array<string, mixed>>
      */
-    #[Groups(['full', 'part:read'])]
+    #[Groups(['part:read'])]
     #[SerializedName('part_connections')]
     #[ApiProperty(
         description: 'The manufacturing parts connected to this meta part, in the order they are used. Empty for a manufacturing part.',
@@ -147,5 +149,56 @@ trait ConnectionTrait
         }
 
         return $overview;
+    }
+
+    /**
+     * The number of parts this part is linked to, as an export file gives it: the connected parts of a meta part, or
+     * the meta parts a manufacturing part is connected to. Not in REST, which has part_connections, nor read on import.
+     */
+    #[Groups(['simple', 'extended', 'full'])]
+    #[SerializedName('linked_parts_count')]
+    public function getLinkedPartsCount(): int
+    {
+        return count($this->getLinkedPartsNames());
+    }
+
+    /**
+     * The parts this part is linked to, as an export file gives it, joined by "; ": for a meta part its connected parts
+     * in their order, each as "name (status)" with the stored status value, the same in every language; for a
+     * manufacturing part the names of its meta parts, by name and then ID. Empty for a part with no links. Not
+     * escaped, as the column is for reading and import does not read it.
+     */
+    #[Groups(['simple', 'extended', 'full'])]
+    #[SerializedName('linked_parts')]
+    public function getLinkedPartsList(): string
+    {
+        return implode('; ', $this->getLinkedPartsNames());
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function getLinkedPartsNames(): array
+    {
+        if ($this->getKind()->allowsConnections()) {
+            return array_map(static fn (PartConnection $connection): string =>
+                ($connection->getConnectedPart()?->getName() ?? '').' ('.$connection->getStatus()->value.')',
+                $this->getOrderedConnections());
+        }
+
+        if (!$this->getKind()->canBeConnected()) {
+            return [];
+        }
+
+        $metaParts = [];
+        foreach ($this->connections_as_part as $connection) {
+            if ($connection->getMetaPart() !== null) {
+                $metaParts[] = $connection->getMetaPart();
+            }
+        }
+        usort($metaParts, static fn (Part $a, Part $b): int =>
+            strnatcasecmp($a->getName(), $b->getName()) ?: ($a->getID() ?? PHP_INT_MAX) <=> ($b->getID() ?? PHP_INT_MAX));
+
+        return array_map(static fn (Part $part): string => $part->getName(), $metaParts);
     }
 }

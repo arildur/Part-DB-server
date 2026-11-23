@@ -518,4 +518,39 @@ EOT;
 
         $this->service->importString("name,kind\nGood,meta\nBad,sorcery", ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ',', 'part_category' => (new Category())->setName('Kind')], $errors);
     }
+
+    public function testTheLinkedPartsColumnsAreIgnored(): void
+    {
+        $input = <<<EOT
+        name;kind;linked_parts_count;linked_parts
+        Linked meta;meta;2;"RC0805FR (approved); ERJ-6ENF (use_up)"
+        Linked part;manufacturing;1;Linked meta
+        Odd values;manufacturing;many;
+        EOT;
+
+        $errors = [];
+        $results = $this->service->importString($input, ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ';', 'part_category' => (new Category())->setName('Kind')], $errors);
+
+        $this->assertEmpty($errors);
+        $this->assertSame([PartKind::META, PartKind::MANUFACTURING, PartKind::MANUFACTURING], array_map(static fn (Part $part): PartKind => $part->getKind(), $results));
+        foreach ($results as $part) {
+            $this->assertCount(0, $part->getPartConnections());
+            $this->assertCount(0, $part->getConnectionsAsPart());
+        }
+    }
+
+    public function testThePartConnectionsOfAnOldFileAreIgnored(): void
+    {
+        $input = json_encode([[
+            'name' => 'Old meta', 'kind' => 'meta', 'linked_parts_count' => 1, 'linked_parts' => 'X (approved)',
+            'part_connections' => [['id' => 5, 'position' => 1, 'status' => 'approved', 'note' => '', 'connected_part' => ['id' => 1, 'name' => 'X']]],
+        ]]);
+
+        $errors = [];
+        $results = $this->service->importString($input, ['class' => Part::class, 'format' => 'json', 'part_category' => (new Category())->setName('Kind')], $errors);
+
+        $this->assertEmpty($errors);
+        $this->assertSame(PartKind::META, $results[0]->getKind());
+        $this->assertCount(0, $results[0]->getPartConnections());
+    }
 }

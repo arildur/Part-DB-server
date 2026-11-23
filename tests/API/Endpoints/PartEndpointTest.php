@@ -186,6 +186,13 @@ final class PartEndpointTest extends CrudEndpointTestCase
 
         //The connected part itself has none
         $this->assertSame([], self::createAuthenticatedClient()->request('GET', $first['@id'])->toArray()['part_connections']);
+
+        //The linked parts columns are for export files only
+        foreach ([$meta, $first['@id']] as $iri) {
+            $data = self::createAuthenticatedClient()->request('GET', $iri)->toArray();
+            $this->assertArrayNotHasKey('linked_parts_count', $data);
+            $this->assertArrayNotHasKey('linked_parts', $data);
+        }
     }
 
     public function testTheApiDocumentationNamesTheKindFilterAndTheConnections(): void

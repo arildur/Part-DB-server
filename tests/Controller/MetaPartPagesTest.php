@@ -957,12 +957,12 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertNull($input->attr('data-ipn-by-kind'));
     }
 
-    public function testTheImportPageSaysConnectionsAreNotImported(): void
+    public function testTheImportPageSaysTheLinkedPartsColumnsAreNotRead(): void
     {
         $this->client->request('GET', '/en/parts/import');
 
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('.card-body', 'they are not imported');
+        self::assertSelectorTextContains('.card-body', 'The columns linked_parts_count and linked_parts, which the export writes, are not read');
     }
 
     public function testTheImportPageNamesAnUnknownKindAndWritesNothing(): void

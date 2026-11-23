@@ -16292,12 +16292,6 @@ Buerklin-API Authentication server:
         <target>It will also be removed from these meta [[part]]: %names%.</target>
       </segment>
     </unit>
-    <unit id="bb73TF1" name="parts.import.help_connections">
-      <segment state="translated">
-        <source>parts.import.help_connections</source>
-        <target>Connections of meta [[part]] are exported at level full, but they are not imported: a meta [part] is created without connections.</target>
-      </segment>
-    </unit>
     <unit id="PkiV0wv" name="settings.misc.ipn_suggest.metaRegex">
       <segment state="translated">
         <source>settings.misc.ipn_suggest.metaRegex</source>
@@ -16494,6 +16488,12 @@ Buerklin-API Authentication server:
       <segment state="translated">
         <source>part.info.projects.via</source>
         <target>Through meta [part]</target>
+      </segment>
+    </unit>
+    <unit id="QsLLqyI" name="parts.import.help_linked_parts">
+      <segment state="translated">
+        <source>parts.import.help_linked_parts</source>
+        <target>The columns linked_parts_count and linked_parts, which the export writes, are not read: a meta [part] is imported without connections, and connections are made in Part-DB.</target>
       </segment>
     </unit>
   </file>

@@ -55,6 +55,14 @@ final class PartKindTest extends TestCase
         $this->assertTrue($kind->allowsPriceMethod());
     }
 
+    public function testEachKindAnswersWhichConversionItAllows(): void
+    {
+        $this->assertTrue(PartKind::MANUFACTURING->canBeConvertedToMeta());
+        $this->assertFalse(PartKind::MANUFACTURING->canBeConvertedToManufacturing());
+        $this->assertFalse(PartKind::META->canBeConvertedToMeta());
+        $this->assertTrue(PartKind::META->canBeConvertedToManufacturing());
+    }
+
     public function testEveryKindCanBeABuildPart(): void
     {
         foreach (PartKind::cases() as $kind) {

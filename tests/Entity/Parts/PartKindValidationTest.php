@@ -34,6 +34,8 @@ use App\Entity\ProjectSystem\ProjectBOMEntry;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Serializer\Normalizer\AbstractNormalizer;
+use Symfony\Component\Serializer\Normalizer\DenormalizerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class PartKindValidationTest extends KernelTestCase
@@ -102,6 +104,27 @@ final class PartKindValidationTest extends KernelTestCase
         } finally {
             $this->em->rollback();
         }
+    }
+
+    public function testSavedPartMarkedByTheConverterAcceptsAnotherKind(): void
+    {
+        $part = $this->em->find(Part::class, 1);
+        $part->allowKindConversion();
+        $part->setKind(PartKind::META);
+        $this->assertFalse($this->hasKindViolation($part));
+
+        $part->endKindConversion();
+        $this->assertTrue($this->hasKindViolation($part));
+    }
+
+    public function testTheMarkCanNotBeSetThroughTheSerializer(): void
+    {
+        $part = $this->em->find(Part::class, 1);
+        self::getContainer()->get(DenormalizerInterface::class)->denormalize(
+            ['kindConversionAllowed' => true, 'kind_conversion_allowed' => true, 'name' => $part->getName()],
+            Part::class, null, [AbstractNormalizer::OBJECT_TO_POPULATE => $part, 'groups' => ['part:write', 'import', 'full']]);
+
+        $this->assertFalse($part->isKindConversionAllowed());
     }
 
     public function testCloneOfASavedPartCanHaveAnotherKind(): void

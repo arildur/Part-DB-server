@@ -55,6 +55,36 @@
 {% endif %}
 
 
+{# Conversions between the kinds, each offered only as far as the kind allows and the rights reach #}
+{% if is_granted('edit', part) %}
+    {% if part.kind.canBeConvertedToMeta and is_granted('create', part) %}
+        <br>
+        <a class="btn btn-outline-primary mt-2" id="part-convert-to-meta" href="{{ path('part_convert_to_meta', {'id': part.iD}) }}">
+            <i class="fas fa-sitemap fa-fw"></i>
+            {% trans %}part.convert.to_meta.btn{% endtrans %}
+        </a>
+    {% endif %}
+    {% if part.kind.canBeConvertedToManufacturing %}
+        <br>
+        {% if part.partConnections is empty %}
+            <a class="btn btn-outline-primary mt-2" id="part-convert-to-manufacturing" href="{{ path('part_convert_to_manufacturing', {'id': part.iD}) }}">
+                <i class="fas fa-cube fa-fw"></i>
+                {% trans %}part.convert.to_manufacturing.btn{% endtrans %}
+            </a>
+        {% else %}
+            <button type="button" class="btn btn-outline-primary mt-2" id="part-convert-to-manufacturing" disabled>
+                <i class="fas fa-cube fa-fw"></i>
+                {% trans %}part.convert.to_manufacturing.btn{% endtrans %}
+            </button>
+            <div class="form-text" id="part-convert-blocked">
+                {% set connected_links = part.orderedConnections|map(c => '<a href="' ~ entity_url(c.connectedPart)|e('html_attr') ~ '">' ~ c.connectedPart.name|e ~ '</a>')|join(', ') %}
+                {{ 'part.convert.to_manufacturing.blocked'|trans({'%parts%': connected_links})|raw }}
+            </div>
+        {% endif %}
+    {% endif %}
+{% endif %}
+
+
 {# While a setting refuses deleting parts used in a BOM, the button is disabled beforehand and the projects are named #}
 {% set delete_refused_projects = settings_instance('part_deletion').refuseDeletingPartsUsedInBom ? part.projects : [] %}
 <form method="post" class="mt-2" action="{{ entity_url(part, 'delete') }}"

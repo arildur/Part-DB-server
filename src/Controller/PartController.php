@@ -36,6 +36,7 @@ use App\Entity\Parts\Supplier;
 use App\Entity\PriceInformations\Orderdetail;
 use App\Entity\ProjectSystem\Project;
 use App\Exceptions\AttachmentDownloadException;
+use App\Exceptions\PartConversionException;
 use App\Exceptions\PartUsedInBomException;
 use App\Form\Part\PartBaseType;
 use App\Form\Part\PartLotType;
@@ -51,7 +52,9 @@ use App\Services\LogSystem\EventCommentHelper;
 use App\Services\LogSystem\HistoryHelper;
 use App\Services\LogSystem\TimeTravel;
 use App\Services\Parameters\ParameterExtractor;
+use App\Services\Parts\ConversionKeep;
 use App\Services\Parts\PartDeletionGuard;
+use App\Services\Parts\PartKindConverter;
 use App\Services\Parts\PartLotWithdrawAddHelper;
 use App\Services\Parts\PricedetailHelper;
 use App\Services\ProjectSystem\ProjectBuildPartHelper;
@@ -554,6 +557,103 @@ final class PartController extends AbstractController
             'tname_before' => $target_name,
             'other_part' => $other,
         ]);
+    }
+
+    /**
+     * Converts a manufacturing part to use a meta part. GET shows what each choice of the record keeping the ID moves,
+     * copies and keeps, and changes nothing; the POST of that page carries out the chosen conversion.
+     */
+    #[Route(path: '/{id}/convert/to_meta', name: 'part_convert_to_meta', methods: ['GET', 'POST'])]
+    public function convertToMeta(Part $part, Request $request, PartKindConverter $converter): Response
+    {
+        $this->denyAccessUnlessGranted('edit', $part);
+        //The conversion creates a part
+        $this->denyAccessUnlessGranted('create', $part);
+
+        try {
+            $previews = array_map(static fn (ConversionKeep $keep) => $converter->previewToMeta($part, $keep), ConversionKeep::cases());
+
+            if (!$request->isMethod('POST')) {
+                return $this->render('parts/convert/convert.html.twig', [
+                    'part' => $part,
+                    'mode' => 'to_meta',
+                    'previews' => $previews,
+                    'blocking_connections' => [],
+                ]);
+            }
+
+            if (!$this->isCsrfTokenValid('part_convert'.$part->getID(), $request->request->getString('_token'))) {
+                $this->addFlash('error', 'CSRF Token invalid!');
+
+                return $this->redirectToRoute('part_convert_to_meta', ['id' => $part->getID()]);
+            }
+
+            $keep = ConversionKeep::tryFrom($request->request->getString('keep'));
+            if ($keep === null) {
+                $this->addFlash('error', 'part.convert.error.no_choice');
+
+                return $this->redirectToRoute('part_convert_to_meta', ['id' => $part->getID()]);
+            }
+
+            $meta = $converter->convertToMeta($part, $keep);
+        } catch (PartConversionException $exception) {
+            $this->addFlash('error', $exception->getTranslatableMessage());
+
+            return $this->redirectToRoute('part_info', ['id' => $part->getID()]);
+        }
+
+        if ($keep === ConversionKeep::MANUFACTURING_KEEPS_ID) {
+            $this->addFlash('success', t('part.convert.to_meta.success.manufacturing', ['%name%' => $meta->getName(), '%id%' => (string) $meta->getID()]));
+        } else {
+            $new = $meta->getPartConnections()->first();
+            $this->addFlash('success', t('part.convert.to_meta.success.meta', [
+                '%name%' => $new ? $new->getName() : '',
+                '%id%' => $new ? (string) $new->getConnectedPart()?->getID() : '',
+            ]));
+        }
+        $this->warnAboutDuplicateMetaPartName($meta);
+
+        //The part keeps its ID, as the manufacturing part or as the meta part
+        return $this->redirectToRoute('part_info', ['id' => $part->getID()]);
+    }
+
+    /**
+     * Converts a meta part with no connected parts back to a manufacturing part. GET shows what changes, or the
+     * connections to remove first; the POST of that page carries it out.
+     */
+    #[Route(path: '/{id}/convert/to_manufacturing', name: 'part_convert_to_manufacturing', methods: ['GET', 'POST'])]
+    public function convertToManufacturing(Part $part, Request $request, PartKindConverter $converter): Response
+    {
+        $this->denyAccessUnlessGranted('edit', $part);
+
+        try {
+            $preview = $converter->previewToManufacturing($part);
+
+            if (!$request->isMethod('POST')) {
+                return $this->render('parts/convert/convert.html.twig', [
+                    'part' => $part,
+                    'mode' => 'to_manufacturing',
+                    'previews' => [$preview],
+                    'blocking_connections' => $part->getOrderedConnections(),
+                ]);
+            }
+
+            if (!$this->isCsrfTokenValid('part_convert'.$part->getID(), $request->request->getString('_token'))) {
+                $this->addFlash('error', 'CSRF Token invalid!');
+
+                return $this->redirectToRoute('part_convert_to_manufacturing', ['id' => $part->getID()]);
+            }
+
+            $converter->convertToManufacturing($part);
+        } catch (PartConversionException $exception) {
+            $this->addFlash('error', $exception->getTranslatableMessage());
+
+            return $this->redirectToRoute('part_info', ['id' => $part->getID()]);
+        }
+
+        $this->addFlash('success', 'part.convert.to_manufacturing.success');
+
+        return $this->redirectToRoute('part_info', ['id' => $part->getID()]);
     }
 
     #[Route(path: '/{id}/from_info_provider/{providerKey}/{providerId}/update', name: 'info_providers_update_part', requirements: ['providerId' => '.+'])]

@@ -75,7 +75,10 @@ class ValidPartLotValidator extends ConstraintValidator
                         ->atPath('amount')->addViolation();
                 }
 
-                if (!$parts->contains($value->getPart())) {
+                //A saved lot that stays in the location adds nothing to it, also when it moves to another part, as
+                //converting a part to use a meta part does
+                $stays_in_location = $db_lot && ($db_lot['storage_location'] ?? null) === $value->getStorageLocation();
+                if (!$stays_in_location && !$parts->contains($value->getPart())) {
                     $this->context->buildViolation('validator.part_lot.location_full')
                         ->atPath('storage_location')->addViolation();
                 }

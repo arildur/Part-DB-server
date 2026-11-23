@@ -43,6 +43,11 @@ class ValidPartKindValidator extends ConstraintValidator
             throw new UnexpectedTypeException($value, Part::class);
         }
 
+        //PartKindConverter marks the part whose kind it changes; nothing else can set the mark
+        if ($value->isKindConversionAllowed()) {
+            return;
+        }
+
         //A part that is not saved yet has no original data, and can have any kind
         $original = $this->em->getUnitOfWork()->getOriginalEntityData($value);
         if (!isset($original['kind'])) {

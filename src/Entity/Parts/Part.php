@@ -95,6 +95,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use SortDirection;
 use Symfony\Component\Serializer\Attribute\Groups;
+use Symfony\Component\Serializer\Attribute\Ignore;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
@@ -299,6 +300,13 @@ class Part extends AttachmentContainingDBElement
     #[Groups(['simple', 'extended', 'full', 'import', 'part:read', 'part:write', 'bom_entry:read', 'mcp_project_details:read'])]
     protected PartKind $kind = PartKind::MANUFACTURING;
 
+    /**
+     * @var bool Whether PartKindConverter is changing the kind of this saved part. Not mapped and not serialized, so
+     * that no form, REST or MCP request can set it: only the converter lets ValidPartKind accept a changed kind.
+     */
+    #[Ignore]
+    private bool $kindConversionAllowed = false;
+
     /** @var Collection<int, PartParameter>
      */
     #[Assert\Valid]
@@ -428,6 +436,28 @@ class Part extends AttachmentContainingDBElement
         $this->kind = $kind;
 
         return $this;
+    }
+
+    /**
+     * Lets validation accept a change of the kind of this saved part. Only PartKindConverter calls this.
+     */
+    public function allowKindConversion(): void
+    {
+        $this->kindConversionAllowed = true;
+    }
+
+    /**
+     * Ends what allowKindConversion() allowed, so that a later change of the kind is refused again.
+     */
+    public function endKindConversion(): void
+    {
+        $this->kindConversionAllowed = false;
+    }
+
+    #[Ignore]
+    public function isKindConversionAllowed(): bool
+    {
+        return $this->kindConversionAllowed;
     }
 
     #[Assert\Callback]

@@ -16496,5 +16496,275 @@ Buerklin-API Authentication server:
         <target>The columns linked_parts_count and linked_parts, which the export writes, are not read: a meta [part] is imported without connections, and connections are made in Part-DB.</target>
       </segment>
     </unit>
+    <unit id="NZViRZ0" name="part.convert.to_meta.btn">
+      <segment state="translated">
+        <source>part.convert.to_meta.btn</source>
+        <target>Convert to use a meta [part]…</target>
+      </segment>
+    </unit>
+    <unit id="KPzPKZs" name="part.convert.to_manufacturing.btn">
+      <segment state="translated">
+        <source>part.convert.to_manufacturing.btn</source>
+        <target>Convert back to a manufacturing [part]…</target>
+      </segment>
+    </unit>
+    <unit id=".4j_nx." name="part.convert.to_manufacturing.blocked">
+      <segment state="translated">
+        <source>part.convert.to_manufacturing.blocked</source>
+        <target>Remove the connections to these [[part]] first: %parts%</target>
+      </segment>
+    </unit>
+    <unit id="o9j2dA6" name="part.convert.to_meta.title">
+      <segment state="translated">
+        <source>part.convert.to_meta.title</source>
+        <target>Convert to use a meta [part]</target>
+      </segment>
+    </unit>
+    <unit id="5cCInyb" name="part.convert.to_manufacturing.title">
+      <segment state="translated">
+        <source>part.convert.to_manufacturing.title</source>
+        <target>Convert back to a manufacturing [part]</target>
+      </segment>
+    </unit>
+    <unit id="LJ4O82O" name="part.convert.to_meta.help">
+      <segment state="translated">
+        <source>part.convert.to_meta.help</source>
+        <target>Choose which record keeps the ID of this [part], and with it its BOM entries, labels and history. Either way there is one meta [part] and one manufacturing [part] afterwards, connected to it. Nothing is changed before you convert.</target>
+      </segment>
+    </unit>
+    <unit id="mCJBk5m" name="part.convert.to_manufacturing.help">
+      <segment state="translated">
+        <source>part.convert.to_manufacturing.help</source>
+        <target>This meta [part] becomes a manufacturing [part]. Nothing is changed before you convert.</target>
+      </segment>
+    </unit>
+    <unit id="w8yYQoG" name="part.convert.keep.manufacturing">
+      <segment state="translated">
+        <source>part.convert.keep.manufacturing</source>
+        <target>This [part] stays the manufacturing [part], and a new meta [part] is created above it</target>
+      </segment>
+    </unit>
+    <unit id="zPZQSud" name="part.convert.keep.manufacturing.help">
+      <segment state="translated">
+        <source>part.convert.keep.manufacturing.help</source>
+        <target>Best for adding a second source: existing BOM entries keep requiring this exact [part].</target>
+      </segment>
+    </unit>
+    <unit id="Zhl4EmZ" name="part.convert.keep.meta">
+      <segment state="translated">
+        <source>part.convert.keep.meta</source>
+        <target>This [part] becomes the meta [part], and a new manufacturing [part] is created below it</target>
+      </segment>
+    </unit>
+    <unit id="AukqgGd" name="part.convert.keep.meta.help">
+      <segment state="translated">
+        <source>part.convert.keep.meta.help</source>
+        <target>Best for a [part] already used as a generic [part]: existing BOM entries accept the alternatives at once.</target>
+      </segment>
+    </unit>
+    <unit id="CP.BbRX" name="part.convert.table.what">
+      <segment state="translated">
+        <source>part.convert.table.what</source>
+        <target>What</target>
+      </segment>
+    </unit>
+    <unit id="hRlSRIa" name="part.convert.table.action">
+      <segment state="translated">
+        <source>part.convert.table.action</source>
+        <target>What happens</target>
+      </segment>
+    </unit>
+    <unit id="G6HTVsA" name="part.convert.table.count">
+      <segment state="translated">
+        <source>part.convert.table.count</source>
+        <target>Number</target>
+      </segment>
+    </unit>
+    <unit id="qKHSwWO" name="part.convert.row.identity">
+      <segment state="translated">
+        <source>part.convert.row.identity</source>
+        <target>ID, labels, history, IPN, associations, build project</target>
+      </segment>
+    </unit>
+    <unit id="dS.uqFm" name="part.convert.row.bom_entries">
+      <segment state="translated">
+        <source>part.convert.row.bom_entries</source>
+        <target>[[Project_bom_entry]]</target>
+      </segment>
+    </unit>
+    <unit id="86mBycW" name="part.convert.row.manufacturer_data">
+      <segment state="translated">
+        <source>part.convert.row.manufacturer_data</source>
+        <target>Manufacturer, part number, product URL, manufacturing status, GTIN, info provider reference</target>
+      </segment>
+    </unit>
+    <unit id="cvyo3ju" name="part.convert.row.lots">
+      <segment state="translated">
+        <source>part.convert.row.lots</source>
+        <target>[[Part_lot]]</target>
+      </segment>
+    </unit>
+    <unit id="WGzSxyI" name="part.convert.row.orderdetails">
+      <segment state="translated">
+        <source>part.convert.row.orderdetails</source>
+        <target>[[Orderdetail]] with their prices</target>
+      </segment>
+    </unit>
+    <unit id="48br_q7" name="part.convert.row.connections">
+      <segment state="translated">
+        <source>part.convert.row.connections</source>
+        <target>Connections to meta [[part]] above it, with priority, status and note</target>
+      </segment>
+    </unit>
+    <unit id="8o.MiIv" name="part.convert.row.descriptive">
+      <segment state="translated">
+        <source>part.convert.row.descriptive</source>
+        <target>Name, description, category, footprint, tags, comment, measurement unit, minimum stock, EDA fields</target>
+      </segment>
+    </unit>
+    <unit id="PNnm006" name="part.convert.row.descriptive_no_min_stock">
+      <segment state="translated">
+        <source>part.convert.row.descriptive_no_min_stock</source>
+        <target>Name, description, category, footprint, tags, comment, measurement unit, EDA fields (the minimum stock of the new [part] is 0)</target>
+      </segment>
+    </unit>
+    <unit id="A7Ww7jK" name="part.convert.row.parameters">
+      <segment state="translated">
+        <source>part.convert.row.parameters</source>
+        <target>[[Parameter]]</target>
+      </segment>
+    </unit>
+    <unit id="GufMh6W" name="part.convert.row.attachments">
+      <segment state="translated">
+        <source>part.convert.row.attachments</source>
+        <target>[[Attachment]]</target>
+      </segment>
+    </unit>
+    <unit id="lHSqHgu" name="part.convert.row.new_meta_part">
+      <segment state="translated">
+        <source>part.convert.row.new_meta_part</source>
+        <target>A new meta [part] with no IPN, with this [part] connected at priority 1 as approved</target>
+      </segment>
+    </unit>
+    <unit id="6dKnsWq" name="part.convert.row.new_manufacturing_part">
+      <segment state="translated">
+        <source>part.convert.row.new_manufacturing_part</source>
+        <target>A new manufacturing [part] with no IPN, connected to this [part] at priority 1 as approved</target>
+      </segment>
+    </unit>
+    <unit id="h1OqMTv" name="part.convert.row.kind">
+      <segment state="translated">
+        <source>part.convert.row.kind</source>
+        <target>Kind</target>
+      </segment>
+    </unit>
+    <unit id="M4CO4jo" name="part.convert.row.price_method">
+      <segment state="translated">
+        <source>part.convert.row.price_method</source>
+        <target>Price method and user price</target>
+      </segment>
+    </unit>
+    <unit id="hj_SDXc" name="part.convert.action.kept">
+      <segment state="translated">
+        <source>part.convert.action.kept</source>
+        <target>Stays on this [part]</target>
+      </segment>
+    </unit>
+    <unit id="yxgLUTd" name="part.convert.action.moved">
+      <segment state="translated">
+        <source>part.convert.action.moved</source>
+        <target>Moved to the new [part]</target>
+      </segment>
+    </unit>
+    <unit id="hQlHc9I" name="part.convert.action.copied">
+      <segment state="translated">
+        <source>part.convert.action.copied</source>
+        <target>Copied to the new [part]</target>
+      </segment>
+    </unit>
+    <unit id="a95Bqyj" name="part.convert.action.created">
+      <segment state="translated">
+        <source>part.convert.action.created</source>
+        <target>Created</target>
+      </segment>
+    </unit>
+    <unit id="CaAIFDO" name="part.convert.action.changed">
+      <segment state="translated">
+        <source>part.convert.action.changed</source>
+        <target>Becomes manufacturing [part]</target>
+      </segment>
+    </unit>
+    <unit id="1.DU4sb" name="part.convert.action.reset">
+      <segment state="translated">
+        <source>part.convert.action.reset</source>
+        <target>Reset to system default, with no user price</target>
+      </segment>
+    </unit>
+    <unit id="NM9qnLI" name="part.convert.submit">
+      <segment state="translated">
+        <source>part.convert.submit</source>
+        <target>Convert</target>
+      </segment>
+    </unit>
+    <unit id="58aK5uP" name="part.convert.cancel">
+      <segment state="translated">
+        <source>part.convert.cancel</source>
+        <target>Cancel</target>
+      </segment>
+    </unit>
+    <unit id="bK4RGtz" name="part.convert.to_meta.success.manufacturing">
+      <segment state="translated">
+        <source>part.convert.to_meta.success.manufacturing</source>
+        <target>Converted: the new meta [part] %name% (ID %id%) stands above this [part].</target>
+      </segment>
+    </unit>
+    <unit id="xezo.vx" name="part.convert.to_meta.success.meta">
+      <segment state="translated">
+        <source>part.convert.to_meta.success.meta</source>
+        <target>Converted: this [part] is now a meta [part], and the new manufacturing [part] %name% (ID %id%) holds its manufacturer data, lots and suppliers.</target>
+      </segment>
+    </unit>
+    <unit id="lb.YTDi" name="part.convert.to_manufacturing.success">
+      <segment state="translated">
+        <source>part.convert.to_manufacturing.success</source>
+        <target>Converted: this [part] is now a manufacturing [part].</target>
+      </segment>
+    </unit>
+    <unit id="57CtOpq" name="part.convert.error.no_choice">
+      <segment state="translated">
+        <source>part.convert.error.no_choice</source>
+        <target>Choose which record keeps the ID of the [part].</target>
+      </segment>
+    </unit>
+    <unit id="VmL48la" name="part.convert.error.not_to_meta">
+      <segment state="translated">
+        <source>part.convert.error.not_to_meta</source>
+        <target>Nothing was converted: this [part] is already a meta [part].</target>
+      </segment>
+    </unit>
+    <unit id="RBsM9hR" name="part.convert.error.not_to_manufacturing">
+      <segment state="translated">
+        <source>part.convert.error.not_to_manufacturing</source>
+        <target>Nothing was converted: only a meta [part] can be converted back to a manufacturing [part].</target>
+      </segment>
+    </unit>
+    <unit id="3s0_tZf" name="part.convert.error.has_connections">
+      <segment state="translated">
+        <source>part.convert.error.has_connections</source>
+        <target>Nothing was converted: these [[part]] are still connected to this meta [part]: %parts%. Remove these connections first.</target>
+      </segment>
+    </unit>
+    <unit id="zzLhAxb" name="part.convert.error.invalid">
+      <segment state="translated">
+        <source>part.convert.error.invalid</source>
+        <target>Nothing was converted, as the result would not be valid: %violations%</target>
+      </segment>
+    </unit>
+    <unit id="A4nu3wC" name="part.convert.error.saving_failed">
+      <segment state="translated">
+        <source>part.convert.error.saving_failed</source>
+        <target>Nothing was converted, as saving failed: %error%</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

@@ -1,0 +1,73 @@
+{% extends "main_card.html.twig" %}
+
+{# The preview of a conversion between the kinds: what each choice moves, copies and keeps. Nothing changes before the POST. #}
+{% set title_key = mode == 'to_meta' ? 'part.convert.to_meta.title' : 'part.convert.to_manufacturing.title' %}
+
+{% block title %}{{ title_key|trans }}: {{ part.name }}{% endblock %}
+
+{% block card_title %}
+    <i class="fas fa-right-left fa-fw"></i> {{ title_key|trans }}: <a class="text-white" href="{{ entity_url(part) }}">{{ part.name }}</a>
+{% endblock %}
+
+{% block card_content %}
+    <form method="post" id="part-convert-form"
+          action="{{ path(mode == 'to_meta' ? 'part_convert_to_meta' : 'part_convert_to_manufacturing', {'id': part.iD}) }}"
+            {{ stimulus_controller('pages/part_convert') }}>
+        <input type="hidden" name="_token" value="{{ csrf_token('part_convert' ~ part.id) }}">
+
+        {% if mode == 'to_meta' %}
+            <p>{% trans %}part.convert.to_meta.help{% endtrans %}</p>
+            {% for preview in previews %}
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="radio" name="keep" id="part-convert-keep-{{ preview.keep.value }}"
+                           value="{{ preview.keep.value }}" {% if loop.first %}checked{% endif %}
+                            {{ stimulus_target('pages/part_convert', 'choice') }} {{ stimulus_action('pages/part_convert', 'update', 'change') }}>
+                    <label class="form-check-label" for="part-convert-keep-{{ preview.keep.value }}">
+                        <b>{{ ('part.convert.keep.' ~ preview.keep.value)|trans }}</b><br>
+                        <span class="text-muted small">{{ ('part.convert.keep.' ~ preview.keep.value ~ '.help')|trans }}</span>
+                    </label>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>{% trans %}part.convert.to_manufacturing.help{% endtrans %}</p>
+        {% endif %}
+
+        {% for preview in previews %}
+            <div class="part-convert-preview mt-3" data-keep="{{ preview.keep ? preview.keep.value : '' }}" {{ stimulus_target('pages/part_convert', 'table') }}>
+                {% if preview.keep %}
+                    <h6>{{ ('part.convert.keep.' ~ preview.keep.value)|trans }}</h6>
+                {% endif %}
+                <table class="table table-sm table-striped">
+                    <thead>
+                    <tr>
+                        <th>{% trans %}part.convert.table.what{% endtrans %}</th>
+                        <th>{% trans %}part.convert.table.action{% endtrans %}</th>
+                        <th class="text-end">{% trans %}part.convert.table.count{% endtrans %}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in preview.rows %}
+                        <tr data-row="{{ row.what }}" data-action="{{ row.action }}">
+                            <td>{{ ('part.convert.row.' ~ row.what)|trans }}</td>
+                            <td>{{ ('part.convert.action.' ~ row.action)|trans }}</td>
+                            <td class="text-end">{{ row.count ?? '' }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endfor %}
+
+        {% if blocking_connections is not empty %}
+            <div class="alert alert-danger" id="part-convert-blocked">
+                {% set connected_links = blocking_connections|map(c => '<a href="' ~ entity_url(c.connectedPart)|e('html_attr') ~ '">' ~ c.connectedPart.name|e ~ '</a>')|join(', ') %}
+                {{ 'part.convert.to_manufacturing.blocked'|trans({'%parts%': connected_links})|raw }}
+            </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary" id="part-convert-submit" {% if blocking_connections is not empty %}disabled{% endif %}>
+            <i class="fas fa-right-left fa-fw"></i> {% trans %}part.convert.submit{% endtrans %}
+        </button>
+        <a class="btn btn-secondary" href="{{ entity_url(part) }}">{% trans %}part.convert.cancel{% endtrans %}</a>
+    </form>
+{% endblock %}

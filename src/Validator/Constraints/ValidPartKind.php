@@ -23,7 +23,7 @@ declare(strict_types=1);namespace App\Validator\Constraints;
 use Symfony\Component\Validator\Constraint;
 
 /**
- * Ensures that the kind of a saved part is not changed.
+ * Ensures that the kind of a saved part is not changed, except by PartKindConverter, which marks the part first.
  * This needs the entity manager to know the stored value, so it can not be a simple callback.
  */
 #[\Attribute(\Attribute::TARGET_CLASS)]

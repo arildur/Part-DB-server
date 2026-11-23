@@ -80,6 +80,21 @@ enum PartKind: string
         return $this === self::MANUFACTURING;
     }
 
+    /**
+     * Whether a part of this kind can be converted to use a meta part: either a new meta part above it, or the part
+     * becoming the meta part above a new manufacturing part.
+     */
+    public function canBeConvertedToMeta(): bool
+    {
+        return $this === self::MANUFACTURING;
+    }
+
+    /** Whether a part of this kind can be converted back to a manufacturing part, while it has no connected parts. */
+    public function canBeConvertedToManufacturing(): bool
+    {
+        return $this === self::META;
+    }
+
     /** Whether this part can be the part a project builds. Both kinds can; a later kind may not. */
     public function canBeBuildPart(): bool
     {

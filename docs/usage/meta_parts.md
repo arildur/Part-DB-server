@@ -6,7 +6,8 @@ parent: Usage
 
 # Meta parts
 
-A part in Part-DB has a kind, which you choose when you create it and which is fixed afterwards.
+A part in Part-DB has a kind, which you choose when you create it and which only the conversion tools can change
+afterwards (see [Converting between the kinds](#converting-between-the-kinds)).
 
 * A **manufacturing part** is one product of one manufacturer, like `RC0603FR-0710KL`. All parts are manufacturing parts
   unless you choose otherwise, and they work as they always did.
@@ -33,6 +34,37 @@ manufacturing part with the same name gives no warning.
 
 In part tables, in part pickers and in the search field, only meta parts are marked: the name of a meta part has a
 sitemap icon in front of it. A manufacturing part is shown without a kind icon.
+
+## Converting between the kinds
+
+The Tools tab of a part offers the conversions its kind allows. Each opens a page that shows what will be moved, copied
+and kept, with the number of lots, suppliers, BOM entries and connections, and nothing changes until you click "Convert".
+A conversion is saved in one step, or not at all if any part of it is not valid, and the history of each changed part
+says why it changed.
+
+**Convert to use a meta part** (on a manufacturing part, needs the permissions to edit and to create parts) asks which
+record keeps the part's ID, and with it its BOM entries, labels, history, IPN and associations:
+
+* **The part stays the manufacturing part**: A new meta part is created above it, with copies of its name, description,
+  category, footprint, tags, comment, measurement unit, minimum stock, EDA fields, parameters and attachments, and the
+  part connected to it at priority 1 as approved. Existing BOM entries keep requiring this exact part. Use this to add a
+  second source to a part.
+* **The part becomes the meta part**: Its manufacturer, part number, product URL, manufacturing status, GTIN, info
+  provider reference, stock lots (keeping their IDs), suppliers and a manual order move to a new manufacturing part, which gets copies of
+  the same descriptive fields (with a minimum stock of 0), parameters and attachments and is connected to it at priority 1
+  as approved. Connections to other meta parts move to the new part with their priority, status and note. Existing BOM
+  entries then accept the alternatives at once. Use this for a part already used as a generic part.
+
+The new part gets no IPN. Afterwards you are back on the part that kept the ID, and a message names the new part with its
+ID. A lot moves also when its storage location is marked as full, as moving adds nothing to it. The other rules of the
+location still apply: a location limited to existing parts, or to a single part, refuses the lot of the new part, and
+then nothing is converted and the message says why.
+
+**Convert back to a manufacturing part** (on a meta part, needs the permission to edit it) only works on a meta part with
+no connected parts: while it has any, the button is disabled and lists them, so remove these connections first. The part
+keeps its ID, own lots, BOM entries and history; its price method is reset to system default and its user price removed.
+
+Conversions are only available in the web interface, not over the REST API or MCP.
 
 ## Connecting parts
 

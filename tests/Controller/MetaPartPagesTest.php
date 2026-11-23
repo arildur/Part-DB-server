@@ -348,6 +348,195 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertGreaterThan(0, $crawler->filter('#tools a[href*="kind=meta"]')->count());
     }
 
+    /** Takes the given operation on parts away from the admin, who is logged in again. */
+    private function denyAdmin(string $operation): void
+    {
+        $admin = $this->em->getRepository(User::class)->findOneBy(['name' => 'admin']);
+        $admin->getPermissions()->setPermissionValue('parts', $operation, false);
+        $this->em->flush();
+        $this->client->loginUser($admin);
+    }
+
+    /** A saved manufacturing part with a lot, a supplier and a BOM entry, and a meta part with no connected parts. */
+    private function partsToConvert(): array
+    {
+        $part = $this->part('Part to convert');
+        $part->setManufacturerProductNumber('MPN-CONVERT');
+        $this->lot($part, 12);
+        $this->price($part, '0.1');
+        $project = new Project();
+        $project->setName('Board of the part to convert');
+        $entry = (new ProjectBOMEntry())->setQuantity(1.0);
+        $project->addBomEntry($entry);
+        $part->addProjectBomEntry($entry);
+        $this->em->persist($project);
+        $meta = $this->part('Meta part to convert', PartKind::META);
+        $this->lot($meta, 7);
+        $this->em->flush();
+        $ids = [$part->getID(), $meta->getID()];
+        $this->em->clear();
+        $this->client->loginUser($this->em->getRepository(User::class)->findOneBy(['name' => 'admin']));
+
+        return array_map(fn (int $id): Part => $this->em->find(Part::class, $id), $ids);
+    }
+
+    public function testTheToolsTabOffersOnlyTheConversionTheKindAllows(): void
+    {
+        [$part, $meta] = $this->partsToConvert();
+
+        $crawler = $this->info($part);
+        $this->assertSame('/en/part/'.$part->getID().'/convert/to_meta', $crawler->filter('#tools a#part-convert-to-meta')->attr('href'));
+        $this->assertSame(0, $crawler->filter('#part-convert-to-manufacturing')->count());
+
+        $crawler = $this->info($meta);
+        $this->assertSame(0, $crawler->filter('#part-convert-to-meta')->count());
+        $this->assertSame('/en/part/'.$meta->getID().'/convert/to_manufacturing', $crawler->filter('#tools a#part-convert-to-manufacturing')->attr('href'));
+        $this->assertSame(0, $crawler->filter('#part-convert-blocked')->count());
+    }
+
+    public function testWithoutCreateThereIsNoConversionToAMetaPartButStillTheWayBack(): void
+    {
+        [$part, $meta] = $this->partsToConvert();
+        $this->denyAdmin('create');
+
+        $this->assertSame(0, $this->info($part)->filter('#part-convert-to-meta')->count());
+        $this->assertSame(1, $this->info($meta)->filter('a#part-convert-to-manufacturing')->count());
+        $this->client->request('GET', '/en/part/'.$part->getID().'/convert/to_meta');
+        $this->assertResponseStatusCodeSame(403);
+    }
+
+    public function testWithoutEditThereIsNoConversion(): void
+    {
+        [$part, $meta] = $this->partsToConvert();
+        $this->denyAdmin('edit');
+
+        $this->assertSame(0, $this->info($part)->filter('#part-convert-to-meta, #part-convert-to-manufacturing')->count());
+        $this->assertSame(0, $this->info($meta)->filter('#part-convert-to-meta, #part-convert-to-manufacturing')->count());
+        $this->client->request('GET', '/en/part/'.$meta->getID().'/convert/to_manufacturing');
+        $this->assertResponseStatusCodeSame(403);
+    }
+
+    public function testAMetaPartWithConnectionsShowsTheWayBackDisabledWithTheConnections(): void
+    {
+        $crawler = $this->info($this->exampleMetaPart());
+
+        $this->assertNotNull($crawler->filter('#tools button#part-convert-to-manufacturing')->attr('disabled'));
+        $blocked = $crawler->filter('#part-convert-blocked');
+        $this->assertSame(['First source', 'Second source', 'Retired source'], $blocked->filter('a')->each(static fn (Crawler $a) => $a->text()));
+    }
+
+    public function testThePreviewShowsBothChoicesAndChangesNothing(): void
+    {
+        [$part] = $this->partsToConvert();
+        $id = $part->getID();
+        $parts = $this->em->getRepository(Part::class)->count([]);
+
+        $crawler = $this->client->request('GET', '/en/part/'.$id.'/convert/to_meta');
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSame(['manufacturing', 'meta'], $crawler->filter('input[name="keep"]')->each(static fn (Crawler $i) => $i->attr('value')));
+        $this->assertSame('manufacturing', $crawler->filter('input[name="keep"][checked]')->attr('value'));
+        $this->assertSame(['manufacturing', 'meta'], $crawler->filter('.part-convert-preview')->each(static fn (Crawler $t) => $t->attr('data-keep')));
+        $lots = $crawler->filter('.part-convert-preview[data-keep="meta"] tr[data-row="lots"]');
+        $this->assertSame('moved', $lots->attr('data-action'));
+        $this->assertSame('1', $lots->filter('td')->last()->text());
+        $this->assertSame('kept', $crawler->filter('.part-convert-preview[data-keep="manufacturing"] tr[data-row="lots"]')->attr('data-action'));
+        $this->assertSame('1', $crawler->filter('.part-convert-preview[data-keep="meta"] tr[data-row="bom_entries"] td')->last()->text());
+
+        $this->em->clear();
+        $this->assertSame(PartKind::MANUFACTURING, $this->em->find(Part::class, $id)->getKind());
+        $this->assertSame($parts, $this->em->getRepository(Part::class)->count([]));
+    }
+
+    public function testAConversionWithoutAValidTokenIsRefused(): void
+    {
+        [$part] = $this->partsToConvert();
+        $id = $part->getID();
+
+        $this->client->request('POST', '/en/part/'.$id.'/convert/to_meta', ['_token' => 'wrong', 'keep' => 'meta']);
+
+        $this->assertResponseRedirects('/en/part/'.$id.'/convert/to_meta');
+        $this->em->clear();
+        $this->assertSame(PartKind::MANUFACTURING, $this->em->find(Part::class, $id)->getKind());
+    }
+
+    public function testTheConfirmingSubmitConvertsAndReturnsToThePartKeepingTheId(): void
+    {
+        [$part] = $this->partsToConvert();
+        $id = $part->getID();
+        $form = $this->client->request('GET', '/en/part/'.$id.'/convert/to_meta')->filter('#part-convert-form')->form();
+        $form['keep']->select('meta');
+
+        $this->client->submit($form);
+
+        $this->assertResponseRedirects('/en/part/'.$id.'/info');
+        $text = $this->client->followRedirect()->filter('body')->text();
+        $this->assertStringContainsString('this part is now a meta part', $text);
+        $this->em->clear();
+        $meta = $this->em->find(Part::class, $id);
+        $this->assertSame(PartKind::META, $meta->getKind());
+        $this->assertSame('MPN-CONVERT', $meta->getPartConnections()->first()->getConnectedPart()->getManufacturerProductNumber());
+    }
+
+    public function testKeepingTheManufacturingPartReturnsToItAndNamesTheNewMetaPart(): void
+    {
+        [$part] = $this->partsToConvert();
+        $id = $part->getID();
+
+        $this->client->submit($this->client->request('GET', '/en/part/'.$id.'/convert/to_meta')->filter('#part-convert-form')->form());
+
+        $this->assertResponseRedirects('/en/part/'.$id.'/info');
+        $this->assertStringContainsString('the new meta part Part to convert (ID ', $this->client->followRedirect()->filter('body')->text());
+        $this->em->clear();
+        $this->assertSame(PartKind::MANUFACTURING, $this->em->find(Part::class, $id)->getKind());
+        $this->assertCount(1, $this->em->find(Part::class, $id)->getConnectionsAsPart());
+    }
+
+    public function testTheWayBackShowsWhatChangesAndConverts(): void
+    {
+        [, $meta] = $this->partsToConvert();
+        $id = $meta->getID();
+        $crawler = $this->client->request('GET', '/en/part/'.$id.'/convert/to_manufacturing');
+        $this->assertResponseIsSuccessful();
+        $this->assertSame(0, $crawler->filter('input[name="keep"]')->count());
+        $this->assertSame('reset', $crawler->filter('tr[data-row="price_method"]')->attr('data-action'));
+        $this->assertNull($crawler->filter('#part-convert-submit')->attr('disabled'));
+
+        $this->client->submit($crawler->filter('#part-convert-form')->form());
+
+        $this->assertResponseRedirects('/en/part/'.$id.'/info');
+        $this->em->clear();
+        $this->assertSame(PartKind::MANUFACTURING, $this->em->find(Part::class, $id)->getKind());
+        $this->assertCount(1, $this->em->find(Part::class, $id)->getPartLots());
+    }
+
+    public function testTheWayBackWithConnectionsIsRefusedNamingThem(): void
+    {
+        $meta = $this->exampleMetaPart();
+        $id = $meta->getID();
+        $crawler = $this->client->request('GET', '/en/part/'.$id.'/convert/to_manufacturing');
+        $this->assertNotNull($crawler->filter('#part-convert-submit')->attr('disabled'));
+        $this->assertSame(3, $crawler->filter('#part-convert-blocked a')->count());
+        $token = $crawler->filter('#part-convert-form input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', '/en/part/'.$id.'/convert/to_manufacturing', ['_token' => $token]);
+
+        $this->assertResponseRedirects('/en/part/'.$id.'/info');
+        $this->assertStringContainsString('First source, Second source, Retired source', $this->client->followRedirect()->filter('body')->text());
+        $this->em->clear();
+        $this->assertSame(PartKind::META, $this->em->find(Part::class, $id)->getKind());
+    }
+
+    public function testAMetaPartCanNotBeConvertedToAMetaPart(): void
+    {
+        $meta = $this->exampleMetaPart();
+
+        $this->client->request('GET', '/en/part/'.$meta->getID().'/convert/to_meta');
+
+        $this->assertResponseRedirects('/en/part/'.$meta->getID().'/info');
+        $this->assertStringContainsString('already a meta part', $this->client->followRedirect()->filter('body')->text());
+    }
+
     public function testDeletingAConnectedPartNamesTheMetaParts(): void
     {
         $part = $this->exampleMetaPart()->getOrderedConnections()[0]->getConnectedPart();

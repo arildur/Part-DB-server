@@ -171,6 +171,19 @@ export default class extends Controller {
     }
 
     /**
+     * Renders the icon of the result's kind, put before its name. A manufacturing part has none (kind_icon is null), so
+     * nothing is rendered for it. The class comes from the server, but is only used if it looks like a Font Awesome
+     * icon name.
+     */
+    _renderKindIcon(item, html) {
+        if (!item.kind_icon || !/^fa-[a-z-]+$/.test(item.kind_icon)) {
+            return null;
+        }
+
+        return html`<i class="fa-solid fa-fw ${item.kind_icon}" title="${item.kind_label || ''}"></i>`;
+    }
+
+    /**
      * Renders the small toggles used to choose the ordering of the results.
      */
     _renderSortToggles(html) {
@@ -392,6 +405,7 @@ export default class extends Controller {
                                             </div>
                                             <div class="aa-ItemContentBody">
                                                 <div class="aa-ItemContentTitle">
+                                                    ${that._renderKindIcon(item, html)}
                                                     <b>
                                                         ${components.Highlight({hit: item, attribute: 'name'})}
                                                     </b>

@@ -62,6 +62,18 @@ final class PartKindTest extends TestCase
         }
     }
 
+    public function testOnlyTheMetaPartHasAnIcon(): void
+    {
+        $this->assertNull(PartKind::MANUFACTURING->getIconClass(), 'A manufacturing part looks as any part did before the kinds');
+        $this->assertSame('fa-sitemap', PartKind::META->getIconClass());
+
+        $icons = array_values(array_filter(array_map(static fn (PartKind $kind): ?string => $kind->getIconClass(), PartKind::cases())));
+        $this->assertSame($icons, array_unique($icons), 'Two kinds must not share an icon');
+        foreach ($icons as $icon) {
+            $this->assertMatchesRegularExpression('/^fa-[a-z-]+$/', $icon, 'The pickers only use icons of this form');
+        }
+    }
+
     public function testNewPartIsAManufacturingPart(): void
     {
         $this->assertSame(PartKind::MANUFACTURING, (new Part())->getKind());

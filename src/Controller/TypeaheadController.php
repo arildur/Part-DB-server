@@ -187,8 +187,10 @@ class TypeaheadController extends AbstractController
                 'id' => $part['id'],
                 'name' => $part['name'],
                 'kind' => $part['kind']->value,
-                //Only set for a meta part, so that it can be told apart from a part of the same name
-                'kind_label' => $part['kind'] === PartKind::META ? $translator->trans(PartKind::META->getTranslationKey()) : '',
+                //The icon and name of the kind, so that a meta part can be told apart from a part of the same name.
+                //The icon is null for a manufacturing part, which is shown without one
+                'kind_label' => $translator->trans($part['kind']->getTranslationKey()),
+                'kind_icon' => $part['kind']->getIconClass(),
                 'category' => $part['category'] ?? 'Unknown',
                 'footprint' => $part['footprint'] ?? '',
                 'description' => mb_strimwidth($part['description'], 0, 127, '...'),

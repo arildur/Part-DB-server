@@ -37,6 +37,19 @@ enum PartKind: string
         return 'part.kind.'.$this->value;
     }
 
+    /**
+     * The Font Awesome icon of the kind, shown before a part's name in lists, pickers and the search dropdown.
+     * Null for a manufacturing part, which looks as any part did before the kinds: only the other kinds are marked.
+     * A new kind must choose, so the match has no default.
+     */
+    public function getIconClass(): ?string
+    {
+        return match ($this) {
+            self::MANUFACTURING => null,
+            self::META => 'fa-sitemap',
+        };
+    }
+
     /** Whether the part may hold a manufacturer, a part number and other data identifying one product. */
     public function allowsManufacturerData(): bool
     {

@@ -78,6 +78,29 @@ final class PartKindInListsTest extends KernelTestCase
         $this->assertStringContainsString('fa-sitemap', $html);
         $this->assertStringContainsString('fa-ambulance', $html, 'The icon it would otherwise replace');
         $this->assertStringNotContainsString('fa-sitemap', $helper->renderName($plain));
+        $this->assertStringNotContainsString('fa-cube', $html);
+    }
+
+    public function testOnlyAMetaPartHasTheIconOfItsKindBeforeTheName(): void
+    {
+        $helper = self::getContainer()->get(PartDataTableHelper::class);
+        $plain = $this->part('Plain <b>');
+        $plain->setFavorite(true);
+        $meta = $this->part('Meta', PartKind::META);
+        $this->em->flush();
+
+        $html = $helper->renderName($plain);
+        $this->assertStringNotContainsString('title="Manufacturing', $html, 'A manufacturing part has no kind icon');
+        $this->assertSame(1, substr_count($html, '<i '), 'Only the icon of the part status');
+        $this->assertMatchesRegularExpression(
+            '#^<a href="[^"]+"><i class="fa-solid fa-star fa-fw me-1" title="[^"]*"></i>Plain &lt;b&gt;</a>$#',
+            $html,
+            'The name cell of a manufacturing part is as upstream renders it'
+        );
+
+        $html = $helper->renderName($meta);
+        $this->assertStringContainsString('<i class="fa-solid fa-sitemap fa-fw me-1" title="Meta', $html);
+        $this->assertLessThan(strpos($html, '>Meta</a>'), strpos($html, 'fa-sitemap'));
     }
 
     public function testTheAmountColumnShowsTheTotal(): void

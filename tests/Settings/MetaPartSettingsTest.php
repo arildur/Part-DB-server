@@ -96,6 +96,6 @@ final class MetaPartSettingsTest extends KernelTestCase
         $attributes = (new \ReflectionClass(MetaPartSettings::class))->getAttributes(\App\Settings\SettingsIcon::class);
 
         $this->assertCount(1, $attributes);
-        $this->assertSame('fa-sitemap', $attributes[0]->newInstance()->icon);
+        $this->assertSame(\App\Entity\Parts\PartKind::META->getIconClass(), $attributes[0]->newInstance()->icon);
     }
 }

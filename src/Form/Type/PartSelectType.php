@@ -110,13 +110,14 @@ class PartSelectType extends AbstractType implements DataMapperInterface
                     }
                 }
 
+                //Only a kind with an icon gets one, so that a manufacturing part shows as before the kinds
                 return $part instanceof Part ? [
                     'data-description' => mb_strimwidth($part->getDescription(), 0, 127, '...'),
                     'data-category' => $part->getCategory() instanceof Category ? $part->getCategory()->getName() : '',
                     'data-footprint' => $part->getFootprint() instanceof Footprint ? $part->getFootprint()->getName() : '',
                     'data-image' => $preview_url,
-                    'data-kind_label' => $part->getKind()->allowsConnections() ? $this->translator->trans($part->getKind()->getTranslationKey()) : '',
-                ] : [];
+                    'data-kind_label' => $this->translator->trans($part->getKind()->getTranslationKey()),
+                ] + ($part->getKind()->getIconClass() !== null ? ['data-kind_icon' => $part->getKind()->getIconClass()] : []) : [];
             })
         ]);
     }

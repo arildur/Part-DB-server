@@ -71,9 +71,11 @@ readonly class PartDataTableHelper
 
 
         //The kind says what a part is, so it shows next to the icon above and does not compete with it
-        if ($context->getKind()->allowsConnections()) {
-            $icon .= sprintf('<i class="fa-solid fa-sitemap fa-fw me-1" title="%s"></i>',
-                $this->translator->trans($context->getKind()->getTranslationKey()));
+        $kindIcon = $context->getKind()->getIconClass();
+        if ($kindIcon !== null) {
+            $icon .= sprintf('<i class="fa-solid %s fa-fw me-1" title="%s"></i>',
+                $kindIcon,
+                htmlspecialchars($this->translator->trans($context->getKind()->getTranslationKey())));
         }
 
         return sprintf(

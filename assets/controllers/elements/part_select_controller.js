@@ -8,6 +8,18 @@ import TomSelect_form_reset_handler from '../../tomselect/form_reset_handler/for
 
 TomSelect.define('form_reset_handler', TomSelect_form_reset_handler)
 
+/**
+ * Returns the icon of the part's kind, put before its name, or nothing for a manufacturing part, which has none.
+ * The class comes from the server, but is only used if it looks like a Font Awesome icon name.
+ */
+function kindIcon(data, escape) {
+    if (!data.kind_icon || !/^fa-[a-z-]+$/.test(data.kind_icon)) {
+        return '';
+    }
+
+    return '<i class="fa-solid fa-fw ' + data.kind_icon + ' me-1" title="' + escape(data.kind_label || '') + '"></i>';
+}
+
 export default class extends Controller {
     _tomSelect;
 
@@ -31,7 +43,7 @@ export default class extends Controller {
             preload: "focus",
             render: {
                 item: (data, escape) => {
-                    return '<span>' + (data.image ? "<img style='height: 1.5rem; margin-right: 5px;' ' src='" + data.image + "'/>" : "") + escape(data.name) +  '</span>';
+                    return '<span>' + (data.image ? "<img style='height: 1.5rem; margin-right: 5px;' ' src='" + data.image + "'/>" : "") + kindIcon(data, escape) + escape(data.name) +  '</span>';
                 },
                 option: (data, escape) => {
                     if(data.text) {
@@ -43,7 +55,7 @@ export default class extends Controller {
                         (data.image ? "<img class='typeahead-image' src='" + data.image + "'/>" : "") +
                         "</div>" +
                         "<div class='col-10'>" +
-                        '<h6 class="m-0">' + escape(data.name) + (data.kind_label ? ' <span class="badge text-bg-info">' + escape(data.kind_label) + '</span>' : '') + '</h6>' +
+                        '<h6 class="m-0">' + kindIcon(data, escape) + escape(data.name) + '</h6>' +
                         (data.description ? '<p class="m-0">' + marked.parseInline(data.description) + '</p>' : "") +
                         (data.category ? '<p class="m-0"><span class="fa-solid fa-tags fa-fw"></span> ' + escape(data.category) : "");
 

@@ -213,7 +213,24 @@ final class TypeaheadControllerTest extends WebTestCase
         $labels = array_column($results, 'kind_label', 'name');
 
         $this->assertSame('Meta part', $labels['Picker meta']);
-        $this->assertSame('', $labels['Picker manufacturing']);
+        $this->assertSame('Manufacturing part', $labels['Picker manufacturing']);
+    }
+
+    /** @return iterable<string, array{array<string, string>}> */
+    public static function pickerAndDropdownOptions(): iterable
+    {
+        yield 'picker' => [[]];
+        yield 'search dropdown' => [['name' => '1']];
+    }
+
+    #[DataProvider('pickerAndDropdownOptions')]
+    public function testPickerAndDropdownResultsCarryTheIconOfAMetaPartOnly(array $options): void
+    {
+        $results = array_column($this->pickerResults('Picker', $options), null, 'name');
+
+        $this->assertSame('fa-sitemap', $results['Picker meta']['kind_icon']);
+        $this->assertArrayHasKey('kind_icon', $results['Picker manufacturing']);
+        $this->assertNull($results['Picker manufacturing']['kind_icon'], 'A manufacturing part is shown without an icon');
     }
 
     /** @return iterable<string, array{string}> */

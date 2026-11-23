@@ -32,6 +32,8 @@ use App\Settings\BehaviorSettings\PartDeletionSettings;
 use ApiPlatform\Symfony\Bundle\Test\Client;
 use App\Entity\UserSystem\User;
 use Doctrine\ORM\EntityManagerInterface;
+use Monolog\Handler\TestHandler;
+use Monolog\Level;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 final class PartEndpointTest extends CrudEndpointTestCase
@@ -301,6 +303,23 @@ final class PartEndpointTest extends CrudEndpointTestCase
         $this->assertStringContainsString('API project', $response->toArray(false)['detail']);
         self::getContainer()->get(EntityManagerInterface::class)->clear();
         $this->assertNotNull(self::getContainer()->get(EntityManagerInterface::class)->find(Part::class, $id));
+    }
+
+    /**
+     * The refusal is an expected client error, caused by a setting, so it must not be logged as critical like a bug.
+     */
+    public function testTheRefusalIsNotLoggedAsCritical(): void
+    {
+        [$client, $id] = $this->clientAndPart(true);
+        $handler = new TestHandler();
+        self::getContainer()->get('monolog.logger.request')->pushHandler($handler);
+
+        $client->request('DELETE', '/api/parts/'.$id);
+
+        self::assertResponseStatusCodeSame(409);
+        $this->assertFalse($handler->hasRecords(Level::Critical));
+        $this->assertFalse($handler->hasRecords(Level::Error));
+        $this->assertTrue($handler->hasRecordThatContains('PartUsedInBomException', Level::Warning));
     }
 
     public function testTheRefusalGivesOnlyTheNumberOfProjectsToAUserWhoMayNotReadProjects(): void

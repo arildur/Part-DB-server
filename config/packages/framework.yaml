@@ -44,6 +44,14 @@ framework:
             # Platform upgrades, since we don't depend on its internal service names/structure).
             import_export: {}
 
+    # Exceptions that are expected client errors, not bugs, which Symfony's ErrorListener would otherwise log as critical.
+    # Their HTTP status stays in api_platform.yaml (exception_to_status): a status_code here would wrap the exception in
+    # an HttpException before it is logged, so the log would no longer name it.
+    exceptions:
+        # A part refused deletion by the setting "Refuse deleting parts used in a BOM" (REST answers 409)
+        App\Exceptions\PartUsedInBomException:
+            log_level: warning
+
 when@test:
     framework:
         test: true

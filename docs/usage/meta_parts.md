@@ -27,6 +27,13 @@ A meta part can have a category, footprint, IPN, parameters, attachments and sto
 
 Parts of different kinds can not be merged, and a meta part can not be updated from an info provider.
 
+Part-DB finds a meta part by its name, so when you save a meta part with the name of another meta part (ignoring case
+and outer spaces), it warns and names the other meta parts with their IDs. The part is saved all the same. A
+manufacturing part with the same name gives no warning.
+
+In part tables, in part pickers and in the search field, only meta parts are marked: the name of a meta part has a
+sitemap icon in front of it. A manufacturing part is shown without a kind icon.
+
 ## Connecting parts
 
 Connections are edited on the edit page of the meta part, which needs the permission to edit it. Each connection has:
@@ -52,6 +59,11 @@ and it is removed from its meta parts as above. With the setting off, the BOM en
 
 Changes to connections are logged on both parts. Time travel and undo do not follow connections, as that would rewrite the
 stock of other parts, so an old version of a meta part shows the current stock of its connected parts.
+
+## Searching
+
+A search matches the fields of each part itself, for a meta part as for a manufacturing part: a meta part is not found
+through the part number or other fields of its connected parts. The kind filter limits a search to one kind.
 
 ## Stock and prices
 
@@ -90,7 +102,9 @@ is system default, and takes the user value of the other only when the target ha
 A BOM entry can point at a meta part. When building, the form names the parts below the meta part, and you choose how much
 to take from each lot. Parts that are not usable are shown with their status and have
 no field. The proposal takes the meta part's own lots first, then those of use up parts, then those of approved parts, each
-in the order of priority. Several entries can reach the same lot, so the proposal and
+in the order of priority, and within a part the smallest lot first, so that leftovers are used up. An entry pointing
+straight at a part takes its largest lot first, as Part-DB always did. Lots of the same amount are taken in the order
+they were created. Several entries can reach the same lot, so the proposal and
 the buildable count look at the whole BOM, and a lot can not be used for more than it holds.
 
 A meta part can also be the part a project builds: on the edit page of the project, add a build part and choose the

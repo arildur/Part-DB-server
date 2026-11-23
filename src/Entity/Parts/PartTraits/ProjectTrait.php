@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Entity\Parts\PartTraits;
 
+use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use Doctrine\Common\Collections\Collection;
@@ -111,5 +113,46 @@ trait ProjectTrait
         usort($projects, static fn (Project $a, Project $b): int => strnatcasecmp($a->getName(), $b->getName()));
 
         return $projects;
+    }
+
+    /**
+     * Get every BOM entry that uses this part: first its own entries, with via null, then the entries of each meta
+     * part it is connected to, with via that meta part and connection the connection that leads there. Connections
+     * of every status count, as the list answers whether the part is in use; connection tells whether it is usable.
+     * Each group is sorted by project name; a project using the part both ways appears in both.
+     * A meta part has no connections above it, so it gives its own entries only.
+     *
+     * @return list<array{entry: ProjectBOMEntry, via: Part|null, connection: PartConnection|null}>
+     */
+    public function getBomUsages(): array
+    {
+        $projectName = static fn (ProjectBOMEntry $entry): string => $entry->getProject()?->getName() ?? '';
+
+        $direct = [];
+        foreach ($this->project_bom_entries as $entry) {
+            $direct[] = ['entry' => $entry, 'via' => null, 'connection' => null];
+        }
+        usort($direct, static fn (array $a, array $b): int =>
+            strnatcasecmp($projectName($a['entry']), $projectName($b['entry']))
+            ?: ($a['entry']->getID() ?? PHP_INT_MAX) <=> ($b['entry']->getID() ?? PHP_INT_MAX));
+
+        $through = [];
+        if ($this->getKind()->canBeConnected()) {
+            foreach ($this->getConnectionsAsPart() as $connection) {
+                $metaPart = $connection->getMetaPart();
+                if ($metaPart === null) {
+                    continue;
+                }
+                foreach ($metaPart->getProjectBomEntries() as $entry) {
+                    $through[] = ['entry' => $entry, 'via' => $metaPart, 'connection' => $connection];
+                }
+            }
+        }
+        usort($through, static fn (array $a, array $b): int =>
+            strnatcasecmp($projectName($a['entry']), $projectName($b['entry']))
+            ?: strnatcasecmp($a['via']->getName(), $b['via']->getName())
+            ?: ($a['entry']->getID() ?? PHP_INT_MAX) <=> ($b['entry']->getID() ?? PHP_INT_MAX));
+
+        return array_merge($direct, $through);
     }
 }

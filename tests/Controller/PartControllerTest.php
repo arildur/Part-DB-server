@@ -28,6 +28,8 @@ use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\Part;
+use App\Entity\Parts\PartConnection;
+use App\Entity\Parts\PartKind;
 use App\Entity\Parts\PartLot;
 use App\Entity\Parts\StorageLocation;
 use App\Entity\Parts\Supplier;
@@ -639,6 +641,29 @@ final class PartControllerTest extends WebTestCase
         $this->assertNull($entityManager->getRepository(Part::class)->find($otherId));
         $entry = $entityManager->getRepository(Project::class)->find($projectId)->getBomEntries()->first();
         $this->assertSame($targetId, $entry->getPart()?->getID());
+    }
+
+    public function testTheProjectsTabListsDirectUseAndUseThroughAMetaPart(): void
+    {
+        $client = static::createClient();
+        $this->loginAsUser($client, 'admin');
+        $entityManager = $client->getContainer()->get('doctrine')->getManager();
+        [$part] = $this->partInABom($entityManager, 'Tab part', 'Direct project');
+        [$meta] = $this->partInABom($entityManager, 'Tab meta part', 'Meta project');
+        $meta->setKind(PartKind::META);
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($part)->setPosition(1));
+        $entityManager->flush();
+        $id = $part->getID();
+        $entityManager->clear();
+        $this->loginAsUser($client, 'admin');
+
+        $crawler = $client->request('GET', "/en/part/{$id}/info");
+
+        $this->assertResponseIsSuccessful();
+        $rows = $crawler->filter('#projects tbody tr')->each(static fn ($row): array => [
+            $row->filter('td')->eq(1)->text(), trim($row->filter('td')->last()->text()),
+        ]);
+        $this->assertSame([['Direct project', ''], ['Meta project', 'Tab meta part']], $rows);
     }
 
     private function loginAsUser($client, string $username): void

@@ -16490,5 +16490,11 @@ Buerklin-API Authentication server:
         <target>%name% (ID %id%)</target>
       </segment>
     </unit>
+    <unit id="7Xn1.zI" name="part.info.projects.via">
+      <segment state="translated">
+        <source>part.info.projects.via</source>
+        <target>Through meta [part]</target>
+      </segment>
+    </unit>
   </file>
 </xliff>

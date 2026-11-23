@@ -55,6 +55,8 @@
     {# What a meta part shows depends on its connected parts. A manufacturing part stops here, so it costs no query. #}
     {% set connections = part.kind.allowsConnections ? part.orderedConnections : [] %}
     {% set stock_rows = part.partLots | length %}
+    {# The BOM entries that use the part, its own and those of the meta parts it is connected to #}
+    {% set bom_usages = part.bomUsages %}
     {% set has_suppliers = part.orderdetails is not empty %}
     {% for connection in connections %}
         {% set stock_rows = stock_rows + connection.connectedPart.partLots | length %}
@@ -70,7 +72,7 @@
         connections: {tab_id: 'connections-tab', icon: 'fas fa-sitemap fa-fw', label: 'part_connection.labelp', count: connection_count, shown: part.kind.allowsConnections or connection_count > 0},
         associations: {tab_id: 'associations-tab', icon: 'fas fa-circle-nodes fa-fw', label: 'part.edit.tab.associations', count: part.associatedPartsAll | length, shown: part.associatedPartsAll is not empty},
         history: {tab_id: 'history-tab', icon: 'fas fa-history', label: 'vendor.partinfo.history', disabled: datatable is null},
-        projects: {tab_id: 'projects-tab', icon: 'fas fa-archive fa-fw', label: 'project.labelp', count: part.projectBomEntries | length, shown: part.projectBomEntries is not empty},
+        projects: {tab_id: 'projects-tab', icon: 'fas fa-archive fa-fw', label: 'project.labelp', count: bom_usages | length, shown: bom_usages is not empty},
         tools: {tab_id: 'tools-tab', icon: 'fas fa-tools', label: 'tools.label'},
         extended_info: {tab_id: 'extended_info-tab', icon: 'fas fa-clipboard-list', label: 'extended_info.label'},
     } %}

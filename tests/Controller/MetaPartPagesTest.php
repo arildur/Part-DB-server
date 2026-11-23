@@ -422,6 +422,56 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertNotNull($this->em->find(Part::class, $id));
     }
 
+    /**
+     * A part used directly in one project and through a meta part in another, by a connection of the given status.
+     * @return array{Part, Part} The part and the meta part
+     */
+    private function partUsedBothWays(PartConnectionStatus $status): array
+    {
+        $part = $this->part('Used both ways');
+        $meta = $this->part('Meta <i>above</i>', PartKind::META);
+        $this->connect($meta, $part, 1, $status);
+        foreach (['Direct board' => $part, 'Board through meta' => $meta] as $name => $user) {
+            $project = new Project();
+            $project->setName($name);
+            $entry = (new ProjectBOMEntry())->setQuantity(3.0);
+            $project->addBomEntry($entry);
+            $user->addProjectBomEntry($entry);
+            $this->em->persist($project);
+        }
+        $this->em->flush();
+        $ids = [$part->getID(), $meta->getID()];
+        $this->em->clear();
+        $this->client->loginUser($this->em->getRepository(User::class)->findOneBy(['name' => 'admin']));
+
+        return array_map(fn (int $id): Part => $this->em->find(Part::class, $id), $ids);
+    }
+
+    public function testTheProjectsTabNamesTheMetaPartAPartIsUsedThroughLinked(): void
+    {
+        [$part, $meta] = $this->partUsedBothWays(PartConnectionStatus::APPROVED);
+        $crawler = $this->info($part);
+
+        $this->assertSame('Through meta part', trim($crawler->filter('#projects thead th')->last()->text()));
+        $rows = $crawler->filter('#projects tbody tr');
+        $this->assertCount(2, $rows);
+        $this->assertSame('', trim($rows->eq(0)->filter('td')->last()->text()));
+        $link = $rows->eq(1)->filter('td')->last()->filter('a');
+        $this->assertSame('Meta <i>above</i>', $link->text());
+        $this->assertStringEndsWith('/part/'.$meta->getID().'/info', (string) $link->attr('href'));
+        $this->assertSame(0, $rows->eq(1)->filter('[data-connection-status]')->count());
+        $this->assertSame('2', trim($crawler->filter('#projects-tab .badge')->text()));
+    }
+
+    public function testTheProjectsTabListsUseThroughAnUnusableConnectionMarked(): void
+    {
+        $crawler = $this->info($this->partUsedBothWays(PartConnectionStatus::DO_NOT_USE)[0]);
+
+        $row = $crawler->filter('#projects tbody tr')->eq(1);
+        $this->assertStringContainsString('table-danger', (string) $row->attr('class'));
+        $this->assertSame('do_not_use', $row->filter('[data-connection-status]')->attr('data-connection-status'));
+    }
+
     private function kindField(Crawler $crawler): Crawler
     {
         return $crawler->filter('select[name="part_base[kind]"]');

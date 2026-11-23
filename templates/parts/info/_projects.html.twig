@@ -9,13 +9,16 @@
         <th>{% trans %}description.label{% endtrans %}</th>
         <th>{% trans %}project.bom.quantity{% endtrans %}</th>
         <th>{% trans %}project.bom.mountnames{% endtrans %}</th>
+        <th>{% trans %}part.info.projects.via{% endtrans %}</th>
     </tr>
     </thead>
 
     <tbody>
-    {% for bom_entry in part.projectBomEntries %}
-        {# @var bom_entry App\Entity\Project\ProjectBOMEntry #}
-    <tr>
+    {# Own BOM entries first, then those of the meta parts this part is connected to, whatever the status #}
+    {% for usage in bom_usages %}
+        {% set bom_entry = usage.entry %}
+        {# @var bom_entry App\Entity\ProjectSystem\ProjectBOMEntry #}
+    <tr{% if usage.connection %} class="{{ helper.connection_status_row_class(usage.connection) }}"{% endif %}>
         <td>{% if bom_entry.project.masterPictureAttachment is not null %}{{ attachments.attachment_icon(bom_entry.project.masterPictureAttachment, attachment_manager) }}{% endif %}</td>
         <td><a href="{{ path('project_info', {'id': bom_entry.project.iD}) }}">{{ bom_entry.project.name }}</a></td> {# Name #}
         <td>{{ bom_entry.project.description|format_markdown }}</td> {# Description #}
@@ -23,6 +26,10 @@
         <td>{% for tag in bom_entry.mountnames|split(',') %}
                 <span class="badge bg-secondary badge-secondary" >{{ tag | trim }}</span>
             {% endfor %}</td>
+        <td>{% if usage.via %}
+                {{ helper.part_icon_link(usage.via) }}
+                {% if not usage.connection.usable %}{{ helper.connection_status_badge(usage.connection) }}{% endif %}
+            {% endif %}</td>
     </tr>
     {% endfor %}
     </tbody>

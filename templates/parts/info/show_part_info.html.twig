@@ -151,7 +151,7 @@
                                 {% set heading_shown = true %}
                             {% endif %}
                             <h6 class="mt-3{% if not connection.usable %} text-muted{% endif %}">
-                                {{ helper.part_icon_link(connection.connectedPart) }}
+                                {{ helper.part_manufacturer_and_mpn(connection.connectedPart) }}{{ helper.part_icon_link(connection.connectedPart) }}
                                 {{ helper.connection_status_badge(connection) }}
                             </h6>
                             {% include "parts/info/_order_infos.html.twig" with {part: connection.connectedPart} %}

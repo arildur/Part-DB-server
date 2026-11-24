@@ -16334,12 +16334,6 @@ Buerklin-API Authentication server:
         <target>[[Supplier]]</target>
       </segment>
     </unit>
-    <unit id="RnGdGC8" name="part_connection.table.used_by">
-      <segment state="translated">
-        <source>part_connection.table.used_by</source>
-        <target>This [part] is connected to these meta [[part]]</target>
-      </segment>
-    </unit>
     <unit id="rhoMNg6" name="part_connection.none_yet">
       <segment state="translated">
         <source>part_connection.none_yet</source>

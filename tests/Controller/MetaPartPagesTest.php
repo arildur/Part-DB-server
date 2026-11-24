@@ -25,6 +25,7 @@ use App\Entity\Attachments\AttachmentType;
 use App\Entity\Attachments\PartAttachment;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
+use App\Entity\Parts\Manufacturer;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartConnectionStatus;
@@ -190,7 +191,7 @@ final class MetaPartPagesTest extends WebTestCase
 
         $this->assertContains('#connections', $this->tabIds($crawler));
         $this->assertStringContainsString('Connected parts', $crawler->filter('a[href="#connections"]')->text());
-        $rows = $crawler->filter('#connections tbody tr:not(.table-light)')->each(static fn (Crawler $r) => $r->text());
+        $rows = $crawler->filter('#connections tbody tr')->each(static fn (Crawler $r) => $r->text());
         $this->assertCount(3, $rows);
         $this->assertStringContainsString('First source', $rows[0]);
         $this->assertStringContainsString('Preferred', $rows[0]);
@@ -198,6 +199,30 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('Retired source', $rows[2]);
         $this->assertStringContainsString('Do not use', $rows[2]);
         $this->assertStringContainsString('Bad batch', $rows[2]);
+    }
+
+    public function testTheConnectedPartsTabShowsManufacturerMpnAndNameInSeparateColumns(): void
+    {
+        $meta = $this->part('Column meta', PartKind::META);
+        $part = $this->part('RES SMD 10K 1% 0603');
+        $part->setManufacturerProductNumber('RC0603FR-1310KL');
+        $this->connect($meta, $part, 1);
+        $this->em->flush();
+
+        $crawler = $this->info($meta);
+        $heads = $crawler->filter('#connections thead th')->each(static fn (Crawler $th) => trim($th->text()));
+        //The owner's order: manufacturer, MPN, then the part's name
+        $manufacturerColumn = array_search('Manufacturer', $heads, true);
+        $mpnColumn = array_search('MPN', $heads, true);
+        $partColumn = array_search('Part', $heads, true);
+        $this->assertNotFalse($manufacturerColumn, implode(' | ', $heads));
+        $this->assertSame($manufacturerColumn + 1, $mpnColumn, implode(' | ', $heads));
+        $this->assertSame($mpnColumn + 1, $partColumn, implode(' | ', $heads));
+
+        $cells = $crawler->filter('#connections tbody tr')->first()->filter('td')->each(static fn (Crawler $td) => trim($td->text()));
+        $this->assertStringContainsString('RES SMD 10K 1% 0603', $cells[$partColumn]);
+        $this->assertStringNotContainsString('RC0603FR-1310KL', $cells[$partColumn]);
+        $this->assertSame('RC0603FR-1310KL', $cells[$mpnColumn]);
     }
 
     /** A meta part with one connection of each status, listed by position in the reverse order of usability. */
@@ -219,20 +244,18 @@ final class MetaPartPagesTest extends WebTestCase
         return $this->em->find(Part::class, $id);
     }
 
-    public function testTheConnectionsTabShowsEachStatusWithItsBadgeAndTheUnusableUnderAHeading(): void
+    public function testTheConnectionsTabShowsEachStatusWithItsBadgeAndTheUnusableLast(): void
     {
         $crawler = $this->info($this->metaPartWithEachStatus());
 
         $rows = $crawler->filter('#connections tbody tr');
-        $this->assertCount(5, $rows);
+        $this->assertCount(4, $rows);
         $this->assertStringContainsString('Part use_up', $rows->eq(0)->text());
         $this->assertStringContainsString('Part approved', $rows->eq(1)->text());
-        $this->assertStringContainsString('table-light', (string) $rows->eq(2)->attr('class'));
-        $this->assertStringContainsString('Not usable', $rows->eq(2)->text());
-        $this->assertStringContainsString('Part do_not_use', $rows->eq(3)->text());
-        $this->assertStringContainsString('table-danger', (string) $rows->eq(3)->attr('class'));
-        $this->assertStringContainsString('Part under_evaluation', $rows->eq(4)->text());
-        $this->assertStringContainsString('text-muted', (string) $rows->eq(4)->attr('class'));
+        $this->assertStringContainsString('Part do_not_use', $rows->eq(2)->text());
+        $this->assertStringContainsString('table-danger', (string) $rows->eq(2)->attr('class'));
+        $this->assertStringContainsString('Part under_evaluation', $rows->eq(3)->text());
+        $this->assertStringContainsString('text-muted', (string) $rows->eq(3)->attr('class'));
 
         $expected = [
             'use_up' => ['text-bg-warning', 'fa-hourglass-end', 'Use up'],
@@ -246,6 +269,42 @@ final class MetaPartPagesTest extends WebTestCase
             $this->assertStringContainsString($class, (string) $badge->attr('class'));
             $this->assertCount(1, $badge->filter('i.'.$icon));
             $this->assertSame($label, trim($badge->text()));
+        }
+    }
+
+    public function testTheConnectedPartsTabListsAllInOneSortableTableWithoutAHeadingRow(): void
+    {
+        $crawler = $this->info($this->metaPartWithEachStatus());
+        $table = $crawler->filter('#connections table');
+
+        $this->assertCount(1, $table);
+        $this->assertSame('elements--sortable-table', $table->attr('data-controller'));
+        $this->assertCount(1, $table->filter('tbody'));
+        $this->assertCount(4, $table->filter('tbody tr'), 'Usable and unusable connections in one tbody');
+        $this->assertCount(0, $table->filter('tbody tr.table-light'));
+        $this->assertCount(0, $table->filter('tbody th'));
+        $this->assertStringNotContainsString('Not usable', $table->text());
+
+        $heads = $table->filter('thead th')->each(static fn (Crawler $th) => trim($th->text()));
+        $columns = [];
+        foreach (['Priority', 'Status', 'Amount', 'Suppliers'] as $label) {
+            $columns[$label] = array_search($label, $heads, true);
+            $this->assertIsInt($columns[$label], $label.' in '.implode(' | ', $heads));
+        }
+        //A sort value where the shown text is no plain number: priority (the position), status rank, raw amount, count of suppliers
+        $expected = [
+            'Part use_up' => ['3', '1', '10', '1'],
+            'Part approved' => ['4', '0', '10', '1'],
+            'Part do_not_use' => ['1', '3', '10', '1'],
+            'Part under_evaluation' => ['2', '2', '10', '1'],
+        ];
+        foreach ($table->filter('tbody tr') as $i => $node) {
+            $row = new Crawler($node);
+            $cells = $row->filter('td');
+            $values = array_values(array_map(static fn (int $column): ?string => $cells->eq($column)->attr('data-sort-value'), $columns));
+            $name = array_keys($expected)[$i];
+            $this->assertStringContainsString($name, $row->text());
+            $this->assertSame($expected[$name], $values, $name);
         }
     }
 
@@ -366,6 +425,7 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('Example meta', $crawler->filter('#connections')->text());
         $this->assertStringContainsString('Meta parts', $crawler->filter('a[href="#connections"]')->text());
         $this->assertStringNotContainsString('Connected parts', $crawler->filter('a[href="#connections"]')->text());
+        $this->assertCount(0, $crawler->filter('#connections caption'), 'The tab has no caption above its table');
     }
 
     public function testAPastViewSaysConnectedStockIsCurrent(): void
@@ -1531,5 +1591,39 @@ final class MetaPartPagesTest extends WebTestCase
         $this->em->flush();
 
         $this->assertSame('https://example.com/illustration.png', $this->infoPicture($meta));
+    }
+
+    public function testTheStockAndShoppingTabsNameEachConnectedPartWithItsManufacturerAndMpn(): void
+    {
+        $meta = $this->part('Resistor 10k 1% 0603', PartKind::META);
+        $manufacturer = new Manufacturer();
+        $manufacturer->setName('YAGEO');
+        $this->em->persist($manufacturer);
+        $connected = $this->part('RES SMD 10K 1% 0.1W 0603');
+        $connected->setManufacturer($manufacturer);
+        $connected->setManufacturerProductNumber('RC0603FR-1310KL');
+        $this->lot($connected, 100);
+        $this->price($connected, '0.01');
+        $this->connect($meta, $connected, 1);
+        $this->em->flush();
+        $manufacturerUrl = '/en/manufacturer/'.$manufacturer->getID().'/parts';
+
+        $crawler = $this->info($meta);
+        $headings = [
+            'stocks' => $crawler->filter('#part_lots tr.table-secondary th')->first(),
+            'shopping' => $crawler->filter('#suppliers h6')->first(),
+        ];
+        foreach ($headings as $tab => $heading) {
+            $partLink = $heading->filter('a[href="/en/part/'.$connected->getID().'/info"]');
+            $this->assertCount(1, $partLink, $tab);
+            $this->assertStringContainsString('RES SMD 10K 1% 0.1W 0603', $partLink->text(), $tab);
+            //The owner's order: manufacturer, MPN, then the part's name
+            $text = $heading->text();
+            $this->assertLessThan(strpos($text, 'RC0603FR-1310KL'), strpos($text, 'YAGEO'), $tab.': '.$text);
+            $this->assertLessThan(strpos($text, 'RES SMD 10K 1% 0.1W 0603'), strpos($text, 'RC0603FR-1310KL'), $tab.': '.$text);
+            $this->assertSame('YAGEO', $heading->filter('a[href="'.$manufacturerUrl.'"]')->text(), $tab);
+            $this->assertStringContainsString('RC0603FR-1310KL', $heading->text(), $tab);
+            $this->assertStringContainsString('Approved', $heading->text(), $tab.': the status stays');
+        }
     }
 }

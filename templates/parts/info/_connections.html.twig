@@ -5,11 +5,12 @@
         <div class="alert alert-info mt-2">{% trans %}part_connection.none_yet{% endtrans %}</div>
     {% else %}
     <div class="table-responsive">
-        <table class="table table-striped table-hover">
+        <table class="table table-striped table-hover" data-controller="elements--sortable-table">
             <thead>
             <tr>
                 <th>{% trans %}part_connection.edit.position{% endtrans %}</th>
                 <th>{% trans %}manufacturer.label{% endtrans %}</th>
+                <th>{% trans %}part.table.mpn{% endtrans %}</th>
                 <th>{% trans %}part_connection.table.part{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
                 <th>{% trans %}part_lots.amount{% endtrans %}</th>
@@ -18,27 +19,22 @@
             </tr>
             </thead>
             <tbody>
-            {# Usable connections come first, so the heading goes before the first that is not #}
-            {% set heading_shown = false %}
+            {# Usable connections first, then by priority, as the part orders them; the headers sort the rows in the browser #}
             {% for connection in connections %}
                 {% set connected = connection.connectedPart %}
-                {% if not connection.usable and not heading_shown %}
-                    <tr class="table-light"><th colspan="7">{% trans %}part_connection.not_usable{% endtrans %}</th></tr>
-                    {% set heading_shown = true %}
-                {% endif %}
                 <tr class="{{ helper.connection_status_row_class(connection) }}">
-                    <td>{{ connection.position }}</td>
+                    <td data-sort-value="{{ connection.position }}">{{ connection.position }}</td>
                     <td>{{ connected.manufacturer ? connected.manufacturer.name : '' }}</td>
+                    <td>{{ connected.manufacturerProductNumber }}</td>
                     <td>
                         {{ helper.part_icon_link(connected) }}
-                        {% if connected.manufacturerProductNumber is not empty %}<small class="text-muted">{{ connected.manufacturerProductNumber }}</small>{% endif %}
                         {% if connection.hasDifferentFootprint %}
                             <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs'|trans({'%part%': connection.name}) }}</span>
                         {% endif %}
                     </td>
-                    <td>{{ helper.connection_status_badge(connection) }}</td>
-                    <td>{{ connected.amountSum | format_amount(connected.partUnit) }}</td>
-                    <td>{{ connected.orderdetails | length }}</td>
+                    <td data-sort-value="{{ connection.status.restrictionRank }}">{{ helper.connection_status_badge(connection) }}</td>
+                    <td data-sort-value="{{ connected.amountSum }}">{{ connected.amountSum | format_amount(connected.partUnit) }}</td>
+                    <td data-sort-value="{{ connected.orderdetails | length }}">{{ connected.orderdetails | length }}</td>
                     <td>{{ connection.note }}</td>
                 </tr>
             {% endfor %}
@@ -48,8 +44,7 @@
     {% endif %}
 {% else %}
     <div class="table-responsive">
-        <table class="table table-striped table-hover caption-top">
-            <caption>{% trans %}part_connection.table.used_by{% endtrans %}:</caption>
+        <table class="table table-striped table-hover">
             <thead>
             <tr>
                 <th>{% trans %}part.kind.meta{% endtrans %}</th>

@@ -231,6 +231,18 @@
     {{ part_name(part) }}
 {% endmacro %}
 
+{# What tells a connected part apart from the others of its meta part, shown before its name in the owner's order:
+   its manufacturer, linked to its parts, then its part number, each followed by a separator. Nothing for a part that
+   has neither. #}
+{% macro part_manufacturer_and_mpn(part) %}
+    {%- if part.manufacturer -%}
+        <a href="{{ entity_url(part.manufacturer, 'list_parts') }}" title="{% trans %}manufacturer.label{% endtrans %}">{{ part.manufacturer.name }}</a><span class="text-muted mx-1">&middot;</span>
+    {%- endif -%}
+    {%- if part.manufacturerProductNumber is not empty -%}
+        <span title="{% trans %}part.table.mpn{% endtrans %}">{{ part.manufacturerProductNumber }}</span><span class="text-muted mx-1">&middot;</span>
+    {%- endif -%}
+{% endmacro %}
+
 {% macro entity_preview_sm(entity) %}
     {# @var entity \App\Entity\Contracts\HasMasterAttachmentInterface #}
     {% if entity.masterPictureAttachment and entity.masterPictureAttachment.picture and attachment_manager.fileExisting(entity.masterPictureAttachment) %}

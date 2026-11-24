@@ -60,7 +60,7 @@
                                 {% if lot.part == bom_entry.part %}
                                     {% trans %}project.build.meta_part_own_lots{% endtrans %}
                                 {% else %}
-                                    {{ part_name(lot.part, true, {target: '_blank'}) }}
+                                    {{ helper.part_manufacturer_and_mpn(lot.part) }}{{ part_name(lot.part, true, {target: '_blank'}) }}
                                 {% endif %}
                             </div>
                         {% endif %}
@@ -93,7 +93,7 @@
                         {% for connection in bom_entry.part.orderedConnections %}
                             {% if not connection.usable %}
                                 <div class="mb-2 text-muted">
-                                    <s>{{ part_name(connection.connectedPart, true, {target: '_blank'}) }}</s>
+                                    {{ helper.part_manufacturer_and_mpn(connection.connectedPart) }}<s>{{ part_name(connection.connectedPart, true, {target: '_blank'}) }}</s>
                                     {{ helper.connection_status_badge(connection) }}
                                     {% if connection.note is not empty %}<small>{{ connection.note }}</small>{% endif %}
                                 </div>

@@ -41,7 +41,8 @@
 
 {% else %}
     <div class="position-relative d-inline-block mb-2 part-image-placeholder">
-        <img src="{{ asset('img/part_placeholder.svg') }}" class="img-fluid img-thumbnail bg-light" alt="Part main image" height="300" width="300">
+        {# A meta part without a picture of its own shows the icon of its kind #}
+        <img src="{{ asset(part.kind.placeholderPicture ?? 'img/part_placeholder.svg') }}" class="img-fluid img-thumbnail bg-light" alt="Part main image" height="300" width="300">
         {# No picture yet: offer to generate one right here #}
         {% if part.id is not null and is_granted('edit', part) and is_granted('@tools.component_image_generator') %}
             <div class="position-absolute bottom-0 end-0 m-2">

@@ -50,6 +50,18 @@ enum PartKind: string
         };
     }
 
+    /**
+     * The asset path of the picture a part of this kind shows when it has no picture of its own: the kind's icon
+     * drawn like the placeholder. Null for a manufacturing part, which shows upstream's placeholder or nothing.
+     */
+    public function getPlaceholderPicture(): ?string
+    {
+        return match ($this) {
+            self::MANUFACTURING => null,
+            self::META => 'img/meta_part_placeholder.svg',
+        };
+    }
+
     /** Whether the part may hold a manufacturer, a part number and other data identifying one product. */
     public function allowsManufacturerData(): bool
     {

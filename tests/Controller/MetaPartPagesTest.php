@@ -21,6 +21,8 @@
 declare(strict_types=1);namespace App\Tests\Controller;
 
 use App\Settings\MiscSettings\IpnSuggestSettings;
+use App\Entity\Attachments\AttachmentType;
+use App\Entity\Attachments\PartAttachment;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Part;
@@ -1496,5 +1498,38 @@ final class MetaPartPagesTest extends WebTestCase
         $labels = $crawler->filter('select[name="part_base[kind]"] option')->each(static fn (Crawler $option): string => $option->text());
         $this->assertSame(['Manufacturing part', 'Meta part'], $labels);
         $this->assertStringNotContainsString('[part]', (string) $this->client->getResponse()->getContent());
+    }
+
+    /** The source of the picture in the picture box of the part's info page */
+    private function infoPicture(Part $part): string
+    {
+        return (string) $this->info($part)->filter('.part-image-placeholder img, #pictureCarousel img')->first()->attr('src');
+    }
+
+    public function testAMetaPartWithoutAPictureShowsTheIconOfItsKind(): void
+    {
+        $meta = $this->part('Meta without picture', PartKind::META);
+        $plain = $this->part('Part without picture');
+        $this->em->flush();
+
+        $this->assertStringContainsString('img/meta_part_placeholder.svg', $this->infoPicture($meta));
+        $this->assertStringContainsString('img/part_placeholder.svg', $this->infoPicture($plain), 'A manufacturing part keeps upstream\'s placeholder');
+    }
+
+    public function testAMetaPartWithAPictureShowsItsOwn(): void
+    {
+        $meta = $this->part('Meta with picture', PartKind::META);
+        $type = new AttachmentType();
+        $type->setName('Pictures');
+        $this->em->persist($type);
+        $picture = new PartAttachment();
+        $picture->setName('Illustration');
+        $picture->setAttachmentType($type);
+        $picture->setExternalPath('https://example.com/illustration.png');
+        $meta->addAttachment($picture);
+        $meta->setMasterPictureAttachment($picture);
+        $this->em->flush();
+
+        $this->assertSame('https://example.com/illustration.png', $this->infoPicture($meta));
     }
 }

@@ -116,7 +116,7 @@
                             <i class="fas fa-microchip {% if hasNoIdentifiers %}text-danger{% else %}text-primary{% endif %} me-2"></i>
                             <div>
                                 <a href="{{ path('app_part_show', {'id': part.id}) }}" class="text-decoration-none {% if hasNoIdentifiers %}text-danger{% endif %}">
-                                    <strong>{{ part.name }}</strong>
+                                    <strong>{{ part_name(part, false) }}</strong>
                                     {% if part.manufacturerProductNumber %}
                                         <br><small class="{% if hasNoIdentifiers %}text-danger{% else %}text-muted{% endif %}">MPN: {{ part.manufacturerProductNumber }}</small>
                                     {% endif %}
@@ -206,7 +206,7 @@
             <div class="card mb-3">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        {{ part.name }}
+                        {{ part_name(part, false) }}
                         {% if part_result.errors is not empty %}
                             <span class="badge bg-warning">{{ part_result.errors|length }} {% trans %}info_providers.bulk_import.errors{% endtrans %}</span>
                         {% endif %}

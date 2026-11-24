@@ -281,7 +281,7 @@
                     <div class="col-form-label {{ col_label }}">{% trans %}part_connection.edit.meta_part{% endtrans %}</div>
                     <div class="{{ col_input }}">
                         <span class="form-control-plaintext">
-                            <a href="{{ entity_url(value.metaPart, 'info') }}" data-meta-part="{{ value.metaPart.id }}">{{ value.metaPart.name }}</a>
+                            {{ part_name(value.metaPart, true, {'data-meta-part': value.metaPart.id}) }}
                             {% if value.hasDifferentFootprint %}
                                 <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs_from_meta_part'|trans({'%part%': value.metaPart.name}) }}</span>
                             {% endif %}

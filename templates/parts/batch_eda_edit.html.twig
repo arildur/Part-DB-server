@@ -13,7 +13,7 @@
             <summary>{% trans %}batch_eda.show_parts{% endtrans %}</summary>
             <ul class="list-unstyled ms-3 mt-1">
                 {% for part in parts %}
-                    <li><a href="{{ path('part_edit', {id: part.id}) }}">{{ part.name }}</a></li>
+                    <li>{{ part_name(part, true, {href: path('part_edit', {id: part.id})}) }}</li>
                 {% endfor %}
             </ul>
         </details>

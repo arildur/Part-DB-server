@@ -94,7 +94,7 @@
     {%- set links -%}
         {%- for connection in connections -%}
             {%- if not loop.first %}, {% endif -%}
-            <a href="{{ entity_url(connection.connectedPart) }}">{{ connection.connectedPart.name }}</a>
+            {{ part_name(connection.connectedPart) }}
         {%- endfor -%}
     {%- endset -%}
     {{ 'part.convert.to_manufacturing.blocked'|trans({'%parts%': links})|raw }}
@@ -227,7 +227,8 @@
         <img src="{{ attachment_thumbnail(preview_attach, 'thumbnail_xs') }}" class="entity-image-xs" alt="Part image"
             {{ stimulus_controller('elements/hoverpic') }} data-thumbnail="{{ attachment_thumbnail(preview_attach) }}">
     {% endif %}
-    <a href="{{ entity_url(part) }}">{{ part.name }}</a>
+    {# A meta part is marked by the icon of its kind before its name, which stands in for a missing picture too #}
+    {{ part_name(part) }}
 {% endmacro %}
 
 {% macro entity_preview_sm(entity) %}

@@ -31,7 +31,7 @@
             </td>
             <td >
                 {% if bom_entry.part %}
-                    <b><a target="_blank" href="{{ entity_url(bom_entry.part) }}">{{ bom_entry.part.name }}</a></b> {% if bom_entry.name %}({{ bom_entry.name }}){% endif %}
+                    <b>{{ part_name(bom_entry.part, true, {target: '_blank'}) }}</b> {% if bom_entry.name %}({{ bom_entry.name }}){% endif %}
                 {% else %}
                     <b>{{ bom_entry.name }}</b>
                 {% endif %}
@@ -60,7 +60,7 @@
                                 {% if lot.part == bom_entry.part %}
                                     {% trans %}project.build.meta_part_own_lots{% endtrans %}
                                 {% else %}
-                                    <a target="_blank" href="{{ entity_url(lot.part) }}">{{ lot.part.name }}</a>
+                                    {{ part_name(lot.part, true, {target: '_blank'}) }}
                                 {% endif %}
                             </div>
                         {% endif %}
@@ -76,7 +76,7 @@
                                 {% if others is not empty %}
                                     <br><small class="text-warning-emphasis"><i class="fa-solid fa-share-nodes fa-fw"></i>
                                         {% trans %}project.build.lot_shared_with{% endtrans %}:
-                                        {% for other in others %}{{ other.part.name }}{% if other.mountnames is not empty %} ({{ other.mountnames }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
+                                        {% for other in others %}{{ part_name(other.part, false) }}{% if other.mountnames is not empty %} ({{ other.mountnames }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
                                     </small>
                                 {% endif %}
                             </label>
@@ -93,7 +93,7 @@
                         {% for connection in bom_entry.part.orderedConnections %}
                             {% if not connection.usable %}
                                 <div class="mb-2 text-muted">
-                                    <s><a target="_blank" href="{{ entity_url(connection.connectedPart) }}">{{ connection.connectedPart.name }}</a></s>
+                                    <s>{{ part_name(connection.connectedPart, true, {target: '_blank'}) }}</s>
                                     {{ helper.connection_status_badge(connection) }}
                                     {% if connection.note is not empty %}<small>{{ connection.note }}</small>{% endif %}
                                 </div>

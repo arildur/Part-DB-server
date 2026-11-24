@@ -233,6 +233,15 @@ final class TypeaheadControllerTest extends WebTestCase
         $this->assertNull($results['Picker manufacturing']['kind_icon'], 'A manufacturing part is shown without an icon');
     }
 
+    public function testTheSearchDropdownShowsNoDefaultPictureForEitherKind(): void
+    {
+        //The default picture of a meta part shows only on its info page, like the placeholder of a manufacturing part
+        $results = array_column($this->pickerResults('Picker', ['name' => '1']), null, 'name');
+
+        $this->assertSame('', $results['Picker meta']['image']);
+        $this->assertSame('', $results['Picker manufacturing']['image']);
+    }
+
     /** @return iterable<string, array{string}> */
     public static function searchTerms(): iterable
     {

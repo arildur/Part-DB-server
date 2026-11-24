@@ -35,6 +35,7 @@ use App\Entity\PriceInformations\Pricedetail;
 use App\Entity\ProjectSystem\Project;
 use App\Entity\ProjectSystem\ProjectBOMEntry;
 use App\Exceptions\EntityNotSupportedException;
+use App\Services\Parts\PartNameRenderer;
 use App\Settings\SynonymSettings;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -48,6 +49,7 @@ final readonly class ElementTypeNameGenerator
         private TranslatorInterface $translator,
         private EntityURLGenerator $entityURLGenerator,
         private SynonymSettings $synonymsSettings,
+        private PartNameRenderer $partNameRenderer,
     )
     {
     }
@@ -142,7 +144,10 @@ final readonly class ElementTypeNameGenerator
     {
         $type = $this->typeLabel($entity);
         if ($use_html) {
-            return '<i>' . $type . ':</i> ' . htmlspecialchars($entity->getName());
+            //A meta part is marked by the icon of its kind before its name, as everywhere in the web interface
+            $icon = $entity instanceof Part ? $this->partNameRenderer->renderKindIcon($entity) : '';
+
+            return '<i>' . $type . ':</i> ' . $icon . htmlspecialchars($entity->getName());
         }
 
         return $type . ': ' . $entity->getName();

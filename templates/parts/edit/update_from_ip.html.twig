@@ -25,5 +25,5 @@
 {% block card_title %}
     <i class="fas fa-cloud-arrow-down" aria-hidden="true"></i>
     {% trans %}info_providers.update_part.title{% endtrans %}:
-    <b><a class="text-bg-info" href="{{ entity_url(part) }}">{{ merge_old_name }}</a></b>
+    <b><a class="text-bg-info" href="{{ entity_url(part) }}">{{ part_kind_icon(part) }}{{ merge_old_name }}</a></b>
 {% endblock %}

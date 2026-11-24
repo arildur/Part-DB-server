@@ -1,6 +1,6 @@
 {% macro project_bom_entry_with_missing_instock(project_bom_entry, number_of_builds = 1, available = null) %}
     {# @var \App\Entity\ProjectSystem\ProjectBOMEntry project_bom_entry #}
-    <b><a href="{{ entity_url(project_bom_entry.part) }}">{{ project_bom_entry.part.name }}</a></b>
+    <b>{{ part_name(project_bom_entry.part) }}</b>
     {% if project_bom_entry.name %}&nbsp;({{ project_bom_entry.name }}){% endif %}:
     <b>{{ (available ?? project_bom_entry.part.amountSum) | format_amount(project_bom_entry.part.partUnit) }}</b> {% trans %}project.builds.stocked{% endtrans %}
     /

@@ -330,7 +330,7 @@
                                 data-overwrite="{{ c.has_picture ? '1' : '' }}">
                                 <td><input class="form-check-input" type="checkbox" checked></td>
                                 <td>
-                                    <a href="{{ path('part_info', {id: c.part.id}) }}" target="_blank" rel="noopener">{{ c.part.name }}</a>
+                                    {{ part_name(c.part, true, {target: '_blank', rel: 'noopener'}) }}
                                     {%- if c.has_picture %} <span class="badge bg-warning text-dark" title="{{ 'tools.bulk_gen.has_picture_hint'|trans }}">{% trans %}tools.bulk_gen.has_picture{% endtrans %}</span>{% endif %}
                                 </td>
                                 <td><span class="badge bg-secondary">{{ c.subtype ?: c.type }}</span></td>

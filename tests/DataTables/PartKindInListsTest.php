@@ -22,6 +22,8 @@ declare(strict_types=1);namespace App\Tests\DataTables;
 
 use App\DataTables\Filters\PartFilter;
 use App\DataTables\Helpers\PartDataTableHelper;
+use App\Entity\Attachments\AttachmentType;
+use App\Entity\Attachments\PartAttachment;
 use App\Entity\Parts\Category;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
@@ -225,5 +227,37 @@ final class PartKindInListsTest extends KernelTestCase
 
         $this->assertContains('Meta', $withoutLots);
         $this->assertNotContains('Connected', $withoutLots);
+    }
+
+    public function testATablePictureCellWithoutAPictureIsEmptyForBothKinds(): void
+    {
+        //The default picture of a meta part shows only on its info page, like the placeholder of a manufacturing part
+        $helper = self::getContainer()->get(PartDataTableHelper::class);
+        $meta = $this->part('Meta', PartKind::META);
+        $plain = $this->part('Plain');
+        $this->em->flush();
+
+        $this->assertSame('', $helper->renderPicture($meta));
+        $this->assertSame('', $helper->renderPicture($plain));
+    }
+
+    public function testAMetaPartWithAPictureShowsItInTheTable(): void
+    {
+        $helper = self::getContainer()->get(PartDataTableHelper::class);
+        $meta = $this->part('Meta', PartKind::META);
+        $type = new AttachmentType();
+        $type->setName('Pictures');
+        $this->em->persist($type);
+        $picture = new PartAttachment();
+        $picture->setName('Illustration');
+        $picture->setAttachmentType($type);
+        $picture->setExternalPath('https://example.com/illustration.png');
+        $meta->addAttachment($picture);
+        $meta->setMasterPictureAttachment($picture);
+        $this->em->flush();
+
+        $html = $helper->renderPicture($meta);
+        $this->assertStringContainsString('src="https://example.com/illustration.png"', $html);
+        $this->assertStringNotContainsString('fa-sitemap', $html);
     }
 }

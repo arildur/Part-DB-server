@@ -26,7 +26,7 @@
 {% endif %}
 
 <h3 class="w-fit" title="{% trans %}name.label{% endtrans %}">
-    {{ part.name }}
+    {{ part_name(part, false) }}
     {# You need edit permission to use the edit button #}
     {% if timeTravel is not null %}
         <a href="{{ entity_url(part, 'info') }}"><i title="{% trans %}part.back_to_info{% endtrans %}" class="fas fa-fw fa-arrow-circle-left"></i></a>

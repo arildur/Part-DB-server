@@ -33,6 +33,7 @@ use App\Services\Attachments\AttachmentURLGenerator;
 use App\Services\Attachments\PartPreviewGenerator;
 use App\Services\EntityURLGenerator;
 use App\Services\Formatters\AmountFormatter;
+use App\Services\Parts\PartNameRenderer;
 use App\Services\Trees\StructuralElementPathCache;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -48,6 +49,7 @@ readonly class PartDataTableHelper
         private TranslatorInterface $translator,
         private AmountFormatter $amountFormatter,
         private StructuralElementPathCache $pathCache,
+        private PartNameRenderer $partNameRenderer,
     ) {
     }
 
@@ -71,12 +73,7 @@ readonly class PartDataTableHelper
 
 
         //The kind says what a part is, so it shows next to the icon above and does not compete with it
-        $kindIcon = $context->getKind()->getIconClass();
-        if ($kindIcon !== null) {
-            $icon .= sprintf('<i class="fa-solid %s fa-fw me-1" title="%s"></i>',
-                $kindIcon,
-                htmlspecialchars($this->translator->trans($context->getKind()->getTranslationKey())));
-        }
+        $icon .= $this->partNameRenderer->renderKindIcon($context);
 
         return sprintf(
             '<a href="%s">%s%s</a>',

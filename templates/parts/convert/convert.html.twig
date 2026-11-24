@@ -7,7 +7,7 @@
 {% block title %}{{ title_key|trans }}: {{ part.name }}{% endblock %}
 
 {% block card_title %}
-    <i class="fas fa-right-left fa-fw"></i> {{ title_key|trans }}: <a class="text-white" href="{{ entity_url(part) }}">{{ part.name }}</a>
+    <i class="fas fa-right-left fa-fw"></i> {{ title_key|trans }}: {{ part_name(part, true, {class: 'text-white'}) }}
 {% endblock %}
 
 {% block card_content %}

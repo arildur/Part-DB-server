@@ -12,9 +12,9 @@
 {% block card_title %}
     <i class="fas fa-code-merge" aria-hidden="true"></i>
     {% trans %}part.merge.title{% endtrans %}
-    <b><a class="text-bg-info" href="{{ entity_url(merge_other, 'info') }}">{{ merge_other.name }} (ID: {{ merge_other.iD }})</a></b>
+    <b><a class="text-bg-info" href="{{ entity_url(merge_other, 'info') }}">{{ part_name(merge_other, false) }} (ID: {{ merge_other.iD }})</a></b>
     {% trans %}part.merge.title.into{% endtrans %}
-    <b><a class="text-bg-info" href="{{ entity_url(part, 'info') }}">{{ merge_old_name }} (ID: {{ part.id }})</a></b>
+    <b><a class="text-bg-info" href="{{ entity_url(part, 'info') }}">{{ part_kind_icon(part) }}{{ merge_old_name }} (ID: {{ part.id }})</a></b>
 {% endblock %}
 
 {% block card_content %}

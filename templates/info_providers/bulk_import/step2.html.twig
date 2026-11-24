@@ -140,7 +140,7 @@
                 <div>
                     <h5 class="card-title mb-0">
                         <a href="{{ path('app_part_show', {'id': part.id}) }}" class="text-decoration-none">
-                            {{ part.name }}
+                            {{ part_name(part, false) }}
                         </a>
                         {% if isCompleted %}
                             <span class="badge bg-success">

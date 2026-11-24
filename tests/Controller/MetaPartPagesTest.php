@@ -255,7 +255,7 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('Part do_not_use', $rows->eq(2)->text());
         $this->assertStringContainsString('table-danger', (string) $rows->eq(2)->attr('class'));
         $this->assertStringContainsString('Part under_evaluation', $rows->eq(3)->text());
-        $this->assertStringContainsString('text-muted', (string) $rows->eq(3)->attr('class'));
+        $this->assertStringContainsString('connection-unusable', (string) $rows->eq(3)->attr('class'));
 
         $expected = [
             'use_up' => ['text-bg-warning', 'fa-hourglass-end', 'Use up'],
@@ -308,22 +308,31 @@ final class MetaPartPagesTest extends WebTestCase
         }
     }
 
-    public function testTheStockAndShoppingTabsListTheUnusableLastUnderAHeading(): void
+    public function testTheStockAndShoppingTabsListTheUnusableLast(): void
     {
         $crawler = $this->info($this->metaPartWithEachStatus());
 
-        $order = ['Part use_up', 'Part approved', 'Not usable', 'Part do_not_use', 'Part under_evaluation'];
-        foreach (['#part_lots', '#suppliers'] as $pane) {
+        //The Shopping information tab groups under a heading, the Stock tab lists all parts in one table as the Connected parts tab
+        $orders = [
+            '#suppliers' => ['Part use_up', 'Part approved', 'Not usable', 'Part do_not_use', 'Part under_evaluation'],
+            '#part_lots' => ['Part use_up', 'Part approved', 'Part do_not_use', 'Part under_evaluation'],
+        ];
+        foreach ($orders as $pane => $order) {
             $text = $crawler->filter($pane)->text();
             $positions = array_map(static fn (string $needle): int|false => strpos($text, $needle), $order);
             $this->assertNotContains(false, $positions, $pane);
             $sorted = $positions;
             sort($sorted);
-            $this->assertSame($sorted, $positions, $pane.' lists the blocks in the order of usability and priority');
-            $this->assertCount(4, $crawler->filter($pane.' [data-connection-status]'), $pane.' marks every block with its status');
+            $this->assertSame($sorted, $positions, $pane.' lists the parts in the order of usability and priority');
+            $this->assertCount(4, $crawler->filter($pane.' [data-connection-status]'), $pane.' marks every part with its status');
         }
+        $this->assertStringNotContainsString('Not usable', $crawler->filter('#part_lots')->text(), 'No heading row on the Stock tab');
+        //The unusable are greyed as on the Connected parts tab
+        $rows = $crawler->filter('#part_lots tr[data-stock-row="connected"]');
+        $this->assertStringContainsString('table-danger', (string) $rows->eq(2)->attr('class'));
+        $this->assertStringContainsString('connection-unusable', (string) $rows->eq(3)->attr('class'));
         //Only usable connections count: 10 each for approved and use up
-        $this->assertStringContainsString('20', $crawler->filter('#part_lots tfoot')->text());
+        $this->assertSame('Total 20', preg_replace('/\s+/', ' ', trim($crawler->filter('#part_lots tfoot')->text())));
     }
 
     public function testTheStockTabListsEverythingWithATotalAndNoForeignButtons(): void
@@ -333,17 +342,84 @@ final class MetaPartPagesTest extends WebTestCase
         $pane = $crawler->filter('#part_lots');
 
         $text = $pane->text();
-        foreach (['Own lots of this meta part', 'First source', 'Second source', 'Retired source', 'Not counted'] as $expected) {
+        foreach (['Common stock', 'First source', 'Second source', 'Retired source', 'Not counted'] as $expected) {
             $this->assertStringContainsString($expected, $text);
+        }
+        //Every lot is listed, in the detail row of its part
+        foreach (['Lot of 200', 'Lot of 500', 'Lot of 100', 'Lot of 40', 'Lot of 1000'] as $lot) {
+            $this->assertCount(1, $pane->filter('tr[data-sortable-detail] td')->reduce(static fn (Crawler $td) => trim($td->text()) === $lot), $lot);
         }
         $this->assertStringContainsString('800', $pane->filter('tfoot')->text());
 
         //Only the own lot has stock buttons
         $this->assertSame(1, $pane->filter('[data-bs-target="#stocktake-modal"]')->count());
+        $this->assertSame(3, $pane->filter('[data-bs-target="#withdraw-modal"]')->count());
 
         //Own lot, then three connected parts with one, two and one lots
         $counter = $crawler->filter('#part_lots-tab .badge')->text();
         $this->assertSame('5', trim($counter));
+    }
+
+    public function testTheStockTabListsOneRowPerPartWithItsLotsInADetailRow(): void
+    {
+        $meta = $this->exampleMetaPart();
+        $crawler = $this->info($meta);
+        $table = $crawler->filter('#part_lots table')->first();
+
+        $this->assertSame('elements--sortable-table elements--expandable-rows', $table->attr('data-controller'));
+        $heads = $table->filter('thead')->first()->filter('th')->each(static fn (Crawler $th) => trim($th->text()));
+        $this->assertSame(['', 'Manufacturer', 'MPN', 'Part', 'Status', 'Stock', 'Lots', 'Storage locations'], $heads);
+
+        //The own stock pinned first, then a row per connected part in the order of the connections
+        $main = $table->filter('tbody')->first()->children('tr:not([data-sortable-detail])');
+        $this->assertCount(4, $main);
+        $this->assertSame('top', $main->eq(0)->attr('data-sortable-pinned'));
+        $this->assertStringContainsString('Common stock', $main->eq(0)->text());
+        $expected = [
+            //name => stock, lots, status rank
+            'First source' => ['500', '1', '0'],
+            'Second source' => ['100', '2', '0'],
+            'Retired source' => ['1000', '1', '3'],
+        ];
+        foreach (array_keys($expected) as $i => $name) {
+            $row = $main->eq($i + 1);
+            $this->assertStringContainsString($name, $row->text());
+            $this->assertNull($row->attr('data-sortable-pinned'));
+            $cells = $row->children('td');
+            $this->assertSame($expected[$name], [$cells->eq(5)->attr('data-sort-value'), $cells->eq(6)->attr('data-sort-value'), $cells->eq(4)->attr('data-sort-value')], $name);
+        }
+        $this->assertSame('200', $main->eq(0)->filter('td[data-sort-value]')->first()->attr('data-sort-value'));
+
+        //Each part's lots in the detail row right below it, all collapsed
+        foreach ($main as $i => $node) {
+            $row = new Crawler($node);
+            $toggle = $row->filter('button[aria-controls]');
+            $this->assertCount(1, $toggle);
+            $this->assertSame('false', $toggle->attr('aria-expanded'));
+            $detail = $row->nextAll()->first();
+            $this->assertNotNull($detail->attr('data-sortable-detail'));
+            $this->assertSame($toggle->attr('aria-controls'), $detail->attr('id'));
+            $this->assertNotNull($detail->attr('hidden'), 'No lots are shown at first');
+        }
+        $this->assertCount(2, $table->filter('#'.$main->eq(2)->filter('button[aria-controls]')->attr('aria-controls').' tbody tr'));
+
+        //The total stays last in the foot
+        $this->assertCount(1, $table->filter('tfoot tr'));
+    }
+
+    public function testTheStocksTabOpensOnlyThePartHoldingAHighlightedLot(): void
+    {
+        $meta = $this->exampleMetaPart();
+        $second = $meta->getOrderedConnections()[1]->getConnectedPart();
+        $lot = $second->getPartLots()->first();
+
+        $crawler = $this->client->request('GET', '/en/part/'.$meta->getID().'/info?highlightLot='.$lot->getID());
+        $this->assertResponseIsSuccessful();
+
+        $main = $crawler->filter('#part_lots table')->first()->filter('tbody')->first()->children('tr:not([data-sortable-detail])');
+        $expanded = $main->each(static fn (Crawler $row) => $row->filter('button[aria-controls]')->attr('aria-expanded'));
+        $this->assertSame(['false', 'false', 'true', 'false'], $expanded, 'Only '.$second->getName().' is open');
+        $this->assertNull($main->eq(2)->nextAll()->first()->attr('hidden'));
     }
 
     public function testAStockChangeOnALotOfAConnectedPartIsRefusedThroughTheMetaPart(): void
@@ -1610,7 +1686,7 @@ final class MetaPartPagesTest extends WebTestCase
 
         $crawler = $this->info($meta);
         $headings = [
-            'stocks' => $crawler->filter('#part_lots tr.table-secondary th')->first(),
+            'stocks' => $crawler->filter('#part_lots tr[data-stock-row="connected"]')->first(),
             'shopping' => $crawler->filter('#suppliers h6')->first(),
         ];
         foreach ($headings as $tab => $heading) {

@@ -293,7 +293,7 @@ final class ProjectBuildPagesTest extends WebTestCase
 
         $this->assertStringContainsString('Also used by', $form);
         $this->assertStringContainsString('Shared meta', $form);
-        $this->assertStringContainsString('Own stock of the meta part', $form);
+        $this->assertStringContainsString('Common stock', $form);
     }
 
     public function testAMetaPartWithNothingToOfferShowsWhyTheBuildIsRefused(): void
@@ -345,7 +345,7 @@ final class ProjectBuildPagesTest extends WebTestCase
 
         $crawler = $this->open($project, 3);
         $select = $crawler->filter('select[name="project_build[buildsPartLot]"]');
-        $this->assertSame(['Own stock of the meta part', 'Connected to the build part'], $select->filter('optgroup')->each(static fn (Crawler $group): string => (string) $group->attr('label')));
+        $this->assertSame(['Common stock', 'Connected to the build part'], $select->filter('optgroup')->each(static fn (Crawler $group): string => (string) $group->attr('label')));
         $this->assertSame(['', (string) $own->getID(), (string) $connectedLot->getID()], $select->filter('option')->each(static fn (Crawler $option): string => (string) $option->attr('value')));
 
         $this->post($project, $crawler, ['project_build[buildsPartLot]' => (string) $connectedLot->getID()], 3);

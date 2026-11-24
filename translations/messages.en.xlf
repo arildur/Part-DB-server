@@ -16241,7 +16241,7 @@ Buerklin-API Authentication server:
     <unit id="lqSWumx" name="project.build.meta_part_own_lots">
       <segment state="translated">
         <source>project.build.meta_part_own_lots</source>
-        <target>Own stock of the meta [part]</target>
+        <target>Common stock</target>
       </segment>
     </unit>
     <unit id="_5KkQd8" name="project.build.lot_shared_with">
@@ -16388,10 +16388,40 @@ Buerklin-API Authentication server:
         <target>The connection to the meta [part] %name% can only be added, changed or removed by a user who may edit that meta [part]. Nothing was saved.</target>
       </segment>
     </unit>
-    <unit id="VkauRWa" name="part_lots.own_lots">
+    <unit id="QFfREJ0" name="part_lots.own_stock">
       <segment state="translated">
-        <source>part_lots.own_lots</source>
-        <target>Own lots of this meta [part]</target>
+        <source>part_lots.own_stock</source>
+        <target>Common stock</target>
+      </segment>
+    </unit>
+    <unit id=".yK5o3Z" name="part_lots.stock">
+      <segment state="translated">
+        <source>part_lots.stock</source>
+        <target>Stock</target>
+      </segment>
+    </unit>
+    <unit id="Hj86UP6" name="part_lots.lot_count">
+      <segment state="translated">
+        <source>part_lots.lot_count</source>
+        <target>Lots</target>
+      </segment>
+    </unit>
+    <unit id="tIHAXZy" name="part_lots.show_lots">
+      <segment state="translated">
+        <source>part_lots.show_lots</source>
+        <target>Show or hide the lots</target>
+      </segment>
+    </unit>
+    <unit id="Rs0RmBC" name="part_lots.expand_all">
+      <segment state="translated">
+        <source>part_lots.expand_all</source>
+        <target>Show the lots of all</target>
+      </segment>
+    </unit>
+    <unit id="kJ86vI_" name="part_lots.collapse_all">
+      <segment state="translated">
+        <source>part_lots.collapse_all</source>
+        <target>Hide the lots of all</target>
       </segment>
     </unit>
     <unit id="oMoocj1" name="part_lots.not_counted">

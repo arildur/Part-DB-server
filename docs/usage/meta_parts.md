@@ -62,7 +62,7 @@ then nothing is converted and the message says why.
 
 **Convert back to a manufacturing part** (on a meta part, needs the permission to edit it) only works on a meta part with
 no connected parts: while it has any, the button is disabled and lists them, so remove these connections first. The part
-keeps its ID, own lots, BOM entries and history; its price method is reset to system default and its user price removed.
+keeps its ID, its common stock (now its own lots), BOM entries and history; its price method is reset to system default and its user price removed.
 
 Conversions are only available in the web interface, not over the REST API or MCP.
 
@@ -117,11 +117,13 @@ through the part number or other fields of its connected parts. The kind filter 
 
 ## Stock and prices
 
-The stock of a meta part is the sum of its own lots and the lots of its usable connected parts. As with any part, lots of
-unknown amount and expired lots do not count. The own lots of a meta part never count for its connected parts.
+The stock of a meta part is the sum of its own lots, its **common stock**, and the lots of its usable connected parts. As with any part, lots of
+unknown amount and expired lots do not count. The common stock of a meta part never counts for its connected parts.
 
-* The **Stock** tab lists its own lots and those of its connected parts with a total, and marks what is not counted. You
-  can only change its own lots there: to withdraw from another part, use the page of that part.
+* The **Stock** tab starts with the common stock, then lists each connected part with its manufacturer, MPN, status,
+  stock and storage locations; the arrow in front of a row opens its lots. Parts that are not counted are faded, and the
+  total is at the bottom. The columns sort by a click on their header. You can only change the common stock there: to
+  withdraw from another part, use the page of that part.
 * The **Shopping** tab lists the suppliers of each connected part, and counts them in its title. The summary shows the
   price of the meta part for one unit, followed by its price method.
 * In part tables, the amount, its sorting and its filter use the total. The storage location column includes the locations
@@ -151,7 +153,7 @@ is system default, and takes the user value of the other only when the target ha
 
 A BOM entry can point at a meta part. When building, the form names the parts below the meta part, and you choose how much
 to take from each lot. Parts that are not usable are shown with their status and have
-no field. The proposal takes the meta part's own lots first, then those of use up parts, then those of approved parts, each
+no field. The proposal takes the meta part's common stock first, then the lots of use up parts, then those of approved parts, each
 in the order of priority, and within a part the smallest lot first, so that leftovers are used up. An entry pointing
 straight at a part takes its largest lot first, as Part-DB always did. Lots of the same amount are taken in the order
 they were created. Several entries can reach the same lot, so the proposal and
@@ -162,8 +164,9 @@ meta part it is connected to, with that meta part in the column "Through meta pa
 a row reached through a part that is not usable is greyed, or red for "Do not use", and shows the status.
 
 A meta part can also be the part a project builds: on the edit page of the project, add a build part and choose the
-kind. When the built units are added to stock, the build form offers the meta part's own lots and the lots of each of its
-connected parts, whatever their status, or a new own lot of the meta part. Chosen at first is an own lot, or else a lot
+kind. When the built units are added to stock, the build form offers the lots of the meta part's common stock and the lots
+of each of its connected parts, whatever their status, or a new lot in the common stock. Chosen at first is a lot of the
+common stock, or else a lot
 of an approved or use-up connected part, never one of the other statuses. A project can not reach its own build part, or
 that of a parent project: its BOM can hold neither the build part, nor a meta part connected to it, nor a connected
 part of a meta part that is the build part, nor a meta part sharing a connected part with it. This is checked on the BOM
@@ -202,7 +205,7 @@ with connections what to do:
 
 1. Make a backup, for example with `php bin/console partdb:backup --full backup.zip`.
 2. Run `php bin/console partdb:meta-parts:prepare-rollback`. Add `--dry-run` to see what it would do without changing
-   anything. For each meta part it shows the projects using it, its own lots and its connections in the order of
+   anything. For each meta part it shows the projects using it, its common stock and its connections in the order of
    priority, and asks:
     * **keep** (the default, and the answer under `--no-interaction`): only the connections are removed. The part stays
       and becomes an ordinary part after the rollback. The connected parts are not touched.

@@ -151,7 +151,7 @@ concept.
 * Use the `kind` query parameter to list only one kind, for example `/api/parts.jsonld?kind=meta`. Without it, parts of
   both kinds are returned.
 * A meta part has no manufacturer, manufacturer part number or orderdetails of its own.
-* For a meta part, `total_instock` is the stock of its own lots plus the stock of the lots of its usable connected
+* For a meta part, `total_instock` is the stock of its own lots (its common stock) plus the stock of the lots of its usable connected
   parts. `own_instock` and `partLots` only cover the part's own lots.
 * The `part_connections` field of a meta part lists its connected manufacturing parts, in the order they are used.
 * The `price_method` field of a meta part says how its price is worked out: `system_default` (the default for a new

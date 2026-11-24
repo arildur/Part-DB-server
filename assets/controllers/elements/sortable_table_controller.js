@@ -28,6 +28,12 @@ import {Controller} from "@hotwired/stimulus";
  * A cell sorts by its data-sort-value attribute if it has one, otherwise by its text. Values that are numbers compare
  * as numbers, all others as text in natural, locale aware order. Empty values go last in both directions.
  * A header with data-sortable="false" is left as it is. Body cells must not span columns.
+ *
+ * Rows that are not to be sorted on their own can be marked:
+ *   - data-sortable-detail: a detail row belonging to the nearest row above it that is no detail row; it moves with that
+ *     row and is never compared itself, so its cells may span columns.
+ *   - data-sortable-pinned="top" or "bottom": the row (with its detail rows) stays first or last whatever the sorting.
+ * Rows in a <tfoot> (e.g. a total) are not sorted either.
  */
 export default class extends Controller {
     connect() {
@@ -40,7 +46,7 @@ export default class extends Controller {
             return;
         }
         //Remember the rendered order, so that equal values keep it
-        Array.from(tbody.rows).forEach((row, index) => { row.dataset.sortOriginalIndex = String(index); });
+        this._groups(tbody).forEach((group, index) => { group.row.dataset.sortOriginalIndex = String(index); });
 
         this._headers = this._headerCells();
         this._headers.forEach((th, column) => {
@@ -80,9 +86,12 @@ export default class extends Controller {
         this._column = column;
 
         const tbody = this.element.tBodies[0];
-        const rows = Array.from(tbody.rows);
+        const groups = this._groups(tbody);
         const direction = this._ascending ? 1 : -1;
-        rows.sort((a, b) => {
+        const pinnedTop = groups.filter(group => group.row.dataset.sortablePinned === 'top');
+        const pinnedBottom = groups.filter(group => group.row.dataset.sortablePinned === 'bottom');
+        const sortable = groups.filter(group => !pinnedTop.includes(group) && !pinnedBottom.includes(group));
+        sortable.sort(({row: a}, {row: b}) => {
             const va = this._value(a.cells[column]);
             const vb = this._value(b.cells[column]);
             //Empty values last, whatever the direction
@@ -101,7 +110,10 @@ export default class extends Controller {
 
             return Number(a.dataset.sortOriginalIndex) - Number(b.dataset.sortOriginalIndex);
         });
-        rows.forEach(row => tbody.appendChild(row));
+        [...pinnedTop, ...sortable, ...pinnedBottom].forEach(group => {
+            tbody.appendChild(group.row);
+            group.details.forEach(detail => tbody.appendChild(detail));
+        });
 
         this._headers.forEach((th, index) => {
             const arrow = th.querySelector('.sortable-table-arrow');
@@ -115,6 +127,22 @@ export default class extends Controller {
             arrow.classList.toggle('fa-sort-down', sorted && !this._ascending);
             arrow.classList.toggle('text-muted', !sorted);
         });
+    }
+
+    /**
+     * The rows of the tbody, each with the detail rows that follow it: [{row, details: [...]}].
+     */
+    _groups(tbody) {
+        const groups = [];
+        Array.from(tbody.rows).forEach(row => {
+            if ('sortableDetail' in row.dataset && groups.length > 0) {
+                groups[groups.length - 1].details.push(row);
+            } else {
+                groups.push({row, details: []});
+            }
+        });
+
+        return groups;
     }
 
     /**

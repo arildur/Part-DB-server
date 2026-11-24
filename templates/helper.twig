@@ -105,7 +105,7 @@
     {%- if connection.status.value == 'do_not_use' -%}
         table-danger
     {%- elseif not connection.usable -%}
-        text-muted
+        text-muted connection-unusable
     {%- endif -%}
 {% endmacro %}
 

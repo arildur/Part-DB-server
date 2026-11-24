@@ -46,24 +46,20 @@
             <thead>
             <tr>
                 <th>{% trans %}part.kind.meta{% endtrans %}</th>
+                <th>{% trans %}part.table.ipn{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.position{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.note{% endtrans %}</th>
-                <th>{% trans %}project.labelp{% endtrans %}</th>
             </tr>
             </thead>
             <tbody>
             {% for connection in part.connectionsAsPart %}
                 <tr>
                     <td>{{ helper.part_icon_link(connection.metaPart) }}</td>
+                    <td>{{ connection.metaPart.ipn }}</td>
                     <td>{{ connection.position }}</td>
                     <td>{{ helper.connection_status_badge(connection) }}</td>
                     <td>{{ connection.note }}</td>
-                    <td>
-                        {% for entry in connection.metaPart.projectBomEntries %}
-                            <a href="{{ entity_url(entry.project) }}">{{ entry.project.name }}</a>{% if not loop.last %}, {% endif %}
-                        {% endfor %}
-                    </td>
                 </tr>
             {% endfor %}
             </tbody>

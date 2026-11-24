@@ -626,6 +626,8 @@ final class MetaPartPagesTest extends WebTestCase
     public function testAConnectedPartListsItsMetaParts(): void
     {
         $meta = $this->exampleMetaPart();
+        $meta->setIpn('META-0042');
+        $this->em->flush();
         $part = $meta->getOrderedConnections()[0]->getConnectedPart();
 
         $crawler = $this->info($part);
@@ -635,6 +637,10 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('Meta parts', $crawler->filter('a[href="#connections"]')->text());
         $this->assertStringNotContainsString('Connected parts', $crawler->filter('a[href="#connections"]')->text());
         $this->assertCount(0, $crawler->filter('#connections caption'), 'The tab has no caption above its table');
+        //The projects are on the Projects tab; the meta part's IPN is shown instead
+        $heads = $crawler->filter('#connections thead th')->each(static fn (Crawler $th) => trim($th->text()));
+        $this->assertSame(['Meta part', 'IPN', 'Priority', 'Status', 'Note'], $heads);
+        $this->assertSame('META-0042', trim($crawler->filter('#connections tbody tr')->first()->filter('td')->eq(1)->text()));
     }
 
     public function testAPastViewSaysConnectedStockIsCurrent(): void

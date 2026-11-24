@@ -200,7 +200,7 @@
                 {% if connection is null %}
                     <tr class="table-secondary" data-sortable-pinned="top" data-stock-row="own">
                 {% else %}
-                    <tr class="{{ helper.connection_status_row_class(connection) }}" data-stock-row="connected">
+                    <tr data-stock-row="connected">
                 {% endif %}
                     <td>
                         {% if lots is not empty %}
@@ -235,8 +235,7 @@
                     <td>{{ _self.lot_locations(lots) }}</td>
                 </tr>
                 {% if lots is not empty %}
-                    <tr id="{{ detail_id }}" data-sortable-detail {% if not expanded %}hidden{% endif %}
-                        {% if connection is not null and not connection.usable %}class="text-muted"{% endif %}>
+                    <tr id="{{ detail_id }}" data-sortable-detail {% if not expanded %}hidden{% endif %}>
                         <td></td>
                         <td colspan="7" class="p-0">
                             <table class="table table-sm table-striped mb-0">

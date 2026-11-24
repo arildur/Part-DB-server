@@ -147,10 +147,3 @@ Classes for Datatables export
     animation: pulse-highlight 1s ease-in-out;
     animation-iteration-count: 3;
 }
-
-/* A connection to a meta part that does not count (under evaluation): Bootstrap colours table cells directly, so
-   text-muted on the row has no effect; fade the cells instead, links and badges included, in both themes */
-tr.connection-unusable > td,
-tr.connection-unusable > th {
-    opacity: 0.6;
-}

@@ -172,7 +172,7 @@
                                 {% set orderdetails = connected.orderdetails %}
                                 {% set detail_id = 'part-orderdetails-detail-' ~ connected.id %}
                                 {% set lowest_price = pricedetail_helper.lowestUnitPrice(connected, currency) %}
-                                <tr class="{{ helper.connection_status_row_class(connection) }}" data-supplier-row="connected">
+                                <tr data-supplier-row="connected">
                                     <td>
                                         {% if orderdetails is not empty %}
                                             <button type="button" class="btn btn-link btn-sm p-0 text-reset" data-elements--expandable-rows-target="toggle"
@@ -199,7 +199,7 @@
                                     </td>
                                 </tr>
                                 {% if orderdetails is not empty %}
-                                    <tr id="{{ detail_id }}" data-sortable-detail hidden {% if not connection.usable %}class="text-muted"{% endif %}>
+                                    <tr id="{{ detail_id }}" data-sortable-detail hidden>
                                         <td></td>
                                         <td colspan="6" class="p-0">
                                             {% include "parts/info/_order_infos.html.twig" with {part: connected} %}

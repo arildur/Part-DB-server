@@ -100,15 +100,6 @@
     {{ 'part.convert.to_manufacturing.blocked'|trans({'%parts%': links})|raw }}
 {% endmacro %}
 
-{# The class of a table row listing a connection: muted or marked when the connection is not usable #}
-{% macro connection_status_row_class(connection) %}
-    {%- if connection.status.value == 'do_not_use' -%}
-        table-danger
-    {%- elseif not connection.usable -%}
-        text-muted connection-unusable
-    {%- endif -%}
-{% endmacro %}
-
 {% macro structural_entity_link(entity, link_type = "list_parts") %}
     {# @var entity \App\Entity\Base\StructuralDBElement #}
     {% if entity %}

@@ -121,7 +121,7 @@ The stock of a meta part is the sum of its own lots, its **common stock**, and t
 unknown amount and expired lots do not count. The common stock of a meta part never counts for its connected parts.
 
 * The **Stock** tab starts with the common stock, then lists each connected part with its manufacturer, MPN, status,
-  stock and storage locations; the arrow in front of a row opens its lots. Parts that are not counted are faded, and the
+  stock and storage locations; the arrow in front of a row opens its lots. Parts that are not counted are marked by their status, and the
   total is at the bottom. The columns sort by a click on their header. You can only change the common stock there: to
   withdraw from another part, use the page of that part.
 * The **Shopping** tab lists the suppliers of each connected part, and counts them in its title. The summary shows the
@@ -161,7 +161,7 @@ the buildable count look at the whole BOM, and a lot can not be used for more th
 
 The Projects tab of a manufacturing part lists the BOM entries that use it directly, and after them those that use a
 meta part it is connected to, with that meta part in the column "Through meta part". Connections of every status count;
-a row reached through a part that is not usable is greyed, or red for "Do not use", and shows the status.
+a row reached through a part that is not usable shows its status.
 
 A meta part can also be the part a project builds: on the edit page of the project, add a build part and choose the
 kind. When the built units are added to stock, the build form offers the lots of the meta part's common stock and the lots

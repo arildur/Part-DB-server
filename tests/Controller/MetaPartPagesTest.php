@@ -253,9 +253,10 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('Part use_up', $rows->eq(0)->text());
         $this->assertStringContainsString('Part approved', $rows->eq(1)->text());
         $this->assertStringContainsString('Part do_not_use', $rows->eq(2)->text());
-        $this->assertStringContainsString('table-danger', (string) $rows->eq(2)->attr('class'));
+        $this->assertStringNotContainsString('text-muted', (string) $rows->eq(2)->attr('class'));
+        $this->assertStringNotContainsString('table-danger', (string) $rows->eq(2)->attr('class'));
         $this->assertStringContainsString('Part under_evaluation', $rows->eq(3)->text());
-        $this->assertStringContainsString('connection-unusable', (string) $rows->eq(3)->attr('class'));
+        $this->assertStringNotContainsString('text-muted', (string) $rows->eq(3)->attr('class'));
 
         $expected = [
             'use_up' => ['text-bg-warning', 'fa-hourglass-end', 'Use up'],
@@ -328,11 +329,12 @@ final class MetaPartPagesTest extends WebTestCase
         }
         foreach (['#part_lots' => 'data-stock-row', '#suppliers' => 'data-supplier-row'] as $pane => $rowAttribute) {
             $this->assertStringNotContainsString('Not usable', $crawler->filter($pane)->text(), 'No heading row on '.$pane);
-            //The unusable are greyed as on the Connected parts tab
+            //The unusable look like the others; their status badge marks them
             $rows = $crawler->filter($pane.' tr['.$rowAttribute.'="connected"]');
             $this->assertCount(4, $rows, $pane);
-            $this->assertStringContainsString('table-danger', (string) $rows->eq(2)->attr('class'), $pane);
-            $this->assertStringContainsString('connection-unusable', (string) $rows->eq(3)->attr('class'), $pane);
+            $this->assertStringNotContainsString('text-muted', (string) $rows->eq(2)->attr('class'), $pane);
+            $this->assertStringNotContainsString('table-danger', (string) $rows->eq(2)->attr('class'), $pane);
+            $this->assertStringNotContainsString('text-muted', (string) $rows->eq(3)->attr('class'), $pane);
         }
         //Only usable connections count: 10 each for approved and use up
         $this->assertSame('Total 20', preg_replace('/\s+/', ' ', trim($crawler->filter('#part_lots tfoot')->text())));
@@ -482,7 +484,7 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertSame('false', $table->filter('thead button[data-elements--expandable-rows-target="all"]')->attr('aria-expanded'));
         $this->assertCount(0, $table->filter('tfoot'), 'No total row');
 
-        //A row per connected part, usable first, no own row; the unusable faded and not counted
+        //A row per connected part, usable first, no own row; the unusable marked "Not counted"
         $main = $table->filter('tbody')->first()->children('tr:not([data-sortable-detail])');
         $expected = [
             //name => status rank, suppliers, lowest unit price
@@ -509,7 +511,8 @@ final class MetaPartPagesTest extends WebTestCase
             }
             $this->assertSame($name === 'Retired source', str_contains($row->text(), 'Not counted'), $name);
         }
-        $this->assertStringContainsString('table-danger', (string) $main->eq(3)->attr('class'));
+        $this->assertStringNotContainsString('text-muted', (string) $main->eq(3)->attr('class'));
+        $this->assertStringNotContainsString('table-danger', (string) $main->eq(3)->attr('class'));
 
         //Each part's order details in the detail row right below it, collapsed; a part without has no button and no row
         foreach ([0, 1, 3] as $i) {
@@ -526,7 +529,7 @@ final class MetaPartPagesTest extends WebTestCase
         $tieredDetail = $main->eq(0)->nextAll()->first();
         $this->assertStringContainsString('SP-Tiered', $tieredDetail->text());
         $this->assertStringContainsString('SP-Tiered source', $tieredDetail->text());
-        $this->assertStringContainsString('text-muted', (string) $main->eq(3)->nextAll()->first()->attr('class'));
+        $this->assertStringNotContainsString('text-muted', (string) $main->eq(3)->nextAll()->first()->attr('class'));
         $this->assertCount(0, $main->eq(2)->filter('button[aria-controls]'));
         $this->assertNull($main->eq(2)->nextAll()->first()->attr('data-sortable-detail'));
     }
@@ -958,7 +961,8 @@ final class MetaPartPagesTest extends WebTestCase
         $crawler = $this->info($this->partUsedBothWays(PartConnectionStatus::DO_NOT_USE)[0]);
 
         $row = $crawler->filter('#projects tbody tr')->eq(1);
-        $this->assertStringContainsString('table-danger', (string) $row->attr('class'));
+        $this->assertStringNotContainsString('text-muted', (string) $row->attr('class'));
+        $this->assertStringNotContainsString('table-danger', (string) $row->attr('class'));
         $this->assertSame('do_not_use', $row->filter('[data-connection-status]')->attr('data-connection-status'));
     }
 

@@ -22,7 +22,7 @@
             {# Usable connections first, then by priority, as the part orders them; the headers sort the rows in the browser #}
             {% for connection in connections %}
                 {% set connected = connection.connectedPart %}
-                <tr class="{{ helper.connection_status_row_class(connection) }}">
+                <tr>
                     <td data-sort-value="{{ connection.position }}">{{ connection.position }}</td>
                     <td>{{ connected.manufacturer ? connected.manufacturer.name : '' }}</td>
                     <td>{{ connected.manufacturerProductNumber }}</td>
@@ -56,7 +56,7 @@
             </thead>
             <tbody>
             {% for connection in part.connectionsAsPart %}
-                <tr class="{{ helper.connection_status_row_class(connection) }}">
+                <tr>
                     <td>{{ helper.part_icon_link(connection.metaPart) }}</td>
                     <td>{{ connection.position }}</td>
                     <td>{{ helper.connection_status_badge(connection) }}</td>

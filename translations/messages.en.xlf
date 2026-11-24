@@ -16325,7 +16325,7 @@ Buerklin-API Authentication server:
     <unit id="wl8nySE" name="part_connection.table.part">
       <segment state="translated">
         <source>part_connection.table.part</source>
-        <target>[Part]</target>
+        <target>[Part] name</target>
       </segment>
     </unit>
     <unit id="q.n.Je6" name="part_connection.table.suppliers">

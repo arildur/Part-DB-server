@@ -13,9 +13,8 @@
                 <th>{% trans %}part.table.mpn{% endtrans %}</th>
                 <th>{% trans %}part_connection.table.part{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
-                <th>{% trans %}part_lots.amount{% endtrans %}</th>
-                <th>{% trans %}part_connection.table.suppliers{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.note{% endtrans %}</th>
+                <th data-sortable="false">{% trans %}attachment.labelp{% endtrans %}</th>
             </tr>
             </thead>
             <tbody>
@@ -33,9 +32,8 @@
                         {% endif %}
                     </td>
                     <td data-sort-value="{{ connection.status.restrictionRank }}">{{ helper.connection_status_badge(connection) }}</td>
-                    <td data-sort-value="{{ connected.amountSum }}">{{ connected.amountSum | format_amount(connected.partUnit) }}</td>
-                    <td data-sort-value="{{ connected.orderdetails | length }}">{{ connected.orderdetails | length }}</td>
                     <td>{{ connection.note }}</td>
+                    <td data-connection-attachments>{{ _self.attachment_icons(connected) }}</td>
                 </tr>
             {% endfor %}
             </tbody>
@@ -72,3 +70,20 @@
         </table>
     </div>
 {% endif %}
+
+{# The attachments of a part as icons of their file type, each with its file name as tooltip and, when it may be
+   opened, a link to it; a missing file shows a warning instead #}
+{% macro attachment_icons(part) %}
+    {%- for attachment in part.attachments -%}
+        {% set file_name = attachment_file_name(attachment) %}
+        {% set extension = attachment.extension ?: ('.' in file_name ? file_name|split('.')|last|lower : 'file') %}
+        {% if not attachment_manager.fileExisting(attachment) %}
+            <i class="fas fa-exclamation-triangle fa-fw fa-lg text-danger me-1" title="{{ file_name }}: {% trans %}attachment.file_not_found{% endtrans %}"></i>
+        {% elseif attachment.secure and not is_granted("show_private", attachment) %}
+            <i class="fas {{ ext_to_fa_icon(extension) }} fa-fw fa-lg text-muted me-1" title="{{ file_name }}"></i>
+        {% else %}
+            <a href="{{ entity_url(attachment, 'file_view') }}" target="_blank" rel="noopener" data-turbo="false" class="text-reset me-1" title="{{ file_name }}"
+               aria-label="{{ file_name }}"><i class="fas {{ ext_to_fa_icon(extension) }} fa-fw fa-lg" aria-hidden="true"></i></a>
+        {% endif %}
+    {%- endfor -%}
+{% endmacro %}

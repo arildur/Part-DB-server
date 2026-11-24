@@ -66,6 +66,22 @@ final readonly class AttachmentExtension
     }
 
     /**
+     * Returns the name of the file of the given attachment: the name of its stored file, else the last part of the
+     * address of its link (decoded, without query or fragment), else the name of the attachment.
+     */
+    #[AsTwigFunction("attachment_file_name")]
+    public function attachmentFileName(Attachment $attachment): string
+    {
+        $filename = $attachment->getFilename();
+        if ($filename === null && $attachment->hasExternal()) {
+            $path = parse_url($attachment->getExternalPath(), PHP_URL_PATH);
+            $filename = is_string($path) ? rawurldecode(basename($path)) : null;
+        }
+
+        return ($filename !== null && $filename !== '') ? $filename : $attachment->getName();
+    }
+
+    /**
      * Return the font-awesome icon type for the given file extension. Returns "file" if no specific icon is available.
      * Null is allowed for files withot extension
      * @param  string|null  $extension

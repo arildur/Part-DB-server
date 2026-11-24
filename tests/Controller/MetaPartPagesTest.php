@@ -214,7 +214,7 @@ final class MetaPartPagesTest extends WebTestCase
         //The owner's order: manufacturer, MPN, then the part's name
         $manufacturerColumn = array_search('Manufacturer', $heads, true);
         $mpnColumn = array_search('MPN', $heads, true);
-        $partColumn = array_search('Part', $heads, true);
+        $partColumn = array_search('Part name', $heads, true);
         $this->assertNotFalse($manufacturerColumn, implode(' | ', $heads));
         $this->assertSame($manufacturerColumn + 1, $mpnColumn, implode(' | ', $heads));
         $this->assertSame($mpnColumn + 1, $partColumn, implode(' | ', $heads));
@@ -288,16 +288,18 @@ final class MetaPartPagesTest extends WebTestCase
 
         $heads = $table->filter('thead th')->each(static fn (Crawler $th) => trim($th->text()));
         $columns = [];
-        foreach (['Priority', 'Status', 'Amount', 'Suppliers'] as $label) {
+        //Stock and suppliers are on the Stocks and Shopping tabs, not here
+        $this->assertSame(['Priority', 'Manufacturer', 'MPN', 'Part name', 'Status', 'Note', 'Attachments'], $heads);
+        foreach (['Priority', 'Status'] as $label) {
             $columns[$label] = array_search($label, $heads, true);
             $this->assertIsInt($columns[$label], $label.' in '.implode(' | ', $heads));
         }
-        //A sort value where the shown text is no plain number: priority (the position), status rank, raw amount, count of suppliers
+        //A sort value where the shown text is no plain number: priority (the position), status rank
         $expected = [
-            'Part use_up' => ['3', '1', '10', '1'],
-            'Part approved' => ['4', '0', '10', '1'],
-            'Part do_not_use' => ['1', '3', '10', '1'],
-            'Part under_evaluation' => ['2', '2', '10', '1'],
+            'Part use_up' => ['3', '1'],
+            'Part approved' => ['4', '0'],
+            'Part do_not_use' => ['1', '3'],
+            'Part under_evaluation' => ['2', '2'],
         ];
         foreach ($table->filter('tbody tr') as $i => $node) {
             $row = new Crawler($node);
@@ -307,6 +309,35 @@ final class MetaPartPagesTest extends WebTestCase
             $this->assertStringContainsString($name, $row->text());
             $this->assertSame($expected[$name], $values, $name);
         }
+    }
+
+    public function testTheConnectedPartsTabShowsTheAttachmentsOfEachPartAsIconsNamedByTheirFile(): void
+    {
+        $meta = $this->part('Attachment meta', PartKind::META);
+        $documented = $this->part('Documented source');
+        $type = new AttachmentType();
+        $type->setName('Datasheets');
+        $this->em->persist($type);
+        foreach (['Datasheet' => 'https://example.com/docs/rc0603.pdf?download=1', 'Model' => 'https://example.com/models/rc0603.step'] as $name => $url) {
+            $attachment = new PartAttachment();
+            $attachment->setName($name);
+            $attachment->setAttachmentType($type);
+            $attachment->setExternalPath($url);
+            $documented->addAttachment($attachment);
+        }
+        $plain = $this->part('Plain source');
+        $this->connect($meta, $documented, 1);
+        $this->connect($meta, $plain, 2);
+        $this->em->flush();
+
+        $cells = $this->info($meta)->filter('#connections tbody td[data-connection-attachments]');
+        $this->assertCount(2, $cells);
+        $links = $cells->eq(0)->filter('a');
+        $this->assertSame(['rc0603.pdf', 'rc0603.step'], $links->each(static fn (Crawler $a) => $a->attr('title')));
+        $this->assertCount(1, $links->eq(0)->filter('i.fa-file-pdf'), 'An icon of its file type');
+        $this->assertSame('_blank', $links->eq(0)->attr('target'));
+        $this->assertSame('', trim($cells->eq(1)->text()));
+        $this->assertCount(0, $cells->eq(1)->filter('i'), 'A part without attachments has an empty cell');
     }
 
     public function testTheStockAndShoppingTabsListTheUnusableLast(): void
@@ -373,7 +404,7 @@ final class MetaPartPagesTest extends WebTestCase
 
         $this->assertSame('elements--sortable-table elements--expandable-rows', $table->attr('data-controller'));
         $heads = $table->filter('thead')->first()->filter('th')->each(static fn (Crawler $th) => trim($th->text()));
-        $this->assertSame(['', 'Manufacturer', 'MPN', 'Part', 'Status', 'Stock', 'Lots', 'Storage locations'], $heads);
+        $this->assertSame(['', 'Manufacturer', 'MPN', 'Part name', 'Status', 'Stock', 'Lots', 'Storage locations'], $heads);
 
         //The own stock pinned first, then a row per connected part in the order of the connections
         $main = $table->filter('tbody')->first()->children('tr:not([data-sortable-detail])');
@@ -488,7 +519,7 @@ final class MetaPartPagesTest extends WebTestCase
         $table = $this->info($meta)->filter('#suppliers table')->first();
         $this->assertSame('elements--sortable-table elements--expandable-rows', $table->attr('data-controller'));
         $heads = $table->filter('thead')->first()->filter('th')->each(static fn (Crawler $th) => trim($th->text()));
-        $this->assertSame(['', 'Manufacturer', 'MPN', 'Part', 'Status', 'Suppliers', 'Available', 'Lowest unit price'], $heads);
+        $this->assertSame(['', 'Manufacturer', 'MPN', 'Part name', 'Status', 'Suppliers', 'Available', 'Lowest unit price'], $heads);
         $this->assertSame('false', $table->filter('thead button[data-elements--expandable-rows-target="all"]')->attr('aria-expanded'));
         //The total of what the suppliers have counts the usable parts only: the 1200 of Tiered source, not Retired source's
         $this->assertCount(1, $table->filter('tfoot tr'));

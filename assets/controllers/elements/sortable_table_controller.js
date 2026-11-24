@@ -34,6 +34,9 @@ import {Controller} from "@hotwired/stimulus";
  *     row and is never compared itself, so its cells may span columns.
  *   - data-sortable-pinned="top" or "bottom": the row (with its detail rows) stays first or last whatever the sorting.
  * Rows in a <tfoot> (e.g. a total) are not sorted either.
+ *
+ * With detail rows Bootstrap's table-striped would count them too; give the table the class table-striped-groups
+ * instead, and every other row that is no detail row is striped, in the current order.
  */
 export default class extends Controller {
     connect() {
@@ -47,6 +50,7 @@ export default class extends Controller {
         }
         //Remember the rendered order, so that equal values keep it
         this._groups(tbody).forEach((group, index) => { group.row.dataset.sortOriginalIndex = String(index); });
+        this._stripe(tbody);
 
         this._headers = this._headerCells();
         this._headers.forEach((th, column) => {
@@ -114,6 +118,7 @@ export default class extends Controller {
             tbody.appendChild(group.row);
             group.details.forEach(detail => tbody.appendChild(detail));
         });
+        this._stripe(tbody);
 
         this._headers.forEach((th, index) => {
             const arrow = th.querySelector('.sortable-table-arrow');
@@ -126,6 +131,15 @@ export default class extends Controller {
             arrow.classList.toggle('fa-sort-up', sorted && this._ascending);
             arrow.classList.toggle('fa-sort-down', sorted && !this._ascending);
             arrow.classList.toggle('text-muted', !sorted);
+        });
+    }
+
+    /**
+     * Marks every other row that is no detail row, starting with the first, for the table-striped-groups style.
+     */
+    _stripe(tbody) {
+        this._groups(tbody).forEach((group, index) => {
+            group.row.classList.toggle('sortable-table-striped', index % 2 === 0);
         });
     }
 

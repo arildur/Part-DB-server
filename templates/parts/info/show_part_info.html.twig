@@ -147,7 +147,7 @@
                        row below it, as on the Stocks tab. A meta part can have no order details of its own. #}
                     {% set currency = app.user.currency ?? null %}
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle" data-controller="elements--sortable-table elements--expandable-rows">
+                        <table class="table table-hover table-striped-groups align-middle" data-controller="elements--sortable-table elements--expandable-rows">
                             <thead>
                             <tr>
                                 <th data-sortable="false">
@@ -163,15 +163,28 @@
                                 <th>{% trans %}part_connection.table.part{% endtrans %}</th>
                                 <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
                                 <th>{% trans %}part_connection.table.suppliers{% endtrans %}</th>
+                                <th>{% trans %}part.supplier.available_amount{% endtrans %}</th>
                                 <th>{% trans %}part.order.lowest_unit_price{% endtrans %}</th>
                             </tr>
                             </thead>
                             <tbody>
+                            {# The total: what the suppliers of the usable parts have, the parts the meta part counts #}
+                            {% set total_available = null %}
                             {% for connection in connections %}
                                 {% set connected = connection.connectedPart %}
                                 {% set orderdetails = connected.orderdetails %}
                                 {% set detail_id = 'part-orderdetails-detail-' ~ connected.id %}
                                 {% set lowest_price = pricedetail_helper.lowestUnitPrice(connected, currency) %}
+                                {# What the suppliers had in stock together, from the order details still orderable whose stock is known #}
+                                {% set available = null %}
+                                {% for order in orderdetails %}
+                                    {% if not order.obsolete and order.availableAmount is not null %}
+                                        {% set available = (available ?? 0) + order.availableAmount %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% if connection.usable and available is not null %}
+                                    {% set total_available = (total_available ?? 0) + available %}
+                                {% endif %}
                                 <tr data-supplier-row="connected">
                                     <td>
                                         {% if orderdetails is not empty %}
@@ -191,23 +204,45 @@
                                     <td>{{ helper.part_icon_link(connected) }}</td>
                                     <td data-sort-value="{{ connection.status.restrictionRank }}">{{ helper.connection_status_badge(connection) }}</td>
                                     <td data-sort-value="{{ orderdetails | length }}">{{ orderdetails | length }}</td>
+                                    <td data-sort-value="{{ available ?? '' }}">
+                                        {% if available is null %}
+                                            {% if orderdetails is not empty %}<span class="text-muted">{% trans %}part.supplier.available_amount.unknown{% endtrans %}</span>{% endif %}
+                                        {% elseif available > 0 %}
+                                            <span class="text-success">{{ available | format_amount(connected.partUnit) }}</span>
+                                        {% else %}
+                                            <span class="text-danger">{% trans %}part.supplier.available_amount.out_of_stock{% endtrans %}</span>
+                                        {% endif %}
+                                    </td>
                                     <td data-sort-value="{{ lowest_price is not null ? lowest_price : '' }}">
                                         {% if lowest_price is not null %}{{ lowest_price | format_money(currency) }}{% endif %}
-                                        {% if not connection.usable %}
-                                            <span class="badge text-bg-secondary">{% trans %}part_lots.not_counted{% endtrans %}</span>
-                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% if orderdetails is not empty %}
                                     <tr id="{{ detail_id }}" data-sortable-detail hidden>
                                         <td></td>
-                                        <td colspan="6" class="p-0">
+                                        <td colspan="7" class="p-0">
                                             {% include "parts/info/_order_infos.html.twig" with {part: connected} %}
                                         </td>
                                     </tr>
                                 {% endif %}
                             {% endfor %}
                             </tbody>
+                            <tfoot>
+                                <tr class="table-primary">
+                                    <td></td>
+                                    <th colspan="5">{% trans %}part_lots.total{% endtrans %}</th>
+                                    <th data-supplier-total="available">
+                                        {% if total_available is null %}
+                                            <span class="text-muted">{% trans %}part.supplier.available_amount.unknown{% endtrans %}</span>
+                                        {% elseif total_available > 0 %}
+                                            {{ total_available | format_amount(part.partUnit) }}
+                                        {% else %}
+                                            {% trans %}part.supplier.available_amount.out_of_stock{% endtrans %}
+                                        {% endif %}
+                                    </th>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 {% else %}

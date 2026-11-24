@@ -162,7 +162,7 @@
     {# One row per part whose stock the meta part shows: its own stock pinned first, then each connected part in the
        order of the connections. A part's lots are in a detail row below it, which the sorting keeps with it. #}
     <div class="table-responsive">
-        <table class="table table-hover align-middle" data-controller="elements--sortable-table elements--expandable-rows">
+        <table class="table table-hover table-striped-groups align-middle" data-controller="elements--sortable-table elements--expandable-rows">
             <thead>
             <tr>
                 <th data-sortable="false">
@@ -187,10 +187,13 @@
             {% for connection in part.orderedConnections %}
                 {% set groups = groups|merge([{part: connection.connectedPart, connection: connection}]) %}
             {% endfor %}
+            {# The lots of the parts the total counts: the common stock and the usable connected parts #}
+            {% set counted_lots = 0 %}
             {% for group in groups %}
                 {% set group_part = group.part %}
                 {% set connection = group.connection %}
                 {% set lots = group_part.partLots %}
+                {% if connection is null or connection.usable %}{% set counted_lots = counted_lots + lots|length %}{% endif %}
                 {% set detail_id = 'part-lots-detail-' ~ group_part.id %}
                 {# All collapsed at first, except the part holding a lot just added or changed, so that it shows #}
                 {% set expanded = false %}
@@ -198,7 +201,7 @@
                     {% if lot.id == highlightLotId %}{% set expanded = true %}{% endif %}
                 {% endfor %}
                 {% if connection is null %}
-                    <tr class="table-secondary" data-sortable-pinned="top" data-stock-row="own">
+                    <tr data-sortable-pinned="top" data-stock-row="own">
                 {% else %}
                     <tr data-stock-row="connected">
                 {% endif %}
@@ -237,7 +240,7 @@
                 {% if lots is not empty %}
                     <tr id="{{ detail_id }}" data-sortable-detail {% if not expanded %}hidden{% endif %}>
                         <td></td>
-                        <td colspan="7" class="p-0">
+                        <td colspan="7" class="p-0 pb-3">
                             <table class="table table-sm table-striped mb-0">
                                 {{ _self.lot_table_head() }}
                                 <tbody>
@@ -258,7 +261,9 @@
                 <tr class="table-primary">
                     <td></td>
                     <th colspan="4">{% trans %}part_lots.total{% endtrans %}</th>
-                    <th colspan="3">{{ part.amountSum | format_amount(part.partUnit, {'decimals': 5}) }}</th>
+                    <th>{{ part.amountSum | format_amount(part.partUnit, {'decimals': 5}) }}</th>
+                    <th data-stock-total="lots">{{ counted_lots }}</th>
+                    <td></td>
                 </tr>
             </tfoot>
         </table>

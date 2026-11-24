@@ -336,8 +336,8 @@ final class MetaPartPagesTest extends WebTestCase
             $this->assertStringNotContainsString('table-danger', (string) $rows->eq(2)->attr('class'), $pane);
             $this->assertStringNotContainsString('text-muted', (string) $rows->eq(3)->attr('class'), $pane);
         }
-        //Only usable connections count: 10 each for approved and use up
-        $this->assertSame('Total 20', preg_replace('/\s+/', ' ', trim($crawler->filter('#part_lots tfoot')->text())));
+        //Only usable connections count: 10 each for approved and use up, one lot each
+        $this->assertSame('Total 20 2', preg_replace('/\s+/', ' ', trim($crawler->filter('#part_lots tfoot')->text())));
     }
 
     public function testTheStockTabListsEverythingWithATotalAndNoForeignButtons(): void
@@ -410,6 +410,10 @@ final class MetaPartPagesTest extends WebTestCase
 
         //The total stays last in the foot
         $this->assertCount(1, $table->filter('tfoot tr'));
+        //It also counts the lots of the parts it counts: the common stock and the usable parts, not the retired one
+        $ownLots = (int) $main->eq(0)->children('td')->last()->previousAll()->first()->text();
+        $this->assertGreaterThan(0, $ownLots);
+        $this->assertSame((string) ($ownLots + 1 + 2), trim($table->filter('tfoot [data-stock-total="lots"]')->text()));
     }
 
     public function testTheStocksTabOpensOnlyThePartHoldingAHighlightedLot(): void
@@ -464,13 +468,17 @@ final class MetaPartPagesTest extends WebTestCase
         $orderdetail->setSupplierpartnr('SP-Tiered');
         $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity(10.0)->setPrice(BigDecimal::of('0.8')));
         $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity(100.0)->setPrice(BigDecimal::of('0.1')));
+        $orderdetail->setAvailableAmount(1200.0);
         $tiered->addOrderdetail($orderdetail);
+        //Its second supplier's stock is unknown: the known one is what is available
         $this->price($tiered, '1.5');
         $cheap = $this->part('Cheap source');
         $this->price($cheap, '0.25');
+        $cheap->getOrderdetails()->first()->setAvailableAmount(0.0);
         $plain = $this->part('No supplier source');
         $retired = $this->part('Retired source');
         $this->price($retired, '0.05');
+        $retired->getOrderdetails()->first()->setAvailableAmount(500.0);
         $this->connect($meta, $retired, 1, PartConnectionStatus::DO_NOT_USE);
         $this->connect($meta, $tiered, 2);
         $this->connect($meta, $cheap, 3);
@@ -480,18 +488,20 @@ final class MetaPartPagesTest extends WebTestCase
         $table = $this->info($meta)->filter('#suppliers table')->first();
         $this->assertSame('elements--sortable-table elements--expandable-rows', $table->attr('data-controller'));
         $heads = $table->filter('thead')->first()->filter('th')->each(static fn (Crawler $th) => trim($th->text()));
-        $this->assertSame(['', 'Manufacturer', 'MPN', 'Part', 'Status', 'Suppliers', 'Lowest unit price'], $heads);
+        $this->assertSame(['', 'Manufacturer', 'MPN', 'Part', 'Status', 'Suppliers', 'Available', 'Lowest unit price'], $heads);
         $this->assertSame('false', $table->filter('thead button[data-elements--expandable-rows-target="all"]')->attr('aria-expanded'));
-        $this->assertCount(0, $table->filter('tfoot'), 'No total row');
+        //The total of what the suppliers have counts the usable parts only: the 1200 of Tiered source, not Retired source's
+        $this->assertCount(1, $table->filter('tfoot tr'));
+        $this->assertSame('1200', trim($table->filter('tfoot [data-supplier-total="available"]')->text()));
 
-        //A row per connected part, usable first, no own row; the unusable marked "Not counted"
+        //A row per connected part, usable first, no own row; every row with its availability and price, the unusable too
         $main = $table->filter('tbody')->first()->children('tr:not([data-sortable-detail])');
         $expected = [
-            //name => status rank, suppliers, lowest unit price
-            'Tiered source' => ['0', '2', 0.8],
-            'Cheap source' => ['0', '1', 0.25],
-            'No supplier source' => ['0', '0', null],
-            'Retired source' => ['3', '1', 0.05],
+            //name => status rank, suppliers, available at the suppliers (text), lowest unit price
+            'Tiered source' => ['0', '2', '1200', 'Unknown|Out of stock', 0.8],
+            'Cheap source' => ['0', '1', '0', 'Out of stock', 0.25],
+            'No supplier source' => ['0', '0', '', '', null],
+            'Retired source' => ['3', '1', '500', '500', 0.05],
         ];
         $this->assertCount(4, $main);
         foreach (array_keys($expected) as $i => $name) {
@@ -499,17 +509,24 @@ final class MetaPartPagesTest extends WebTestCase
             $this->assertStringContainsString($name, $row->text());
             $this->assertNull($row->attr('data-sortable-pinned'));
             $cells = $row->children('td');
-            [$rank, $suppliers, $price] = $expected[$name];
+            [$rank, $suppliers, $available, $availableText, $price] = $expected[$name];
             $this->assertSame($rank, $cells->eq(4)->attr('data-sort-value'), $name);
             $this->assertSame($suppliers, $cells->eq(5)->attr('data-sort-value'), $name);
-            $priceValue = $cells->eq(6)->attr('data-sort-value');
+            $this->assertSame($available, $cells->eq(6)->attr('data-sort-value'), $name);
+            if ($name === 'Tiered source') {
+                $this->assertStringContainsString('1200', $cells->eq(6)->text(), $name);
+                $this->assertStringNotContainsString('Unknown', $cells->eq(6)->text(), $name);
+            } else {
+                $this->assertSame($availableText, trim($cells->eq(6)->text()), $name);
+            }
+            $priceValue = $cells->eq(7)->attr('data-sort-value');
             if ($price === null) {
                 $this->assertSame('', $priceValue, $name);
             } else {
                 $this->assertEqualsWithDelta($price, (float) $priceValue, 1e-9, $name);
-                $this->assertMatchesRegularExpression('/\d/', $cells->eq(6)->text(), $name.' shows the price');
+                $this->assertMatchesRegularExpression('/\d/', $cells->eq(7)->text(), $name.' shows the price');
             }
-            $this->assertSame($name === 'Retired source', str_contains($row->text(), 'Not counted'), $name);
+            $this->assertStringNotContainsString('Not counted', $row->text(), $name.': the status badge marks it');
         }
         $this->assertStringNotContainsString('text-muted', (string) $main->eq(3)->attr('class'));
         $this->assertStringNotContainsString('table-danger', (string) $main->eq(3)->attr('class'));

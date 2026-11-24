@@ -223,6 +223,35 @@ class PartConnection extends AbstractDBElement implements TimeStampableInterface
     }
 
     /**
+     * Whether the connected part is in another category than its meta part. Worth a warning, not a refusal.
+     */
+    public function hasDifferentCategory(): bool
+    {
+        $own = $this->meta_part?->getCategory();
+        $other = $this->connected_part?->getCategory();
+
+        return $own !== null && $other !== null && $own !== $other;
+    }
+
+    /**
+     * The fields in which the connected part differs from its meta part although they should match, as their names:
+     * "category" and "footprint". A measuring unit can not differ, a validator refuses that.
+     * @return list<'category'|'footprint'>
+     */
+    public function getDifferences(): array
+    {
+        $differences = [];
+        if ($this->hasDifferentCategory()) {
+            $differences[] = 'category';
+        }
+        if ($this->hasDifferentFootprint()) {
+            $differences[] = 'footprint';
+        }
+
+        return $differences;
+    }
+
+    /**
      * Named after the connected part, so that a log entry says more than an ID.
      */
     public function getName(): string

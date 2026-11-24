@@ -15,6 +15,7 @@
                 <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.note{% endtrans %}</th>
                 <th data-sortable="false">{% trans %}attachment.labelp{% endtrans %}</th>
+                <th data-sortable="false">{% trans %}part_connection.table.differences{% endtrans %}</th>
             </tr>
             </thead>
             <tbody>
@@ -25,15 +26,11 @@
                     <td data-sort-value="{{ connection.position }}">{{ connection.position }}</td>
                     <td>{{ connected.manufacturer ? connected.manufacturer.name : '' }}</td>
                     <td>{{ connected.manufacturerProductNumber }}</td>
-                    <td>
-                        {{ helper.part_icon_link(connected) }}
-                        {% if connection.hasDifferentFootprint %}
-                            <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs'|trans({'%part%': connection.name}) }}</span>
-                        {% endif %}
-                    </td>
+                    <td>{{ helper.part_icon_link(connected) }}</td>
                     <td data-sort-value="{{ connection.status.restrictionRank }}">{{ helper.connection_status_badge(connection) }}</td>
                     <td>{{ connection.note }}</td>
                     <td data-connection-attachments>{{ _self.attachment_icons(connected) }}</td>
+                    <td data-connection-differences>{{ helper.connection_differences(connection) }}</td>
                 </tr>
             {% endfor %}
             </tbody>
@@ -50,6 +47,7 @@
                 <th>{% trans %}part_connection.edit.position{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
                 <th>{% trans %}part_connection.edit.note{% endtrans %}</th>
+                <th>{% trans %}part_connection.table.differences{% endtrans %}</th>
             </tr>
             </thead>
             <tbody>
@@ -60,6 +58,7 @@
                     <td>{{ connection.position }}</td>
                     <td>{{ helper.connection_status_badge(connection) }}</td>
                     <td>{{ connection.note }}</td>
+                    <td data-connection-differences>{{ helper.connection_differences(connection) }}</td>
                 </tr>
             {% endfor %}
             </tbody>

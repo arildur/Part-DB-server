@@ -715,13 +715,14 @@ final class PartController extends AbstractController
     }
 
     /**
-     * A connected part with another footprint may still be right, so this only warns. A validator could only refuse.
+     * A connected part with another category or footprint may still be right, so this only warns. A validator could
+     * only refuse.
      */
     private function warnAboutDifferingFootprints(Part $part): void
     {
         foreach ($part->getPartConnections() as $connection) {
-            if ($connection->hasDifferentFootprint()) {
-                $this->addFlash('warning', t('part_connection.footprint_differs', ['%part%' => $connection->getName()]));
+            foreach ($connection->getDifferences() as $field) {
+                $this->addFlash('warning', t('part_connection.'.$field.'_differs', ['%part%' => $connection->getName()]));
             }
         }
     }

@@ -16352,6 +16352,42 @@ Buerklin-API Authentication server:
         <target>%part% has another [footprint] than this [part].</target>
       </segment>
     </unit>
+    <unit id="koDbzB7" name="part_connection.category_differs">
+      <segment state="translated">
+        <source>part_connection.category_differs</source>
+        <target>%part% is in another [category] than this meta [part].</target>
+      </segment>
+    </unit>
+    <unit id="kcoFbVV" name="part_connection.category_differs_from_meta_part">
+      <segment state="translated">
+        <source>part_connection.category_differs_from_meta_part</source>
+        <target>%part% is in another [category] than this [part].</target>
+      </segment>
+    </unit>
+    <unit id="4MGigiF" name="part_connection.table.differences">
+      <segment state="translated">
+        <source>part_connection.table.differences</source>
+        <target>Differences</target>
+      </segment>
+    </unit>
+    <unit id="k7VNqpn" name="part_connection.difference.none">
+      <segment state="translated">
+        <source>part_connection.difference.none</source>
+        <target>None</target>
+      </segment>
+    </unit>
+    <unit id="CdUe0Ni" name="part_connection.difference.none_title">
+      <segment state="translated">
+        <source>part_connection.difference.none_title</source>
+        <target>Compared with the meta [part]: [category] and [footprint] (a [footprint] only when both have one). The measuring unit always matches.</target>
+      </segment>
+    </unit>
+    <unit id="LeRdDJY" name="part_connection.difference.values">
+      <segment state="translated">
+        <source>part_connection.difference.values</source>
+        <target>Meta [part]: %meta% · [Part]: %part%</target>
+      </segment>
+    </unit>
     <unit id="8ZvM.m5" name="part_connection.edit.meta_part">
       <segment state="translated">
         <source>part_connection.edit.meta_part</source>

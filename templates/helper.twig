@@ -286,3 +286,16 @@
         ({% trans %}prices.excl_vat{% endtrans %})
     {% endif %}
 {% endmacro %}
+
+{# The fields in which a connected part differs from its meta part although they should match, each as a warning
+   badge naming the field, its tooltip giving the meta part's value and the connected part's #}
+{% macro connection_differences(connection) %}
+    {%- for field in connection.differences -%}
+        {% set meta_value = attribute(connection.metaPart, field) %}
+        {% set part_value = attribute(connection.connectedPart, field) %}
+        <span class="badge text-bg-warning me-1" data-connection-difference="{{ field }}"
+              title="{{ 'part_connection.difference.values'|trans({'%meta%': meta_value.name, '%part%': part_value.name}) }}"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ (field ~ '.label')|trans }}</span>
+    {%- else -%}
+        <span class="text-muted" data-connection-difference="none" title="{% trans %}part_connection.difference.none_title{% endtrans %}">{% trans %}part_connection.difference.none{% endtrans %}</span>
+    {%- endfor -%}
+{% endmacro %}

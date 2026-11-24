@@ -21,6 +21,8 @@
 declare(strict_types=1);namespace App\Tests\Entity\Parts;
 
 use App\Entity\Contracts\TimeStampableInterface;
+use App\Entity\Parts\Category;
+use App\Entity\Parts\Footprint;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Entity\Parts\PartConnectionStatus;
@@ -43,6 +45,32 @@ final class PartConnectionTest extends TestCase
         };
 
         return $connection->setPosition($position)->setStatus($status);
+    }
+
+    public function testTheDifferencesAreTheCategoryAndFootprintThatDoNotMatch(): void
+    {
+        $resistors = (new Category())->setName('Resistors');
+        $capacitors = (new Category())->setName('Capacitors');
+        $small = (new Footprint())->setName('0603');
+        $large = (new Footprint())->setName('0805');
+        $meta = (new Part())->setKind(PartKind::META)->setCategory($resistors)->setFootprint($small);
+        $part = (new Part())->setCategory($resistors)->setFootprint($small);
+        $connection = (new PartConnection())->setMetaPart($meta)->setConnectedPart($part);
+        $this->assertSame([], $connection->getDifferences(), 'All match');
+
+        $part->setCategory($capacitors);
+        $this->assertSame(['category'], $connection->getDifferences());
+        $this->assertTrue($connection->hasDifferentCategory());
+
+        $part->setFootprint($large);
+        $this->assertSame(['category', 'footprint'], $connection->getDifferences(), 'In a fixed order');
+
+        //A footprint only counts when both have one
+        $part->setCategory($resistors)->setFootprint(null);
+        $this->assertSame([], $connection->getDifferences());
+        $meta->setFootprint(null);
+        $part->setFootprint($large);
+        $this->assertSame([], $connection->getDifferences());
     }
 
     public function testFieldsReadBack(): void

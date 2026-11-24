@@ -252,8 +252,10 @@
     <tr>
         <td>
             {{ form_widget(form) }}
-            {% if value is not null and value.hasDifferentFootprint %}
-                <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs'|trans({'%part%': value.name}) }}</span>
+            {% if value is not null %}
+                {% for field in value.differences %}
+                    <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ ('part_connection.' ~ field ~ '_differs')|trans({'%part%': value.name}) }}</span>
+                {% endfor %}
             {% endif %}
         </td>
         <td>
@@ -282,9 +284,9 @@
                     <div class="{{ col_input }}">
                         <span class="form-control-plaintext">
                             {{ part_name(value.metaPart, true, {'data-meta-part': value.metaPart.id}) }}
-                            {% if value.hasDifferentFootprint %}
-                                <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ 'part_connection.footprint_differs_from_meta_part'|trans({'%part%': value.metaPart.name}) }}</span>
-                            {% endif %}
+                            {% for field in value.differences %}
+                                <span class="badge text-bg-warning"><i class="fas fa-exclamation-triangle fa-fw"></i> {{ ('part_connection.' ~ field ~ '_differs_from_meta_part')|trans({'%part%': value.metaPart.name}) }}</span>
+                            {% endfor %}
                         </span>
                     </div>
                 </div>

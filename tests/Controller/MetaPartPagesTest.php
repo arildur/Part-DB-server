@@ -289,7 +289,7 @@ final class MetaPartPagesTest extends WebTestCase
         $heads = $table->filter('thead th')->each(static fn (Crawler $th) => trim($th->text()));
         $columns = [];
         //Stock and suppliers are on the Stocks and Shopping tabs, not here
-        $this->assertSame(['Priority', 'Manufacturer', 'MPN', 'Part name', 'Status', 'Note', 'Attachments'], $heads);
+        $this->assertSame(['Priority', 'Manufacturer', 'MPN', 'Part name', 'Status', 'Note', 'Attachments', 'Differences'], $heads);
         foreach (['Priority', 'Status'] as $label) {
             $columns[$label] = array_search($label, $heads, true);
             $this->assertIsInt($columns[$label], $label.' in '.implode(' | ', $heads));
@@ -639,7 +639,7 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertCount(0, $crawler->filter('#connections caption'), 'The tab has no caption above its table');
         //The projects are on the Projects tab; the meta part's IPN is shown instead
         $heads = $crawler->filter('#connections thead th')->each(static fn (Crawler $th) => trim($th->text()));
-        $this->assertSame(['Meta part', 'IPN', 'Priority', 'Status', 'Note'], $heads);
+        $this->assertSame(['Meta part', 'IPN', 'Priority', 'Status', 'Note', 'Differences'], $heads);
         $this->assertSame('META-0042', trim($crawler->filter('#connections tbody tr')->first()->filter('td')->eq(1)->text()));
     }
 
@@ -1365,6 +1365,62 @@ final class MetaPartPagesTest extends WebTestCase
         $crawler = $this->client->followRedirect();
 
         $this->assertStringContainsString('another footprint', $crawler->filter('body')->html());
+    }
+
+    public function testADifferentCategoryWarnsButSaves(): void
+    {
+        $meta = $this->part('In one category', PartKind::META);
+        $part = $this->part('In another category');
+        $part->setCategory($this->em->find(Category::class, 2));
+        $this->connect($meta, $part, 1);
+        $this->em->flush();
+
+        $this->client->request('POST', '/en/part/'.$meta->getID().'/edit', $this->editValues($meta));
+        $this->assertResponseRedirects();
+        $crawler = $this->client->followRedirect();
+
+        $this->assertStringContainsString('In another category is in another category than this meta part.', $crawler->filter('body')->html());
+    }
+
+    public function testBothConnectionTabsListTheDifferencesWithBothValues(): void
+    {
+        $categoryA = $this->em->find(Category::class, 1);
+        $categoryB = $this->em->find(Category::class, 2);
+        $footprintA = $this->em->find(Footprint::class, 1);
+        $footprintB = $this->em->find(Footprint::class, 2);
+        $meta = $this->part('Differences meta', PartKind::META);
+        $meta->setFootprint($footprintA);
+        $differing = $this->part('Differing source');
+        $differing->setCategory($categoryB)->setFootprint($footprintB);
+        $matching = $this->part('Matching source');
+        $matching->setFootprint($footprintA);
+        $this->connect($meta, $differing, 1);
+        $this->connect($meta, $matching, 2);
+        $this->em->flush();
+
+        //The meta part's tab: a cell per connected part, the meta part's value first
+        $cells = $this->info($meta)->filter('#connections tbody td[data-connection-differences]');
+        $this->assertCount(2, $cells);
+        $category = $cells->eq(0)->filter('[data-connection-difference="category"]');
+        $this->assertCount(1, $category);
+        //Only the badge shows; its tooltip gives both values
+        $this->assertSame('Category', trim($category->text()));
+        $this->assertSame('Meta part: '.$categoryA->getName().' · Part: '.$categoryB->getName(), $category->attr('title'));
+        $footprint = $cells->eq(0)->filter('[data-connection-difference="footprint"]');
+        $this->assertSame('Footprint', trim($footprint->text()));
+        $this->assertSame('Meta part: '.$footprintA->getName().' · Part: '.$footprintB->getName(), $footprint->attr('title'));
+        //A matching part says None, the tooltip telling what is compared
+        $this->assertSame('None', trim($cells->eq(1)->text()));
+        $none = $cells->eq(1)->filter('[data-connection-difference="none"]');
+        $this->assertStringContainsString('text-muted', (string) $none->attr('class'));
+        $this->assertStringContainsString('category and footprint', (string) $none->attr('title'));
+        $this->assertStringNotContainsString('another footprint', $this->info($meta)->filter('#connections')->text(), 'No badge in the part column any more');
+
+        //The manufacturing part's tab names the same differences
+        $cell = $this->info($differing)->filter('#connections tbody td[data-connection-differences]');
+        $this->assertCount(1, $cell);
+        $this->assertSame(['category', 'footprint'], $cell->filter('[data-connection-difference]')->each(static fn (Crawler $d) => $d->attr('data-connection-difference')));
+        $this->assertSame('None', trim($this->info($matching)->filter('#connections tbody td[data-connection-differences]')->text()));
     }
 
     /** @return string The text of the toasts on the page the save redirects to */

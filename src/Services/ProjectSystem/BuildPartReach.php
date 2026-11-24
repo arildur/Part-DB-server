@@ -25,10 +25,11 @@ namespace App\Services\ProjectSystem;
 use App\Entity\Parts\Part;
 use App\Entity\Parts\PartConnection;
 use App\Entity\ProjectSystem\Project;
+use Doctrine\Common\Collections\Criteria;
 
 /**
- * The one rule of which build parts a BOM entry reaches, used by the BOM entry, the connection and the project
- * validation, so that a project can not reach its own build part, or that of an ancestor, by any route.
+ * The one rule of which build parts a BOM entry reaches, used by the BOM entry, the connection, the part and the
+ * project validation, so that a project can not reach its own build part, or that of an ancestor, by any route.
  *
  * A BOM entry on a part reaches the part and, for a kind with connections, its connected parts. A reached part brings
  * in the build part it is, and the meta parts it is connected to. Every status counts, as a status can change without
@@ -129,6 +130,36 @@ final class BuildPartReach
         }
 
         return $parts;
+    }
+
+    /**
+     * Whether a BOM entry of the given project or of one of its sub-projects reaches the given part as its build part,
+     * by any route. The extra-lazy BOMs are asked with matching(), so that no BOM is loaded.
+     */
+    public static function isReachedByBomOf(Project $project, Part $buildPart): bool
+    {
+        return self::bomOfProjectOrDescendantsHasOneOf($project, self::partsReaching($buildPart));
+    }
+
+    /**
+     * @param  list<Part>  $parts
+     */
+    private static function bomOfProjectOrDescendantsHasOneOf(Project $project, array $parts): bool
+    {
+        foreach ($parts as $part) {
+            $found = $project->getBomEntries()->matching(Criteria::create()->where(Criteria::expr()->eq('part', $part)));
+            if (!$found->isEmpty()) {
+                return true;
+            }
+        }
+
+        foreach ($project->getChildren() as $child) {
+            if (self::bomOfProjectOrDescendantsHasOneOf($child, $parts)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

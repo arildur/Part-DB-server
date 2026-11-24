@@ -392,31 +392,6 @@ class Project extends AbstractStructuralDBElement
         return false;
     }
 
-    /**
-     * Whether a BOM entry of this project or of one of its descendants points to one of the given parts. The extra-lazy
-     * collections are asked with matching(), so that no BOM is loaded.
-     * @param  list<Part>  $parts
-     */
-    private function isReachedByOwnBom(array $parts): bool
-    {
-        foreach ($parts as $part) {
-            $found = $this->getBomEntries()->matching(
-                Criteria::create()->where(Criteria::expr()->eq('part', $part))
-            );
-            if (!$found->isEmpty()) {
-                return true;
-            }
-        }
-
-        foreach ($this->getChildren() as $child) {
-            if ($child->isReachedByOwnBom($parts)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     #[Assert\Callback]
     public function validate(ExecutionContextInterface $context, $payload): void
     {
@@ -427,7 +402,7 @@ class Project extends AbstractStructuralDBElement
         }
 
         //No BOM entry of this project or of a sub-project may reach the build part, by any route
-        if ($this->build_part instanceof Part && $this->isReachedByOwnBom(BuildPartReach::partsReaching($this->build_part))) {
+        if ($this->build_part instanceof Part && BuildPartReach::isReachedByBomOf($this, $this->build_part)) {
             $context->buildViolation('validator.build_part.reached_by_own_bom')
                 ->atPath('build_part')
                 ->addViolation();

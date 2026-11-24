@@ -523,7 +523,7 @@ class Part extends AttachmentContainingDBElement
         }
 
         //A part becoming the build part of a project must not be reached by a BOM entry of that project or a sub-project
-        if ($this->built_project instanceof Project && $this->isReachedByBomOf($this->built_project)) {
+        if ($this->built_project instanceof Project && BuildPartReach::isReachedByBomOf($this->built_project, $this)) {
             $context->buildViolation('validator.build_part.reached_by_own_bom')
                 ->atPath('built_project')
                 ->addViolation();
@@ -538,22 +538,6 @@ class Part extends AttachmentContainingDBElement
                 break;
             }
         }
-    }
-
-    /**
-     * Whether a BOM entry of the given project or of one of its sub-projects reaches this part as its build part.
-     */
-    private function isReachedByBomOf(Project $project): bool
-    {
-        foreach (BuildPartReach::partsReaching($this) as $part) {
-            foreach ($part->getProjectBomEntries() as $bom_entry) {
-                if ($bom_entry->getProject()?->isOrHasAncestor($project)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     /**

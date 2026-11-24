@@ -1,4 +1,5 @@
 {% extends "main_card.html.twig" %}
+{% import "helper.twig" as helper %}
 
 {# The preview of a conversion between the kinds: what each choice moves, copies and keeps. Nothing changes before the POST. #}
 {% set title_key = mode == 'to_meta' ? 'part.convert.to_meta.title' : 'part.convert.to_manufacturing.title' %}
@@ -60,8 +61,7 @@
 
         {% if blocking_connections is not empty %}
             <div class="alert alert-danger" id="part-convert-blocked">
-                {% set connected_links = blocking_connections|map(c => '<a href="' ~ entity_url(c.connectedPart)|e('html_attr') ~ '">' ~ c.connectedPart.name|e ~ '</a>')|join(', ') %}
-                {{ 'part.convert.to_manufacturing.blocked'|trans({'%parts%': connected_links})|raw }}
+                {{ helper.conversion_blocked_by_connections(blocking_connections) }}
             </div>
         {% endif %}
 

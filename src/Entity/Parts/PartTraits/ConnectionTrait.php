@@ -78,16 +78,13 @@ trait ConnectionTrait
     }
 
     /**
-     * Returns the connections of this meta part in their order: usable before not usable, then by position, then by
-     * ID, so that the order is the same on every request.
+     * Returns the connections of this meta part in their order (see PartConnection::compareByPriority()).
      * @return list<PartConnection>
      */
     public function getOrderedConnections(): array
     {
         $connections = $this->part_connections->toArray();
-        usort($connections, static fn (PartConnection $a, PartConnection $b): int =>
-            [$a->isUsable() ? 0 : 1, $a->getPosition() ?? PHP_INT_MAX, $a->getID() ?? PHP_INT_MAX]
-            <=> [$b->isUsable() ? 0 : 1, $b->getPosition() ?? PHP_INT_MAX, $b->getID() ?? PHP_INT_MAX]);
+        usort($connections, PartConnection::compareByPriority(...));
 
         return $connections;
     }

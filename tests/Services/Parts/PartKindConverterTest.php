@@ -423,8 +423,8 @@ final class PartKindConverterTest extends KernelTestCase
             $this->converter->convertToManufacturing($meta);
             $this->fail('The conversion was not refused.');
         } catch (PartConversionException $exception) {
-            $this->assertSame(['First choice', 'Second choice'], $exception->getConnectedPartNames());
             $this->assertStringContainsString('First choice, Second choice', $exception->getMessage());
+            $this->assertSame(['%parts%' => 'First choice, Second choice'], $exception->getTranslatableMessage()->getParameters());
         }
 
         $meta = $this->reload($meta);

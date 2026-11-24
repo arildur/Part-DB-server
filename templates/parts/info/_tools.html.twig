@@ -1,4 +1,5 @@
 {% import "label_system/dropdown_macro.html.twig" as dropdown %}
+{% import "helper.twig" as helper %}
 
 {% if is_granted('edit', part) %}
     <a href="{{ entity_url(part, 'edit') }}" class="btn btn-primary mt-3">
@@ -77,8 +78,7 @@
                 {% trans %}part.convert.to_manufacturing.btn{% endtrans %}
             </button>
             <div class="form-text" id="part-convert-blocked">
-                {% set connected_links = part.orderedConnections|map(c => '<a href="' ~ entity_url(c.connectedPart)|e('html_attr') ~ '">' ~ c.connectedPart.name|e ~ '</a>')|join(', ') %}
-                {{ 'part.convert.to_manufacturing.blocked'|trans({'%parts%': connected_links})|raw }}
+                {{ helper.conversion_blocked_by_connections(part.orderedConnections) }}
             </div>
         {% endif %}
     {% endif %}

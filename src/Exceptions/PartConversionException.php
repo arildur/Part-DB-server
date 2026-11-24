@@ -34,10 +34,9 @@ class PartConversionException extends \RuntimeException
 {
     /**
      * @param array<string, string> $parameters the parameters of the translation
-     * @param list<string> $connectedPartNames for a meta part with connected parts, their names in their order
      */
     private function __construct(string $message, private readonly string $translationKey, private readonly array $parameters = [],
-        private readonly array $connectedPartNames = [], ?\Throwable $previous = null)
+        ?\Throwable $previous = null)
     {
         parent::__construct($message, 0, $previous);
     }
@@ -62,7 +61,7 @@ class PartConversionException extends \RuntimeException
         $names = implode(', ', $connectedPartNames);
 
         return new self(sprintf('The meta part "%s" can not be converted to a manufacturing part while parts are connected to it: %s. Remove these connections first.', $partName, $names),
-            'part.convert.error.has_connections', ['%parts%' => $names], $connectedPartNames);
+            'part.convert.error.has_connections', ['%parts%' => $names]);
     }
 
     /**
@@ -78,19 +77,11 @@ class PartConversionException extends \RuntimeException
     public static function savingFailed(\Throwable $previous): self
     {
         return new self('Nothing was converted, as saving failed: '.$previous->getMessage(), 'part.convert.error.saving_failed',
-            ['%error%' => $previous->getMessage()], [], $previous);
+            ['%error%' => $previous->getMessage()], $previous);
     }
 
     public function getTranslatableMessage(): TranslatableMessage
     {
         return new TranslatableMessage($this->translationKey, $this->parameters);
-    }
-
-    /**
-     * @return list<string>
-     */
-    public function getConnectedPartNames(): array
-    {
-        return $this->connectedPartNames;
     }
 }

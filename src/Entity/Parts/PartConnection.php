@@ -188,6 +188,16 @@ class PartConnection extends AbstractDBElement implements TimeStampableInterface
         return $this->status->isUsable();
     }
 
+    /**
+     * The one order of the connections of a meta part, for usort: usable before not usable, then by position, then by
+     * ID, so that the order is the same on every request.
+     */
+    public static function compareByPriority(self $a, self $b): int
+    {
+        return [$a->isUsable() ? 0 : 1, $a->getPosition() ?? PHP_INT_MAX, $a->getID() ?? PHP_INT_MAX]
+            <=> [$b->isUsable() ? 0 : 1, $b->getPosition() ?? PHP_INT_MAX, $b->getID() ?? PHP_INT_MAX];
+    }
+
     public function getNote(): string
     {
         return $this->note;

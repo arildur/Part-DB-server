@@ -88,6 +88,18 @@
     <span class="badge {{ style.class }}" data-connection-status="{{ connection.status.value }}">{% if style.icon %}<i class="fas {{ style.icon }} fa-fw"></i> {% endif %}{{ connection.status.translationKey|trans }}</span>
 {% endmacro %}
 
+{# Why a meta part can not be converted back to a manufacturing part: its connected parts, each linked. The names are
+   escaped where the links are written, so only the translated text around them is output raw. #}
+{% macro conversion_blocked_by_connections(connections) %}
+    {%- set links -%}
+        {%- for connection in connections -%}
+            {%- if not loop.first %}, {% endif -%}
+            <a href="{{ entity_url(connection.connectedPart) }}">{{ connection.connectedPart.name }}</a>
+        {%- endfor -%}
+    {%- endset -%}
+    {{ 'part.convert.to_manufacturing.blocked'|trans({'%parts%': links})|raw }}
+{% endmacro %}
+
 {# The class of a table row listing a connection: muted or marked when the connection is not usable #}
 {% macro connection_status_row_class(connection) %}
     {%- if connection.status.value == 'do_not_use' -%}

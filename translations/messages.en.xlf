@@ -16430,6 +16430,30 @@ Buerklin-API Authentication server:
         <target>Not counted</target>
       </segment>
     </unit>
+    <unit id="_Y3M6Le" name="part.order.lowest_unit_price">
+      <segment state="translated">
+        <source>part.order.lowest_unit_price</source>
+        <target>Lowest unit price</target>
+      </segment>
+    </unit>
+    <unit id="r.vH3fP" name="part.order.show_orderdetails">
+      <segment state="translated">
+        <source>part.order.show_orderdetails</source>
+        <target>Show or hide the order details</target>
+      </segment>
+    </unit>
+    <unit id="ta.JkF." name="part.order.expand_all">
+      <segment state="translated">
+        <source>part.order.expand_all</source>
+        <target>Show the order details of all</target>
+      </segment>
+    </unit>
+    <unit id="h75Cw83" name="part.order.collapse_all">
+      <segment state="translated">
+        <source>part.order.collapse_all</source>
+        <target>Hide the order details of all</target>
+      </segment>
+    </unit>
     <unit id="7I.8tnI" name="part_lots.total">
       <segment state="translated">
         <source>part_lots.total</source>

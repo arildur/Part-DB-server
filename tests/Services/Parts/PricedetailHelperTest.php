@@ -330,6 +330,25 @@ final class PricedetailHelperTest extends WebTestCase
         $this->assertSame('1.00000', (string) $this->service->calculateMetaPartPrice($meta, 100));
     }
 
+    public function testTheLowestUnitPriceIsTheCheapestOrderDetailAtItsSmallestOrder(): void
+    {
+        $this->assertNull($this->service->getLowestUnitPrice(new Part()), 'No order details, no price');
+
+        $part = $this->pricedPart('2');
+        $tiered = new Orderdetail();
+        $tiered->addPricedetail((new Pricedetail())->setMinDiscountQuantity(10.0)->setPrice(BigDecimal::of('1.5')));
+        $tiered->addPricedetail((new Pricedetail())->setMinDiscountQuantity(1000.0)->setPrice(BigDecimal::of('0.1')));
+        $part->addOrderdetail($tiered);
+        $this->assertSame('1.50000', (string) $this->service->getLowestUnitPrice($part), 'A bulk price is not the price of one unit');
+
+        $obsolete = new Orderdetail();
+        $obsolete->setObsolete(true);
+        $obsolete->addPricedetail((new Pricedetail())->setMinDiscountQuantity(1.0)->setPrice(BigDecimal::of('0.01')));
+        $part->addOrderdetail($obsolete);
+        $part->addOrderdetail(new Orderdetail());
+        $this->assertSame('1.50000', (string) $this->service->getLowestUnitPrice($part), 'Obsolete and unpriced order details are left out');
+    }
+
     public function testOnlyAMetaPartHasAPriceByAMethod(): void
     {
         $this->assertNull($this->service->calculateMetaPartPrice($this->pricedPart('1')));

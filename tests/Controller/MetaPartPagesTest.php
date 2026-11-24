@@ -312,9 +312,9 @@ final class MetaPartPagesTest extends WebTestCase
     {
         $crawler = $this->info($this->metaPartWithEachStatus());
 
-        //The Shopping information tab groups under a heading, the Stock tab lists all parts in one table as the Connected parts tab
+        //Both tabs list all parts in one table as the Connected parts tab
         $orders = [
-            '#suppliers' => ['Part use_up', 'Part approved', 'Not usable', 'Part do_not_use', 'Part under_evaluation'],
+            '#suppliers' => ['Part use_up', 'Part approved', 'Part do_not_use', 'Part under_evaluation'],
             '#part_lots' => ['Part use_up', 'Part approved', 'Part do_not_use', 'Part under_evaluation'],
         ];
         foreach ($orders as $pane => $order) {
@@ -326,11 +326,14 @@ final class MetaPartPagesTest extends WebTestCase
             $this->assertSame($sorted, $positions, $pane.' lists the parts in the order of usability and priority');
             $this->assertCount(4, $crawler->filter($pane.' [data-connection-status]'), $pane.' marks every part with its status');
         }
-        $this->assertStringNotContainsString('Not usable', $crawler->filter('#part_lots')->text(), 'No heading row on the Stock tab');
-        //The unusable are greyed as on the Connected parts tab
-        $rows = $crawler->filter('#part_lots tr[data-stock-row="connected"]');
-        $this->assertStringContainsString('table-danger', (string) $rows->eq(2)->attr('class'));
-        $this->assertStringContainsString('connection-unusable', (string) $rows->eq(3)->attr('class'));
+        foreach (['#part_lots' => 'data-stock-row', '#suppliers' => 'data-supplier-row'] as $pane => $rowAttribute) {
+            $this->assertStringNotContainsString('Not usable', $crawler->filter($pane)->text(), 'No heading row on '.$pane);
+            //The unusable are greyed as on the Connected parts tab
+            $rows = $crawler->filter($pane.' tr['.$rowAttribute.'="connected"]');
+            $this->assertCount(4, $rows, $pane);
+            $this->assertStringContainsString('table-danger', (string) $rows->eq(2)->attr('class'), $pane);
+            $this->assertStringContainsString('connection-unusable', (string) $rows->eq(3)->attr('class'), $pane);
+        }
         //Only usable connections count: 10 each for approved and use up
         $this->assertSame('Total 20', preg_replace('/\s+/', ' ', trim($crawler->filter('#part_lots tfoot')->text())));
     }
@@ -438,7 +441,7 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertSame($foreign->getAmount(), $this->em->find(PartLot::class, $foreign->getID())->getAmount());
     }
 
-    public function testTheShoppingTabIsGroupedPerConnectedPart(): void
+    public function testTheShoppingTabListsTheOrderDetailsPerConnectedPart(): void
     {
         $crawler = $this->info($this->exampleMetaPart());
 
@@ -447,6 +450,85 @@ final class MetaPartPagesTest extends WebTestCase
         $this->assertStringContainsString('SP-First source', $text);
         $this->assertStringContainsString('SP-Second source', $text);
         $this->assertLessThan(strpos($text, 'Retired source'), strpos($text, 'Second source'), 'Do not use comes last');
+    }
+
+    public function testTheShoppingTabListsOneRowPerPartWithItsOrderDetailsInADetailRow(): void
+    {
+        $meta = $this->part('Shopping meta', PartKind::META);
+        $tiered = $this->part('Tiered source');
+        //Ordered by tens: the unit price of the smallest order counts, not that of the largest
+        $orderdetail = new Orderdetail();
+        $orderdetail->setSupplier($this->em->find(Supplier::class, 1));
+        $orderdetail->setSupplierpartnr('SP-Tiered');
+        $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity(10.0)->setPrice(BigDecimal::of('0.8')));
+        $orderdetail->addPricedetail((new Pricedetail())->setMinDiscountQuantity(100.0)->setPrice(BigDecimal::of('0.1')));
+        $tiered->addOrderdetail($orderdetail);
+        $this->price($tiered, '1.5');
+        $cheap = $this->part('Cheap source');
+        $this->price($cheap, '0.25');
+        $plain = $this->part('No supplier source');
+        $retired = $this->part('Retired source');
+        $this->price($retired, '0.05');
+        $this->connect($meta, $retired, 1, PartConnectionStatus::DO_NOT_USE);
+        $this->connect($meta, $tiered, 2);
+        $this->connect($meta, $cheap, 3);
+        $this->connect($meta, $plain, 4);
+        $this->em->flush();
+
+        $table = $this->info($meta)->filter('#suppliers table')->first();
+        $this->assertSame('elements--sortable-table elements--expandable-rows', $table->attr('data-controller'));
+        $heads = $table->filter('thead')->first()->filter('th')->each(static fn (Crawler $th) => trim($th->text()));
+        $this->assertSame(['', 'Manufacturer', 'MPN', 'Part', 'Status', 'Suppliers', 'Lowest unit price'], $heads);
+        $this->assertSame('false', $table->filter('thead button[data-elements--expandable-rows-target="all"]')->attr('aria-expanded'));
+        $this->assertCount(0, $table->filter('tfoot'), 'No total row');
+
+        //A row per connected part, usable first, no own row; the unusable faded and not counted
+        $main = $table->filter('tbody')->first()->children('tr:not([data-sortable-detail])');
+        $expected = [
+            //name => status rank, suppliers, lowest unit price
+            'Tiered source' => ['0', '2', 0.8],
+            'Cheap source' => ['0', '1', 0.25],
+            'No supplier source' => ['0', '0', null],
+            'Retired source' => ['3', '1', 0.05],
+        ];
+        $this->assertCount(4, $main);
+        foreach (array_keys($expected) as $i => $name) {
+            $row = $main->eq($i);
+            $this->assertStringContainsString($name, $row->text());
+            $this->assertNull($row->attr('data-sortable-pinned'));
+            $cells = $row->children('td');
+            [$rank, $suppliers, $price] = $expected[$name];
+            $this->assertSame($rank, $cells->eq(4)->attr('data-sort-value'), $name);
+            $this->assertSame($suppliers, $cells->eq(5)->attr('data-sort-value'), $name);
+            $priceValue = $cells->eq(6)->attr('data-sort-value');
+            if ($price === null) {
+                $this->assertSame('', $priceValue, $name);
+            } else {
+                $this->assertEqualsWithDelta($price, (float) $priceValue, 1e-9, $name);
+                $this->assertMatchesRegularExpression('/\d/', $cells->eq(6)->text(), $name.' shows the price');
+            }
+            $this->assertSame($name === 'Retired source', str_contains($row->text(), 'Not counted'), $name);
+        }
+        $this->assertStringContainsString('table-danger', (string) $main->eq(3)->attr('class'));
+
+        //Each part's order details in the detail row right below it, collapsed; a part without has no button and no row
+        foreach ([0, 1, 3] as $i) {
+            $toggle = $main->eq($i)->filter('button[aria-controls]');
+            $this->assertCount(1, $toggle);
+            $this->assertSame('false', $toggle->attr('aria-expanded'));
+            $this->assertNull($toggle->attr('title'));
+            $this->assertNotNull($toggle->attr('aria-label'));
+            $detail = $main->eq($i)->nextAll()->first();
+            $this->assertNotNull($detail->attr('data-sortable-detail'));
+            $this->assertNotNull($detail->attr('hidden'));
+            $this->assertSame($toggle->attr('aria-controls'), $detail->attr('id'));
+        }
+        $tieredDetail = $main->eq(0)->nextAll()->first();
+        $this->assertStringContainsString('SP-Tiered', $tieredDetail->text());
+        $this->assertStringContainsString('SP-Tiered source', $tieredDetail->text());
+        $this->assertStringContainsString('text-muted', (string) $main->eq(3)->nextAll()->first()->attr('class'));
+        $this->assertCount(0, $main->eq(2)->filter('button[aria-controls]'));
+        $this->assertNull($main->eq(2)->nextAll()->first()->attr('data-sortable-detail'));
     }
 
     public function testTheShoppingTabCountsTheOrderDetailsOfTheConnectedParts(): void
@@ -1687,7 +1769,7 @@ final class MetaPartPagesTest extends WebTestCase
         $crawler = $this->info($meta);
         $headings = [
             'stocks' => $crawler->filter('#part_lots tr[data-stock-row="connected"]')->first(),
-            'shopping' => $crawler->filter('#suppliers h6')->first(),
+            'shopping' => $crawler->filter('#suppliers tr[data-supplier-row="connected"]')->first(),
         ];
         foreach ($headings as $tab => $heading) {
             $partLink = $heading->filter('a[href="/en/part/'.$connected->getID().'/info"]');

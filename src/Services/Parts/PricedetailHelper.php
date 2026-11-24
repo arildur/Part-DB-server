@@ -218,6 +218,35 @@ class PricedetailHelper
     }
 
     /**
+     * The lowest price of one unit of the part across its order details (obsolete ones left out). Each order detail
+     * gives its unit price when one unit is ordered, or its smallest order amount if that is more.
+     *
+     * @param  Currency|null  $currency  The currency of the result, null for the base currency
+     *
+     * @return BigDecimal|null The lowest unit price, or null if no order detail has a price that can be converted
+     */
+    public function getLowestUnitPrice(Part $part, ?Currency $currency = null): ?BigDecimal
+    {
+        $lowest = null;
+        foreach ($part->getOrderdetails(true) as $orderdetail) {
+            $quantities = $orderdetail->getPricedetails()->map(static fn (Pricedetail $detail): float => $detail->getMinDiscountQuantity())->toArray();
+            if ($quantities === []) {
+                continue;
+            }
+            $pricedetail = $orderdetail->findPriceForQty(max(1.0, min($quantities)));
+            if (!$pricedetail instanceof Pricedetail) {
+                continue;
+            }
+            $price = $this->convertMoneyToCurrency($pricedetail->getPricePerUnit(), $pricedetail->getCurrency(), $currency);
+            if ($price instanceof BigDecimal && (!$lowest instanceof BigDecimal || $price->isLessThan($lowest))) {
+                $lowest = $price;
+            }
+        }
+
+        return $lowest;
+    }
+
+    /**
      * Calculates the average price of a part, when ordering the amount $amount.
      *
      * @param  Part  $part  the part for which the average price should be calculated

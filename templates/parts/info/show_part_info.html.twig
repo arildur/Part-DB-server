@@ -143,20 +143,73 @@
             <div {{ _self.pane_attributes('suppliers', tabs, combined) }}>
                 {{ _self.pane_heading('suppliers', tabs, combined) }}
                 {% if part.kind.allowsConnections %}
-                    {% set heading_shown = false %}
-                    {% for connection in connections %}
-                        {% if connection.connectedPart.orderdetails is not empty %}
-                            {% if not connection.usable and not heading_shown %}
-                                <h5 class="mt-4">{% trans %}part_connection.not_usable{% endtrans %}</h5>
-                                {% set heading_shown = true %}
-                            {% endif %}
-                            <h6 class="mt-3{% if not connection.usable %} text-muted{% endif %}">
-                                {{ helper.part_manufacturer_and_mpn(connection.connectedPart) }}{{ helper.part_icon_link(connection.connectedPart) }}
-                                {{ helper.connection_status_badge(connection) }}
-                            </h6>
-                            {% include "parts/info/_order_infos.html.twig" with {part: connection.connectedPart} %}
-                        {% endif %}
-                    {% endfor %}
+                    {# One row per connected part, in the order of the connections, with its order details in a detail
+                       row below it, as on the Stocks tab. A meta part can have no order details of its own. #}
+                    {% set currency = app.user.currency ?? null %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" data-controller="elements--sortable-table elements--expandable-rows">
+                            <thead>
+                            <tr>
+                                <th data-sortable="false">
+                                    <button type="button" class="btn btn-link btn-sm p-0 text-reset" data-elements--expandable-rows-target="all"
+                                            data-action="elements--expandable-rows#toggleAll" aria-expanded="false"
+                                            data-label-expand="{% trans %}part.order.expand_all{% endtrans %}" data-label-collapse="{% trans %}part.order.collapse_all{% endtrans %}"
+                                            aria-label="{% trans %}part.order.expand_all{% endtrans %}">
+                                        <i class="fas fa-angles-right fa-fw" aria-hidden="true"></i>
+                                    </button>
+                                </th>
+                                <th>{% trans %}manufacturer.label{% endtrans %}</th>
+                                <th>{% trans %}part.table.mpn{% endtrans %}</th>
+                                <th>{% trans %}part_connection.table.part{% endtrans %}</th>
+                                <th>{% trans %}part_connection.edit.status{% endtrans %}</th>
+                                <th>{% trans %}part_connection.table.suppliers{% endtrans %}</th>
+                                <th>{% trans %}part.order.lowest_unit_price{% endtrans %}</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for connection in connections %}
+                                {% set connected = connection.connectedPart %}
+                                {% set orderdetails = connected.orderdetails %}
+                                {% set detail_id = 'part-orderdetails-detail-' ~ connected.id %}
+                                {% set lowest_price = pricedetail_helper.lowestUnitPrice(connected, currency) %}
+                                <tr class="{{ helper.connection_status_row_class(connection) }}" data-supplier-row="connected">
+                                    <td>
+                                        {% if orderdetails is not empty %}
+                                            <button type="button" class="btn btn-link btn-sm p-0 text-reset" data-elements--expandable-rows-target="toggle"
+                                                    data-action="elements--expandable-rows#toggle" aria-controls="{{ detail_id }}" aria-expanded="false"
+                                                    aria-label="{% trans %}part.order.show_orderdetails{% endtrans %}">
+                                                <i class="fas fa-chevron-right fa-fw" aria-hidden="true"></i>
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {%- if connected.manufacturer -%}
+                                            <a href="{{ entity_url(connected.manufacturer, 'list_parts') }}">{{ connected.manufacturer.name }}</a>
+                                        {%- endif -%}
+                                    </td>
+                                    <td>{{ connected.manufacturerProductNumber }}</td>
+                                    <td>{{ helper.part_icon_link(connected) }}</td>
+                                    <td data-sort-value="{{ connection.status.restrictionRank }}">{{ helper.connection_status_badge(connection) }}</td>
+                                    <td data-sort-value="{{ orderdetails | length }}">{{ orderdetails | length }}</td>
+                                    <td data-sort-value="{{ lowest_price is not null ? lowest_price : '' }}">
+                                        {% if lowest_price is not null %}{{ lowest_price | format_money(currency) }}{% endif %}
+                                        {% if not connection.usable %}
+                                            <span class="badge text-bg-secondary">{% trans %}part_lots.not_counted{% endtrans %}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% if orderdetails is not empty %}
+                                    <tr id="{{ detail_id }}" data-sortable-detail hidden {% if not connection.usable %}class="text-muted"{% endif %}>
+                                        <td></td>
+                                        <td colspan="6" class="p-0">
+                                            {% include "parts/info/_order_infos.html.twig" with {part: connected} %}
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 {% else %}
                     {%  include "parts/info/_order_infos.html.twig" %}
                 {% endif %}

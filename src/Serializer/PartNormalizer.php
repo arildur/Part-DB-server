@@ -148,8 +148,12 @@ class PartNormalizer implements NormalizerInterface, DenormalizerInterface, Norm
             $data['ipn'] = null;
         }
 
-        //A blank cell of a price field means none, as a CSV file has no null
-        foreach (['price_method', 'user_price', 'user_price_currency'] as $field) {
+        //A blank cell of a price field means none, as a CSV file has no null; a part without price method (a
+        //manufacturing part) gets the default, as when the column is missing
+        if (isset($data['price_method']) && $data['price_method'] === '') {
+            unset($data['price_method']);
+        }
+        foreach (['user_price', 'user_price_currency'] as $field) {
             if (isset($data[$field]) && $data[$field] === '') {
                 $data[$field] = null;
             }

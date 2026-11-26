@@ -82,6 +82,16 @@ class StructuralElementDenormalizer implements DenormalizerInterface, Denormaliz
      */
     public function denormalize($data, string $type, ?string $format = null, array $context = []): ?AbstractStructuralDBElement
     {
+        //An element below another (the manufacturer of a part) whose cells are all blank, as a CSV export of a part
+        //without manufacturer writes it, is no element, not a new one without a name. A row of its own is still read,
+        //so that the validation names it.
+        $path = (string) ($context['deserialization_path'] ?? '');
+        $nested = $path !== '' && preg_match('/^\[[^\]]*\]$/', $path) !== 1;
+        $blank = static fn ($value): bool => $value === null || $value === [] || (is_scalar($value) && trim((string) $value) === '');
+        if ($nested && array_filter($data, static fn ($value) => !$blank($value)) === []) {
+            return null;
+        }
+
         if (!isset($context[self::ALREADY_CALLED])) {
             $context[self::ALREADY_CALLED] = [];
         }

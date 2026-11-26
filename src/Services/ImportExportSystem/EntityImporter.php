@@ -206,6 +206,10 @@ final readonly class EntityImporter
             $groups[] = 'include_children';
         }
 
+        if ($options['format'] === 'csv') {
+            $data = $this->dropEmptyColumnsWithSubColumns($data, $options['csv_delimiter']);
+        }
+
         //The [] behind class_name denotes that we expect an array.
         $entities = $this->serializer->deserialize(
             $data,
@@ -308,6 +312,50 @@ final readonly class EntityImporter
         foreach ($entity->getChildren() as $child) {
             $this->persistRecursively($child);
         }
+    }
+
+    /**
+     * A CSV export writes an association that is empty in one row as a bare column (manufacturer) and one that is set in
+     * another row as sub-columns (manufacturer.name), and the CSV decoder can not nest both under one key. A bare column
+     * that is empty in every row says nothing, so it is dropped when sub-columns of it exist; the data is returned
+     * unchanged otherwise.
+     */
+    private function dropEmptyColumnsWithSubColumns(string $data, string $delimiter): string
+    {
+        $in = fopen('php://memory', 'r+b');
+        fwrite($in, $data);
+        rewind($in);
+        $rows = [];
+        while (($row = fgetcsv($in, null, $delimiter, '"', '')) !== false) {
+            $rows[] = $row;
+        }
+        fclose($in);
+        if ($rows === []) {
+            return $data;
+        }
+
+        $header = $rows[0];
+        $drop = [];
+        foreach ($header as $index => $name) {
+            $hasSubColumns = $name !== '' && array_filter($header, static fn ($other) => str_starts_with((string) $other, $name.'.')) !== [];
+            $empty = array_filter(array_slice($rows, 1), static fn (array $row) => trim((string) ($row[$index] ?? '')) !== '') === [];
+            if ($hasSubColumns && $empty) {
+                $drop[$index] = true;
+            }
+        }
+        if ($drop === []) {
+            return $data;
+        }
+
+        $out = fopen('php://memory', 'r+b');
+        foreach ($rows as $row) {
+            fputcsv($out, array_values(array_diff_key($row, $drop)), $delimiter, '"', '');
+        }
+        rewind($out);
+        $result = (string) stream_get_contents($out);
+        fclose($out);
+
+        return $result;
     }
 
     /**

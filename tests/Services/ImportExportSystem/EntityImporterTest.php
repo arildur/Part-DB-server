@@ -25,6 +25,8 @@ namespace App\Tests\Services\ImportExportSystem;
 use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use App\Entity\Parts\PartKind;
 use PHPUnit\Framework\Attributes\Group;
+use App\Entity\Parts\Manufacturer;
+use App\Services\ImportExportSystem\EntityExporter;
 use PHPUnit\Framework\Attributes\DataProvider;
 use App\Entity\Attachments\AttachmentContainingDBElement;
 use App\Entity\Attachments\AttachmentType;
@@ -552,5 +554,56 @@ EOT;
         $this->assertEmpty($errors);
         $this->assertSame(PartKind::META, $results[0]->getKind());
         $this->assertCount(0, $results[0]->getPartConnections());
+    }
+
+    public function testAnEmptyBareColumnBesideItsSubColumnsIsLeftOut(): void
+    {
+        //As an export of a part with and a part without manufacturer writes it
+        $input = <<<EOT
+        name;manufacturer;manufacturer.name;manufacturer.full_name
+        With;;Some manufacturer;Some manufacturer
+        Without;;;
+        EOT;
+
+        $errors = [];
+        $results = $this->service->importString($input, ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ';', 'part_category' => (new Category())->setName('Cat')], $errors);
+
+        $this->assertEmpty($errors);
+        $this->assertSame('Some manufacturer', $results[0]->getManufacturer()?->getName());
+        $this->assertNull($results[1]->getManufacturer(), 'Blank cells name no manufacturer, not a new one without a name');
+    }
+
+    public function testABareColumnWithValuesIsKept(): void
+    {
+        $input = "name;manufacturer\nWith;Some manufacturer\n";
+
+        $errors = [];
+        $results = $this->service->importString($input, ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ';', 'create_unknown_datastructures' => true, 'part_category' => (new Category())->setName('Cat')], $errors);
+
+        $this->assertEmpty($errors);
+        $this->assertSame('Some manufacturer', $results[0]->getManufacturer()?->getName());
+    }
+
+    public static function exportLevels(): \Generator
+    {
+        yield ['simple'];
+        yield ['extended'];
+        yield ['full'];
+    }
+
+    #[DataProvider('exportLevels')]
+    public function testAnExportHoldingAMetaPartImportsAgain(string $level): void
+    {
+        $part = (new Part())->setName('Exported part')->setManufacturer((new Manufacturer())->setName('Exported maker'));
+        $meta = (new Part())->setKind(PartKind::META)->setName('Exported meta');
+        $csv = self::getContainer()->get(EntityExporter::class)->exportEntities([$part, $meta], ['format' => 'csv', 'level' => $level]);
+
+        $errors = [];
+        $results = $this->service->importString($csv, ['class' => Part::class, 'format' => 'csv', 'csv_delimiter' => ';', 'part_category' => (new Category())->setName('Cat')], $errors);
+
+        $this->assertSame([], array_keys($errors));
+        $this->assertSame([PartKind::MANUFACTURING, PartKind::META], array_map(static fn (Part $p): PartKind => $p->getKind(), $results));
+        $this->assertSame('Exported maker', $results[0]->getManufacturer()?->getName());
+        $this->assertNull($results[1]->getManufacturer());
     }
 }

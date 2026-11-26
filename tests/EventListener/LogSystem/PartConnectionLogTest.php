@@ -34,6 +34,7 @@ use App\Services\ElementTypeNameGenerator;
 use App\Services\ElementTypes;
 use App\Services\EntityURLGenerator;
 use App\Services\LogSystem\HistoryHelper;
+use App\Services\EntityMergers\Mergers\PartMerger;
 use App\Services\LogSystem\TimeTravel;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -202,5 +203,33 @@ final class PartConnectionLogTest extends KernelTestCase
         self::getContainer()->get(TimeTravel::class)->revertEntityToTimestamp($meta, $before);
 
         $this->assertNotContains($connection, $meta->getPartConnections()->toArray());
+    }
+
+    public function testRevertingLeavesOutAConnectionToAPartDeletedByAMerge(): void
+    {
+        [$meta, $target] = $this->connectedPair();
+        $other = $this->part(PartKind::MANUFACTURING, 'The merged part');
+        $meta->addPartConnection((new PartConnection())->setConnectedPart($other));
+        $this->em->flush();
+        sleep(1);
+        $before = new \DateTimeImmutable();
+        sleep(1);
+
+        //As the merge page does, on parts loaded by the request: the other part goes into the target, then it is deleted
+        $ids = [$meta->getID(), $target->getID(), $other->getID()];
+        $this->em->clear();
+        $target = $this->em->find(Part::class, $ids[1]);
+        $other = $this->em->find(Part::class, $ids[2]);
+        self::getContainer()->get(PartMerger::class)->merge($target, $other);
+        $this->em->remove($other);
+        $this->em->flush();
+        $this->em->clear();
+
+        //A new request: the meta part is loaded again and travels back to before the merge
+        $meta = $this->em->find(Part::class, $ids[0]);
+        self::getContainer()->get(TimeTravel::class)->revertEntityToTimestamp($meta, $before);
+
+        $connected = array_map(static fn (PartConnection $c): ?int => $c->getConnectedPart()?->getID(), $meta->getPartConnections()->toArray());
+        $this->assertSame([$ids[1]], array_values($connected), 'Only the connection to the part that still exists');
     }
 }

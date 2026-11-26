@@ -281,8 +281,15 @@ class TimeTravel
     {
         $meta = $connection->getMetaPart()?->getID();
         $connected = $connection->getConnectedPart()?->getID();
-        if ($meta === null || $connected === null
-            || null === $this->em->find(Part::class, $meta) || null === $this->em->find(Part::class, $connected)) {
+        if ($meta === null || $connected === null || $meta === $connected) {
+            return false;
+        }
+        //Asked of the database: restoring the connection put a reference to each part into the entity manager, which
+        //find() would return even for a part deleted since
+        $existing = (int) $this->em->createQuery('SELECT COUNT(p.id) FROM '.Part::class.' p WHERE p.id IN (:ids)')
+            ->setParameter('ids', [$meta, $connected])
+            ->getSingleScalarResult();
+        if ($existing !== 2) {
             return false;
         }
 
